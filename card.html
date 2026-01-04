@@ -568,13 +568,13 @@
             
             if (isJP) {
                 // Ưu tiên tìm đúng giọng Nhật bản địa để tránh bị ông Mỹ đọc bồi
-                selectedVoice = voices.find(v => v.name.includes('Kyoko') || v.name.includes('Otoya')) || voices[0];
+                selectedVoice = voices.find(v => v.name.includes('Kyoko (Enhanced)') || voices[0];
             } else if (isVN) {
                 // Tìm giọng Linh hoặc giọng Việt Nam bất kỳ
-                selectedVoice = voices.find(v => v.name.includes('Linh')) || voices[0];
+                selectedVoice = voices.find(v => v.name.includes('Linh (Enhanced)')) || voices[0];
             } else {
                 // Tiếng Anh ưu tiên Siri hoặc Enhanced
-                selectedVoice = voices.find(v => v.name.includes('Allison') || v.name.includes('Enhanced')) || voices[0];
+                selectedVoice = voices.find(v => v.name.includes('Allison (Enhanced)') || voices[0];
             }
             utter.voice = selectedVoice;
         }
