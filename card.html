@@ -548,33 +548,45 @@
     }
 
     /* FIX LỖI ÂM THANH IPHONE TRIỆT ĐỂ */
-    function speakText(callback) {
+	function speakText(callback) {
         const text = document.getElementById('display-text').innerText;
         if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
         
         synth.cancel(); 
-        
         const utter = new SpeechSynthesisUtterance(text);
         
         // 1. Nhận diện ngôn ngữ
         const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
         const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
-        
         let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
         utter.lang = langCode;
 
-        // 2. Tìm voice phù hợp (Quan trọng cho iPhone)
+        // 2. Chọn giọng chuẩn (Fix lỗi ông Mỹ nói tiếng Nhật)
         if (availableVoices.length > 0) {
-            const targetVoice = availableVoices.find(v => v.lang.startsWith(langCode));
-            if (targetVoice) utter.voice = targetVoice;
+            let voices = availableVoices.filter(v => v.lang.startsWith(langCode));
+            let selectedVoice = null;
+            
+            if (isJP) {
+                // Ưu tiên tìm đúng giọng Nhật bản địa để tránh bị ông Mỹ đọc bồi
+                selectedVoice = voices.find(v => v.name.includes('Kyoko') || v.name.includes('Otoya')) || voices[0];
+            } else if (isVN) {
+                // Tìm giọng Linh hoặc giọng Việt Nam bất kỳ
+                selectedVoice = voices.find(v => v.name.includes('Linh')) || voices[0];
+            } else {
+                // Tiếng Anh ưu tiên Siri hoặc Enhanced
+                selectedVoice = voices.find(v => v.name.includes('Allison') || v.name.includes('Enhanced')) || voices[0];
+            }
+            utter.voice = selectedVoice;
         }
 
+        // 3. Các thông số kỹ thuật (Tốc độ giữ theo thanh trượt UI)
         utter.rate = document.getElementById('voiceRate').value || 1;
-        
+        utter.pitch = 1.0; // Giữ nguyên cao độ mặc định, không can thiệp
+
         utter.onend = () => { if (callback) callback(); };
         utter.onerror = () => { if (callback) callback(); };
         
-        // Thêm một chút delay nhỏ để tránh nghẽn synth trên iOS
+        // Delay nhỏ để iOS xử lý luồng âm thanh ổn định hơn
         setTimeout(() => { synth.speak(utter); }, 50);
     }
 
