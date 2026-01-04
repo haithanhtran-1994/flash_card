@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vocab Master Pro - Study & Review</title>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -14,17 +14,14 @@
         .field-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; min-height: 60px; background: #f8fafc; border-radius: 10px; padding: 0 10px; }
         .field-label { flex: 1; text-align: center; font-size: 0.75rem; color: #94a3b8; padding: 5px; overflow: hidden; }
         .field-active { color: var(--primary); font-size: 1.1rem; font-weight: 800; border-bottom: 3px solid var(--primary); }
-        
-        /* TĂNG HEIGHT CARD THEO YÊU CẦU */
         .card { height: 450px; border: 2px solid #e2e8f0; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; background: #fff; }
         .card-content { font-size: 2.2rem; text-align: center; padding: 20px; font-weight: bold; color: #1e293b; word-break: break-word; overflow-y: auto; width: 90%; max-height: 80%; }
-        
-        .speaker-icon { font-size: 1.8rem; cursor: pointer; color: var(--primary); margin-top: 10px; background: #eff6ff; border: 2px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
+        .speaker-icon { font-size: 1.8rem; cursor: pointer; color: var(--primary); margin-top: 10px; background: #eff6ff; border: 2px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
         .nav-arrow { position: absolute; top: 0; bottom: 0; width: 50px; border: none; background: rgba(0,0,0,0.03); cursor: pointer; font-size: 1.5rem; transition: 0.2s; }
         .arrow-left { left: 0; border-radius: 20px 0 0 20px; }
         .arrow-right { right: 0; border-radius: 0 20px 20px 0; }
         .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-        button { padding: 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: transform 0.1s; }
+        button { padding: 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
         button:active { transform: scale(0.98); }
         .btn-learned { background: var(--warning); color: white; }
         .btn-mastered { background: var(--success); color: white; }
@@ -35,7 +32,6 @@
         .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
         .btn-menu { background: #334155; color: white; padding: 12px; }
         .voice-settings { margin-top: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px; color: #64748b; }
-        
         .quiz-item { margin-bottom: 25px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; scroll-margin-top: 80px; }
         .option-btn { width: 100%; text-align: left; padding: 12px; margin-top: 8px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; }
         .option-btn.selected { border: 2px solid var(--primary); background: #f0f7ff; }
@@ -44,14 +40,10 @@
         #quiz-timer-box { position: sticky; top: 10px; z-index: 100; background: var(--danger); color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 1.2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         #quiz-result-summary { background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
         .dot-nav { display: inline-block; width: 30px; height: 30px; line-height: 30px; text-align: center; border-radius: 50%; margin: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 0.8rem; }
-        
         .btn-finish { background: #1e293b; color: white; width: 100%; padding: 15px; margin-top: 20px; font-size: 1.1rem; }
         .speed-val { font-weight: bold; color: var(--primary); min-width: 35px; display: inline-block; }
-        
-        /* PHẦN ĐIỀU CHỈNH SAU KHI XÓA HOTKEYS */
         .action-panel { margin-top: 20px; padding: 15px; border-top: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .btn-sync { background: #16a34a; color: white; font-size: 0.8rem; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold;}
-
         .sync-section { margin-top: 20px; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; }
         .scenario-box { border: 1px solid #e2e8f0; padding: 15px; border-radius: 10px; margin-top: 15px; background: #f8fafc; position: relative; }
         .scenario-title { font-weight: bold; color: #334155; margin-bottom: 10px; display: block; }
@@ -64,7 +56,6 @@
 		.status-star { color: var(--warning); }
 		.status-check { color: var(--success); }
 		.review-mastered { background: var(--warning); color: white; }
-
         .db-view-container { max-width: 95% !important; width: 1200px !important; }
         .excel-table-wrapper { overflow: auto; max-height: 500px; border: 1px solid #ddd; margin-bottom: 15px; }
         .excel-table { width: 100%; border-collapse: collapse; background: white; font-size: 0.9rem; }
@@ -76,9 +67,18 @@
         .btn-cancel { background: #94a3b8; color: white; }
         .btn-add-row { background: var(--primary); color: white; margin-bottom: 10px; }
 		.btn-delete-row { background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;}
+        
+        /* OVERLAY MỚI ĐỂ KÍCH HOẠT ÂM THANH TRÊN IOS */
+        #audio-unlock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
     </style>
 </head>
 <body>
+
+    <div id="audio-unlock" class="hidden">
+        <h2>🔊 Sẵn sàng học tập</h2>
+        <p>Nhấn nút bên dưới để kích hoạt âm thanh trên thiết bị này.</p>
+        <button onclick="unlockAudio()" style="background: var(--success); color: white; padding: 20px 40px; font-size: 1.2rem;">BẮT ĐẦU NGAY</button>
+    </div>
 
     <div id="setup-screen" class="container">
         <h2 style="text-align: center;">📂 Cài đặt Database</h2>
@@ -214,22 +214,40 @@
     let quizData = [];
     let userAnswers = {};
     let isDataChanged = false;
+    let availableVoices = [];
 
-    // Giữ phím tắt nhưng không hiện bảng
     let hotkeys = JSON.parse(localStorage.getItem('vocab_hotkeys')) || {
         'next': 'arrowright', 'prev': 'arrowleft', 'learned': '1', 'mastered': '2',
         'forgot': '3', 'speak': 'r', 'fieldNext': 'arrowdown', 'fieldPrev': 'arrowup'
     };
 
+    // Load voices cho iPhone
+    function loadVoices() {
+        availableVoices = synth.getVoices();
+    }
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
     window.onload = function() {
+        loadVoices();
         const savedData = localStorage.getItem('vocab_data');
         const savedHeaders = localStorage.getItem('vocab_headers');
         if (savedData && savedHeaders) {
             rawData = JSON.parse(savedData);
             headers = JSON.parse(savedHeaders);
-            initApp();
+            // Hiện overlay mở khóa âm thanh nếu đã có data
+            document.getElementById('audio-unlock').classList.remove('hidden');
         }
     };
+
+    function unlockAudio() {
+        // Phát một âm thanh rỗng để "mồi" iPhone
+        const utter = new SpeechSynthesisUtterance("");
+        synth.speak(utter);
+        document.getElementById('audio-unlock').classList.add('hidden');
+        initApp();
+    }
 
     // --- DATABASE VIEW LOGIC ---
     function showDatabaseView() {
@@ -417,7 +435,8 @@
             headers = Object.keys(rawData[0]);
             localStorage.setItem('vocab_data', JSON.stringify(rawData));
             localStorage.setItem('vocab_headers', JSON.stringify(headers));
-            initApp();
+            // Sau khi chọn file, hiện overlay để kích hoạt audio
+            document.getElementById('audio-unlock').classList.remove('hidden');
         };
         reader.readAsArrayBuffer(e.target.files[0]);
     });
@@ -497,7 +516,11 @@
         document.getElementById('display-text').innerText = word[headers[currentFieldIndex]];
         const statusDiv = document.getElementById('status-display');
 		statusDiv.innerHTML = stats[sttExcel] === 'learned' ? '<span title="Đã học" class="status-star">⭐</span>' : stats[sttExcel] === 'mastered' ? '<span title="Đã nhớ" class="status-check">✅</span>' : "";
-        if (!isAutoPlaying && document.getElementById('autoSpeak').checked) { setTimeout(speakText, 300); }
+        
+        // Fix iPhone: Chỉ autoSpeak khi không ở trạng thái autoplay
+        if (!isAutoPlaying && document.getElementById('autoSpeak').checked) { 
+            setTimeout(() => { speakText(); }, 100); 
+        }
     }
 
     function moveWord(step) { currentWordIndex = (currentWordIndex + step + rawData.length) % rawData.length; currentFieldIndex = 1; updateDisplay(); }
@@ -524,29 +547,35 @@
         return false;
     }
 
-    /* SỬA AUDIO CHO IPHONE */
+    /* FIX LỖI ÂM THANH IPHONE TRIỆT ĐỂ */
     function speakText(callback) {
         const text = document.getElementById('display-text').innerText;
-        if (text === "N.A" || !text) { if (callback) callback(); return; }
+        if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
         
         synth.cancel(); 
         
-        // Cơ chế giữ cho synth không bị treo trên iOS
-        if (synth.paused) synth.resume();
-
         const utter = new SpeechSynthesisUtterance(text);
         
-        // Nhận diện ngôn ngữ chuẩn hơn
+        // 1. Nhận diện ngôn ngữ
         const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
-        const isVN = /[à-ỹ]/i.test(text);
+        const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
         
-        utter.lang = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
-        utter.rate = document.getElementById('voiceRate').value;
+        let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
+        utter.lang = langCode;
+
+        // 2. Tìm voice phù hợp (Quan trọng cho iPhone)
+        if (availableVoices.length > 0) {
+            const targetVoice = availableVoices.find(v => v.lang.startsWith(langCode));
+            if (targetVoice) utter.voice = targetVoice;
+        }
+
+        utter.rate = document.getElementById('voiceRate').value || 1;
         
         utter.onend = () => { if (callback) callback(); };
         utter.onerror = () => { if (callback) callback(); };
         
-        synth.speak(utter);
+        // Thêm một chút delay nhỏ để tránh nghẽn synth trên iOS
+        setTimeout(() => { synth.speak(utter); }, 50);
     }
 
     function toggleAutoPlay() { if (isAutoPlaying) stopAutoPlay(); else startAutoPlay(); }
@@ -555,16 +584,37 @@
 
     function playSequence() {
         if (!isAutoPlaying) return;
-        const utterHeader = new SpeechSynthesisUtterance(headers[currentFieldIndex]);
-        utterHeader.lang = 'vi-VN'; utterHeader.rate = document.getElementById('voiceRate').value;
+        
+        // Đọc tên cột (Việt)
+        const headerText = headers[currentFieldIndex];
+        const utterHeader = new SpeechSynthesisUtterance(headerText);
+        utterHeader.lang = 'vi-VN';
+        
+        if (availableVoices.length > 0) {
+            const viVoice = availableVoices.find(v => v.lang.startsWith('vi-VN'));
+            if (viVoice) utterHeader.voice = viVoice;
+        }
+
+        utterHeader.rate = document.getElementById('voiceRate').value;
         utterHeader.onend = () => {
             if (!isAutoPlaying) return;
+            // Đọc nội dung ô
             speakText(() => {
                 if (!isAutoPlaying) return;
                 setTimeout(() => {
                     if (!isAutoPlaying) return;
-                    if (currentFieldIndex < headers.length - 1) { currentFieldIndex++; updateDisplay(); playSequence(); } 
-                    else { if (reviewIndex < reviewPool.length - 1) { reviewIndex++; currentFieldIndex = 1; updateDisplay(); playSequence(); } else { stopAutoPlay(); } }
+                    if (currentFieldIndex < headers.length - 1) { 
+                        currentFieldIndex++; 
+                        updateDisplay(); 
+                        playSequence(); 
+                    } else { 
+                        if (reviewIndex < reviewPool.length - 1) { 
+                            reviewIndex++; 
+                            currentFieldIndex = 1; 
+                            updateDisplay(); 
+                            playSequence(); 
+                        } else { stopAutoPlay(); } 
+                    }
                 }, 800);
             });
         };
@@ -586,21 +636,17 @@
     function addScenario() { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); renderScenarios(); }
     function removeScenario(idx) { scenarios.splice(idx, 1); if (scenarios.length === 0) addScenario(); else { saveScenarios(); renderScenarios(); } }
     function saveScenarios() { localStorage.setItem('quiz_scenarios', JSON.stringify(scenarios)); }
+
 	function renderScenarios() {
 		const list = document.getElementById('scenarios-list');
 		list.innerHTML = "";
-		
-		// Đếm số lượng từ đã học hoặc đã nhớ trong kho dữ liệu
 		const poolCount = rawData.filter(w => stats[w[headers[0]]] === 'learned' || stats[w[headers[0]]] === 'mastered').length;
 	
 		scenarios.forEach((sc, idx) => {
 			const box = document.createElement('div');
 			box.className = 'scenario-box';
-			
 			let rootOpts = headers.slice(1).map(h => `<option value="${h}" ${h === sc.root ? 'selected' : ''}>${h}</option>`).join('');
 			let exOpts = headers.slice(1).filter(h => h !== sc.root).map(h => `<label class="exclude-item"><input type="checkbox" ${sc.exclude.includes(h) ? 'checked' : ''} onchange="toggleExclude(${idx}, '${h}')"> ${h}</label>`).join('');
-	
-			// Tính toán số câu hỏi tối đa cho kịch bản này
 			const targetCount = headers.filter((h, i) => i !== 0 && h !== sc.root && !sc.exclude.includes(h)).length;
 			const maxPossible = poolCount * targetCount;
 	
@@ -621,6 +667,7 @@
 			list.appendChild(box);
 		});
 	}
+
     function updateRoot(idx, val) { scenarios[idx].root = val; saveScenarios(); renderScenarios(); }
     function toggleExclude(idx, val) {
         const i = scenarios[idx].exclude.indexOf(val);
