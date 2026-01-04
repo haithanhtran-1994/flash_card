@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocab Master Pro - Study & Review</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --warning: #ca8a04; --danger: #ef4444; --bg: #f1f5f9; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { width: 95%; max-width: 700px; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin: 20px 0; position: relative; }
+        .hidden { display: none !important; }
+        .status-badge { position: absolute; top: 20px; right: 25px; font-size: 1.5rem; display: flex; gap: 5px; z-index: 10; }
+        .field-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; min-height: 60px; background: #f8fafc; border-radius: 10px; padding: 0 10px; }
+        .field-label { flex: 1; text-align: center; font-size: 0.75rem; color: #94a3b8; padding: 5px; overflow: hidden; }
+        .field-active { color: var(--primary); font-size: 1.1rem; font-weight: 800; border-bottom: 3px solid var(--primary); }
+        .card { height: 320px; border: 2px solid #e2e8f0; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; margin-bottom: 20px; background: #fff; }
+        .card-content { font-size: 1.8rem; text-align: center; padding: 30px; font-weight: bold; color: #1e293b; word-break: break-word; overflow-y: auto; width: 80%; }
+        .speaker-icon { font-size: 1.8rem; cursor: pointer; color: var(--primary); margin-top: 10px; background: #eff6ff; border: 2px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
+        .nav-arrow { position: absolute; top: 0; bottom: 0; width: 50px; border: none; background: rgba(0,0,0,0.03); cursor: pointer; font-size: 1.5rem; transition: 0.2s; }
+        .arrow-left { left: 0; border-radius: 20px 0 0 20px; }
+        .arrow-right { right: 0; border-radius: 0 20px 20px 0; }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        button { padding: 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: transform 0.1s; }
+        button:active { transform: scale(0.98); }
+        .btn-learned { background: var(--warning); color: white; }
+        .btn-mastered { background: var(--success); color: white; }
+        .btn-forgot { background: #64748b; color: white; }
+        .btn-next-prev { background: var(--primary); color: white; grid-column: span 3; display: flex; justify-content: space-between; align-items: center; padding: 0; overflow: hidden; border-radius: 10px;}
+		.btn-next-prev button { background: none !important; color: white !important; border: none; height: 100%; padding: 14px 25px; cursor: pointer; font-weight: bold; font-size: 0.9rem }
+		#word-counter, #review-counter { color: white; font-weight: bold; min-width: 60px; text-align: center; }
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .btn-menu { background: #334155; color: white; padding: 12px; }
+        .voice-settings { margin-top: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px; color: #64748b; }
+        
+        /* Quiz New Styles */
+        .quiz-item { margin-bottom: 25px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; scroll-margin-top: 80px; }
+        .option-btn { width: 100%; text-align: left; padding: 12px; margin-top: 8px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; }
+        .option-btn.selected { border: 2px solid var(--primary); background: #f0f7ff; }
+        .option-btn.correct-ans { background: #dcfce7 !important; border-color: #22c55e !important; color: #166534; }
+        .option-btn.wrong-ans { background: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b; }
+        #quiz-timer-box { position: sticky; top: 10px; z-index: 100; background: var(--danger); color: white; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 1.2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #quiz-result-summary { background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .dot-nav { display: inline-block; width: 30px; height: 30px; line-height: 30px; text-align: center; border-radius: 50%; margin: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 0.8rem; }
+        
+        .btn-finish { background: #1e293b; color: white; width: 100%; padding: 15px; margin-top: 20px; font-size: 1.1rem; }
+        .speed-val { font-weight: bold; color: var(--primary); min-width: 35px; display: inline-block; }
+        .mapping-container { margin-top: 20px; border-top: 2px solid #e2e8f0; padding-top: 15px; background: #fff; border-radius: 12px; padding: 15px; }
+        .mapping-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .mapping-table th { text-align: left; color: #64748b; padding-bottom: 8px; }
+        .mapping-table td { padding: 5px 0; vertical-align: middle; }
+        .key-input { width: 60px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-weight: bold; background: #f8fafc; text-transform: lowercase; }
+        .sync-section { margin-top: 20px; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; }
+        .btn-sync { background: #16a34a; color: white; font-size: 0.8rem; padding: 8px; margin: 5px 0; width: 100%; }
+        .scenario-box { border: 1px solid #e2e8f0; padding: 15px; border-radius: 10px; margin-top: 15px; background: #f8fafc; position: relative; }
+        .scenario-title { font-weight: bold; color: #334155; margin-bottom: 10px; display: block; }
+        .scenario-info { font-size: 0.75rem; color: #0891b2; margin-bottom: 10px; font-style: italic; }
+        .remove-scenario { position: absolute; top: 10px; right: 10px; color: var(--danger); cursor: pointer; font-size: 0.8rem; }
+        .select-group { margin-bottom: 10px; }
+        .select-group label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
+        .exclude-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .exclude-item { font-size: 0.75rem; background: #fff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
+        .btn-autoplay { background: #8b5cf6; color: white; grid-column: span 3; margin-top: 5px; }
+		.status-star { color: var(--warning); }
+		.status-check { color: var(--success); }
+		.review-mastered { background: var(--warning); color: white; }
+
+        /* Styles for new Database View */
+        .db-view-container { max-width: 95% !important; width: 1200px !important; }
+        .excel-table-wrapper { overflow: auto; max-height: 500px; border: 1px solid #ddd; margin-bottom: 15px; }
+        .excel-table { width: 100%; border-collapse: collapse; background: white; font-size: 0.9rem; }
+        .excel-table th { position: sticky; top: 0; background: #f1f5f9; z-index: 5; border: 1px solid #cbd5e1; padding: 8px; }
+        .excel-table td { border: 1px solid #cbd5e1; padding: 5px; min-width: 100px; outline: none; }
+        .excel-table td:focus { background: #fffbeb; box-shadow: inset 0 0 0 2px var(--primary); }
+        .btn-db-action { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; }
+        .btn-confirm { background: var(--success); color: white; }
+        .btn-cancel { background: #94a3b8; color: white; }
+        .btn-add-row { background: var(--primary); color: white; margin-bottom: 10px; }
+		.btn-delete-row { background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;}
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="container">
+        <h2 style="text-align: center;">📂 Cài đặt Database</h2>
+        <div style="border: 2px dashed #cbd5e1; padding: 30px; text-align: center; border-radius: 12px;">
+            <p style="margin-top:0; color:#64748b;">Nạp file Excel (.xlsx)</p>
+            <p style="font-size: 0.7rem; color: #94a3b8;">(Cột 1: STT, Cột 2: Từ vựng chính)</p>
+            <input type="file" id="fileInput" accept=".xlsx" />
+        </div>
+        <div class="sync-section">
+            <h4 style="margin:0 0 10px 0; color:#16a34a;">🔄 Đồng bộ giữa các máy</h4>
+            <button class="btn-sync" onclick="exportFullBackup()">💾 Xuất toàn bộ dữ liệu (Backup)</button>
+            <button class="btn-sync" style="background:#0891b2" onclick="document.getElementById('backupInput').click()">📥 Nhập từ file Backup (.json)</button>
+            <input type="file" id="backupInput" accept=".json" class="hidden" onchange="importFullBackup(event)" />
+        </div>
+    </div>
+
+    <div id="study-screen" class="container hidden">
+        <div id="status-display" class="status-badge"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 id="mode-title" style="margin: 0; color: var(--primary); font-size: 0.9rem; text-transform: uppercase;">Chế độ học tập</h3>
+            <button class="btn-db-action" style="background: #334155; color: white; padding: 5px 10px;" onclick="showDatabaseView()">👁️ Xem Database</button>
+        </div>
+        
+        <div class="field-nav">
+            <div id="prev-field" class="field-label">---</div>
+            <div id="curr-field" class="field-label field-active">---</div>
+            <div id="next-field" class="field-label">---</div>
+        </div>
+        <div class="card">
+            <button class="nav-arrow arrow-left" onclick="changeField(-1)">❮</button>
+            <div id="display-text" class="card-content">---</div>
+            <button class="speaker-icon" onclick="speakText()">🔊</button>
+            <button class="nav-arrow arrow-right" onclick="changeField(1)">❯</button>
+        </div>
+        <div class="voice-settings">
+            <span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
+                <span id="speed-display" class="speed-val">1x</span>
+            </span>
+            <label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
+            <label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random từ nhiều nghĩa</label>
+        </div>
+        <div id="study-controls" class="btn-group" style="margin-top: 15px;">
+			<button id="btn-learned" class="btn-learned" onclick="setStatus('learned')">⭐ Đã học</button>
+			<button id="btn-mastered" class="btn-mastered" onclick="setStatus('mastered')">✅ Đã nhớ</button>
+            <button id="btn-forgot" class="btn-forgot" onclick="setStatus(null)">Quên rồi 😢 </button>
+            <div class="btn-next-prev">
+                <button onclick="handlePrev()">❮ TRƯỚC</button>				
+                <span id="word-counter">0 / 0</span>
+                <button onclick="handleNext()">SAU ❯</button>
+            </div>
+        </div>
+        <div id="review-controls" class="btn-group hidden" style="margin-top: 15px;">
+			<button class="btn-mastered review-mastered" onclick="setStatus('mastered')" style="grid-column: span 1.5;">⭐ Đã nhớ</button>
+            <button class="btn-forgot" onclick="setStatus(null)" style="grid-column: span 1.5;">Quên rồi 😢 </button>
+            <div class="btn-next-prev">
+                <button onclick="handlePrev()">❮ TRƯỚC</button>
+                <span id="review-counter">0 / 0</span>
+                <button onclick="handleNext()">SAU ❯</button>
+            </div>
+            <button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()">▶ Tự động phát</button>
+        </div>
+        <div class="menu-grid">
+            <button id="btn-to-review" class="btn-menu" onclick="switchMode('review')">🔄 Chuyển sang Ôn tập</button>
+            <button id="btn-to-study" class="btn-menu hidden" onclick="switchMode('study')">📚 Quay lại Học tập</button>
+            <button class="btn-menu" onclick="showQuizScreen()">📝 Trắc nghiệm</button>
+        </div>
+        <div id="mapping-panel" class="mapping-container">
+            <h4 style="margin: 0 0 10px 0; display: flex; justify-content: space-between;">⌨️ Phím tắt (Hotkeys)
+                <small style="font-weight: normal; color: #94a3b8;">Nhấn 'V' để ẩn/hiện</small>
+            </h4>
+            <table class="mapping-table">
+                <thead><tr><th>Chức năng</th><th>Phím</th><th>Chức năng</th><th>Phím</th></tr></thead>
+                <tbody id="mapping-body"></tbody>
+            </table>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <button class="btn-sync" onclick="exportFullBackup()" style="background:#6366f1">💾 Xuất file Backup nhanh</button>
+                <button class="btn-sync" onclick="showAddFromFile()" style="background:#8b5cf6">➕ Thêm từ vào DB</button>
+            </div>
+        </div>
+        
+        <div id="add-file-panel" class="hidden" style="margin-top: 20px; padding: 15px; background: #fefce8; border: 1px solid #fef08a; border-radius: 12px;">
+            <h4 style="margin: 0 0 10px 0;">➕ Thêm từ vựng từ File</h4>
+            <input type="file" id="addWordsFileInput" accept=".xlsx" style="font-size: 0.8rem; margin-bottom: 10px; width: 100%;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="confirmAddFromFile()" style="background: var(--success); color: white; padding: 8px; flex: 1;">Xác nhận Thêm</button>
+                <button onclick="hideAddFromFile()" style="background: #94a3b8; color: white; padding: 8px; flex: 1;">Hủy bỏ</button>
+            </div>
+        </div>
+
+        <button onclick="resetDatabase()" style="background:none; color:#94a3b8; margin-top:15px; font-size:10px; border:none; width:100%;">[Xóa Database]</button>
+    </div>
+
+    <div id="db-view-screen" class="container db-view-container hidden">
+        <h3>📊 Quản lý Database Vocab</h3>
+        <button class="btn-add-row" onclick="addRowToExcel()">➕ Thêm hàng mới</button>
+        <div class="excel-table-wrapper">
+            <table class="excel-table" id="excel-table">
+                <thead id="excel-thead"></thead>
+                <tbody id="excel-tbody"></tbody>
+            </table>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn-db-action btn-confirm" onclick="saveExcelChanges()">Xác nhận (Lưu)</button>
+            <button class="btn-db-action btn-cancel" onclick="exitDatabaseView()">Thoát</button>
+        </div>
+    </div>
+
+    <div id="quiz-screen" class="container hidden">
+        <h2 id="quiz-header-title">📝 Trắc nghiệm</h2>
+        <div id="quiz-setup">
+            <div style="margin-bottom: 15px;">
+                Số câu: <input type="number" id="quizCount" placeholder="Tất cả" style="width: 80px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                TGian/câu (s): <input type="number" id="timePerQuestion" value="10" style="width: 60px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                <button onclick="addScenario()" style="background: var(--primary); color: white; padding: 8px 15px; font-size: 0.8rem; margin-left: 10px;">+ Thêm kịch bản</button>
+            </div>
+            <div id="scenarios-list"></div>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button onclick="startQuiz()" style="background: var(--success); color: white; flex: 1;">Bắt đầu</button>
+                <button onclick="exitQuiz()" style="background: #94a3b8; color: white; flex: 1;">Hủy</button>
+            </div>
+        </div>
+
+        <div id="quiz-playing" class="hidden">
+            <div id="quiz-timer-box">⏱ Thời gian còn lại: <span id="time-left">00:00</span></div>
+            <div id="quiz-result-summary" class="hidden"></div>
+            <div id="quiz-container"></div>
+            <button id="quiz-finish-btn" class="btn-finish" onclick="finishQuiz()">Xong (Nộp bài)</button>
+            <button id="quiz-back-btn" class="btn-finish" style="background: #64748b; margin-top: 10px;" onclick="exitQuiz()">Quay lại</button>
+        </div>
+    </div>
+
+<script>
+    let rawData = [], headers = [], currentWordIndex = 0, currentFieldIndex = 1;
+    let reviewPool = [], reviewIndex = 0;
+    let stats = JSON.parse(localStorage.getItem('vocab_stats')) || {}; 
+    let currentMode = 'study';
+    let scenarios = JSON.parse(localStorage.getItem('quiz_scenarios')) || [];
+    const synth = window.speechSynthesis;
+    let isAutoPlaying = false;
+    let quizInterval;
+    let quizData = [];
+    let userAnswers = {};
+    let isDataChanged = false; // Theo dõi thay đổi trong Excel view
+
+    let hotkeys = JSON.parse(localStorage.getItem('vocab_hotkeys')) || {
+        'next': 'arrowright', 'prev': 'arrowleft', 'learned': '1', 'mastered': '2',
+        'forgot': '3', 'speak': 'r', 'fieldNext': 'arrowdown', 'fieldPrev': 'arrowup'
+    };
+
+    const actionLabels = {
+        'next': 'Từ tiếp theo', 'prev': 'Từ trước đó', 'learned': 'Đã học',
+        'mastered': 'Đã nhớ', 'forgot': 'Quên rồi', 'speak': 'Phát âm (🔊)',
+        'fieldNext': 'Trường sau', 'fieldPrev': 'Trường trước'
+    };
+
+    window.onload = function() {
+        const savedData = localStorage.getItem('vocab_data');
+        const savedHeaders = localStorage.getItem('vocab_headers');
+        renderMappingTable();
+        if (savedData && savedHeaders) {
+            rawData = JSON.parse(savedData);
+            headers = JSON.parse(savedHeaders);
+            initApp();
+        }
+    };
+
+    // --- DATABASE VIEW LOGIC ---
+    function showDatabaseView() {
+        isDataChanged = false;
+        document.getElementById('study-screen').classList.add('hidden');
+        document.getElementById('db-view-screen').classList.remove('hidden');
+        renderExcelTable();
+    }
+
+    function renderExcelTable() {
+        const thead = document.getElementById('excel-thead');
+        const tbody = document.getElementById('excel-tbody');
+        thead.innerHTML = ''; tbody.innerHTML = '';
+
+        // Header
+        let trH = document.createElement('tr');
+        headers.forEach(h => {
+            let th = document.createElement('th');
+            th.innerText = h;
+            trH.appendChild(th);
+        });
+		let thAct = document.createElement('th'); // Thêm dòng này
+		thAct.innerText = "Thao tác";              // Thêm dòng này
+		trH.appendChild(thAct);                   // Thêm dòng này
+        thead.appendChild(trH);
+
+        // Body
+        rawData.forEach((row, rIdx) => {
+            let trB = document.createElement('tr');
+            headers.forEach(h => {
+                let td = document.createElement('td');
+                td.contentEditable = "true";
+                td.innerText = row[h] || "";
+                td.oninput = () => { isDataChanged = true; };
+                trB.appendChild(td);
+            });
+			let tdAct = document.createElement('td');
+			tdAct.style.textAlign = "center";
+			tdAct.innerHTML = `<button class="btn-delete-row" onclick="deleteExcelRow(this)">Xóa</button>`;
+			trB.appendChild(tdAct);
+            tbody.appendChild(trB);
+        });
+    }
+	function deleteExcelRow(btn) {
+		if(confirm("Bạn có chắc chắn muốn xóa hàng này?")) {
+			btn.closest('tr').remove(); // Xóa hàng trên giao diện
+			isDataChanged = true;       // Đánh dấu để khi nhấn Lưu nó sẽ cập nhật vào DB
+		}
+	}
+
+    function addRowToExcel() {
+        const tbody = document.getElementById('excel-tbody');
+        let trB = document.createElement('tr');
+        headers.forEach(() => {
+            let td = document.createElement('td');
+            td.contentEditable = "true";
+            td.oninput = () => { isDataChanged = true; };
+            trB.appendChild(td);
+        });
+		let tdAct = document.createElement('td');
+        tdAct.style.textAlign = "center";
+        tdAct.innerHTML = `<button class="btn-delete-row" onclick="deleteExcelRow(this)">Xóa</button>`;
+        trB.appendChild(tdAct);
+        tbody.appendChild(trB);
+        isDataChanged = true;
+    }
+
+    function saveExcelChanges() {
+        if (isDataChanged) {
+            if (!confirm("Bạn có đồng ý lưu các thay đổi này không?")) return;
+        }
+        
+        const rows = document.querySelectorAll('#excel-tbody tr');
+        let newData = [];
+        rows.forEach(tr => {
+            let rowObj = {};
+            const cells = tr.querySelectorAll('td');
+            headers.forEach((h, i) => {
+                rowObj[h] = cells[i].innerText.trim();
+            });
+            if (Object.values(rowObj).some(v => v !== "")) {
+                newData.push(rowObj);
+            }
+        });
+
+        rawData = newData;
+        localStorage.setItem('vocab_data', JSON.stringify(rawData));
+        isDataChanged = false;
+        alert("Đã lưu dữ liệu!");
+        initApp();
+        exitDatabaseView();
+    }
+
+    function exitDatabaseView() {
+        if (isDataChanged) {
+            if (confirm("Dữ liệu đã thay đổi, bạn có muốn LƯU trước khi thoát không?")) {
+                saveExcelChanges();
+                return;
+            }
+        }
+        document.getElementById('db-view-screen').classList.add('hidden');
+        document.getElementById('study-screen').classList.remove('hidden');
+    }
+
+    // --- ADD FROM FILE LOGIC ---
+    function showAddFromFile() { document.getElementById('add-file-panel').classList.remove('hidden'); }
+    function hideAddFromFile() { document.getElementById('add-file-panel').classList.add('hidden'); }
+    
+    function confirmAddFromFile() {
+        const fileInput = document.getElementById('addWordsFileInput');
+        if (!fileInput.files.length) { alert("Vui lòng chọn file!"); return; }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            const incomingData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: "N.A"});
+            
+            if (incomingData.length > 0) {
+                const incomingHeaders = Object.keys(incomingData[0]);
+                if (incomingHeaders.length !== headers.length) {
+                    alert(`Lỗi: File mới có ${incomingHeaders.length} cột, trong khi Database hiện tại có ${headers.length} cột. Phải đảm bảo đủ số cột!`);
+                    return;
+                }
+                
+                // Cập nhật key map cho đồng nhất header cũ (tránh lỗi lệch tên key JSON)
+                const standardizedData = incomingData.map(row => {
+                    let newRow = {};
+                    incomingHeaders.forEach((h, i) => {
+                        newRow[headers[i]] = row[h];
+                    });
+                    return newRow;
+                });
+
+                rawData = [...rawData, ...standardizedData];
+                localStorage.setItem('vocab_data', JSON.stringify(rawData));
+                alert(`Đã nối thêm ${standardizedData.length} từ vào database!`);
+                hideAddFromFile();
+                initApp();
+            }
+        };
+        reader.readAsArrayBuffer(fileInput.files[0]);
+    }
+
+    // --- HÀM CŨ ---
+    function exportFullBackup() {
+        if (!rawData.length) { alert("Chưa có dữ liệu để xuất!"); return; }
+        const fullData = {
+            vocab_data: rawData, vocab_headers: headers, vocab_stats: stats,
+            vocab_hotkeys: hotkeys, quiz_scenarios: scenarios, export_date: new Date().toLocaleString()
+        };
+        const blob = new Blob([JSON.stringify(fullData)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Vocab_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+    }
+
+    function importFullBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.vocab_data || !data.vocab_headers) throw new Error("File không đúng định dạng!");
+                localStorage.setItem('vocab_data', JSON.stringify(data.vocab_data));
+                localStorage.setItem('vocab_headers', JSON.stringify(data.vocab_headers));
+                localStorage.setItem('vocab_stats', JSON.stringify(data.vocab_stats || {}));
+                localStorage.setItem('vocab_hotkeys', JSON.stringify(data.vocab_hotkeys || hotkeys));
+                localStorage.setItem('quiz_scenarios', JSON.stringify(data.quiz_scenarios || []));
+                alert("Đã nhập dữ liệu thành công!");
+                location.reload();
+            } catch (err) { alert("Lỗi: " + err.message); }
+        };
+        reader.readAsText(file);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.target.classList.contains('key-input') || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.contentEditable === "true") return;
+        const key = e.key.toLowerCase();
+        if (key === 'v') { document.getElementById('mapping-panel').classList.toggle('hidden'); return; }
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) e.preventDefault();
+        if (key === hotkeys.next) handleNext();
+        else if (key === hotkeys.prev) handlePrev();
+        else if (key === hotkeys.learned) setStatus('learned');
+        else if (key === hotkeys.mastered) setStatus('mastered');
+        else if (key === hotkeys.forgot) setStatus(null);
+        else if (key === hotkeys.speak) speakText();
+        else if (key === hotkeys.fieldNext) changeField(1);
+        else if (key === hotkeys.fieldPrev) changeField(-1);
+    });
+
+    function handleNext() { if (currentMode === 'study') moveWord(1); else nextReviewWord(); }
+    function handlePrev() { if (currentMode === 'study') moveWord(-1); else prevReviewWord(); }
+
+    function renderMappingTable() {
+        const body = document.getElementById('mapping-body');
+        body.innerHTML = '';
+        const keys = Object.keys(hotkeys);
+        for(let i = 0; i < keys.length; i += 2) {
+            const tr = document.createElement('tr');
+            [keys[i], keys[i+1]].forEach(k => {
+                if(!k) return;
+                tr.innerHTML += `<td style="color:#475569">${actionLabels[k]}</td><td><input type="text" class="key-input" value="${hotkeys[k]}" onfocus="this.value=''" onkeyup="updateHotkey('${k}', event)"></td>`;
+            });
+            body.appendChild(tr);
+        }
+    }
+
+    function updateHotkey(action, event) {
+        const newKey = event.key.toLowerCase();
+        if (newKey === 'v') { alert("Phím 'V' cố định."); renderMappingTable(); return; }
+        hotkeys[action] = newKey;
+        localStorage.setItem('vocab_hotkeys', JSON.stringify(hotkeys));
+        event.target.blur();
+        renderMappingTable();
+    }
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: "N.A"});
+            headers = Object.keys(rawData[0]);
+            localStorage.setItem('vocab_data', JSON.stringify(rawData));
+            localStorage.setItem('vocab_headers', JSON.stringify(headers));
+            initApp();
+        };
+        reader.readAsArrayBuffer(e.target.files[0]);
+    });
+
+    function initApp() {
+        if (!rawData.length) return;
+        document.getElementById('setup-screen').classList.add('hidden');
+        document.getElementById('study-screen').classList.remove('hidden');
+        updateDisplay();
+    }
+
+    function switchMode(mode) {
+        stopAutoPlay();
+        currentMode = mode;
+        if (mode === 'review') {
+            prepareReviewPool();
+            if (reviewPool.length === 0) { 
+                alert("Bạn chưa có từ nào trong danh sách Đã học hoặc Đã nhớ!"); 
+                currentMode = 'study'; 
+                return; 
+            }
+            document.getElementById('mode-title').innerText = "Chế độ ôn tập";
+            document.getElementById('study-controls').classList.add('hidden');
+            document.getElementById('review-controls').classList.remove('hidden');
+            document.getElementById('btn-to-review').classList.add('hidden');
+            document.getElementById('btn-to-study').classList.remove('hidden');
+            document.getElementById('random-multi-wrap').classList.remove('hidden');
+            reviewIndex = 0;
+            currentFieldIndex = 1; 
+            updateDisplay();
+        } else {
+            document.getElementById('mode-title').innerText = "Chế độ học tập";
+            document.getElementById('study-controls').classList.remove('hidden');
+            document.getElementById('review-controls').classList.add('hidden');
+            document.getElementById('btn-to-review').classList.remove('hidden');
+            document.getElementById('btn-to-study').classList.add('hidden');
+            document.getElementById('random-multi-wrap').classList.add('hidden');
+            currentFieldIndex = 1;
+            updateDisplay();
+        }
+    }
+
+    function prepareReviewPool() {
+        const learned = rawData.filter(w => stats[w[headers[0]]] === 'learned');
+        const mastered = rawData.filter(w => stats[w[headers[0]]] === 'mastered');
+        let pool = [];
+        const isRandomMulti = document.getElementById('randomMulti').checked;
+
+        if (isRandomMulti) {
+            let tempMastered = [...mastered].sort(() => Math.random() - 0.5);
+            let limitMastered = Math.max(1, Math.floor(learned.length * 0.05));
+            let selectedMastered = tempMastered.slice(0, limitMastered);
+            pool = [...learned, ...selectedMastered].sort(() => Math.random() - 0.5);
+        } else {
+            let processedSTT = new Set();
+            let groupedPool = [];
+            let validWords = [...learned, ...mastered].sort(() => Math.random() - 0.5);
+            
+            validWords.forEach(word => {
+                let stt = String(word[headers[0]]);
+                if (processedSTT.has(stt)) return;
+                let match = stt.match(/^(\d+)([a-z])$/);
+                if (match) {
+                    let numPart = match[1];
+                    let group = rawData.filter(w => {
+                        let s = String(w[headers[0]]);
+                        return s.startsWith(numPart) && s.match(/^\d+[a-z]$/);
+                    }).sort((a, b) => String(a[headers[0]]).localeCompare(String(b[headers[0]])));
+                    group.forEach(g => {
+                        groupedPool.push(g);
+                        processedSTT.add(String(g[headers[0]]));
+                    });
+                } else {
+                    groupedPool.push(word);
+                    processedSTT.add(stt);
+                }
+            });
+            pool = groupedPool;
+        }
+        reviewPool = pool;
+    }
+
+    function updateDisplay() {
+        if (!rawData.length) return;
+        let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
+        let total = currentMode === 'study' ? rawData.length : reviewPool.length;
+        if (!word) return;
+
+        let sttExcel = word[headers[0]]; 
+        const counterId = currentMode === 'study' ? 'word-counter' : 'review-counter';
+        document.getElementById(counterId).innerText = `${sttExcel} / ${total}`;
+        
+        let prevIdx = currentFieldIndex - 1;
+        let nextIdx = currentFieldIndex + 1;
+        document.getElementById('prev-field').innerText = (prevIdx > 0) ? headers[prevIdx] : "";
+        document.getElementById('curr-field').innerText = headers[currentFieldIndex];
+        document.getElementById('next-field').innerText = (nextIdx < headers.length) ? headers[nextIdx] : "";
+        document.getElementById('display-text').innerText = word[headers[currentFieldIndex]];
+
+        const statusDiv = document.getElementById('status-display');
+		statusDiv.innerHTML = stats[sttExcel] === 'learned' ? '<span title="Đã học" class="status-star">⭐</span>' : stats[sttExcel] === 'mastered' ? '<span title="Đã nhớ" class="status-check">✅</span>' : "";
+        
+        if (!isAutoPlaying && document.getElementById('autoSpeak').checked) {
+             setTimeout(speakText, 300);
+        }
+    }
+
+    function moveWord(step) { 
+        currentWordIndex = (currentWordIndex + step + rawData.length) % rawData.length; 
+        currentFieldIndex = 1; 
+        updateDisplay(); 
+    }
+    
+    function nextReviewWord() {
+        if (reviewIndex < reviewPool.length - 1) { reviewIndex++; } 
+        else { prepareReviewPool(); reviewIndex = 0; }
+        currentFieldIndex = 1; updateDisplay();
+    }
+
+    function prevReviewWord() { 
+        reviewIndex = (reviewIndex - 1 + reviewPool.length) % reviewPool.length; 
+        currentFieldIndex = 1; updateDisplay(); 
+    }
+
+    function setStatus(status) {
+        let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
+        if (!word) return;
+        const wordKey = word[headers[0]];
+        if (status === null) delete stats[wordKey]; else stats[wordKey] = status;
+        localStorage.setItem('vocab_stats', JSON.stringify(stats));
+        
+        if (currentMode === 'review') {
+            if (status === 'mastered' || status === null) {
+                reviewPool.splice(reviewIndex, 1);
+                if (reviewPool.length === 0) { stopAutoPlay(); alert("Đã hoàn thành!"); switchMode('study'); return; }
+                if (reviewIndex >= reviewPool.length) reviewIndex = 0;
+                updateDisplay();
+            } else { nextReviewWord(); }
+        } else { updateDisplay(); }
+    }
+
+    function changeField(dir) {
+        let newIdx = currentFieldIndex + dir;
+        if (newIdx >= 1 && newIdx < headers.length) { 
+            currentFieldIndex = newIdx; updateDisplay(); return true;
+        }
+        return false;
+    }
+
+    function speakText(callback) {
+        const text = document.getElementById('display-text').innerText;
+        if (text === "N.A" || !text) { if (callback) callback(); return; }
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text) ? 'ja-JP' : /[à-ỹ]/i.test(text) ? 'vi-VN' : 'en-US';
+        utter.rate = document.getElementById('voiceRate').value;
+        if (callback) utter.onend = callback;
+        synth.speak(utter);
+    }
+
+    function toggleAutoPlay() { if (isAutoPlaying) stopAutoPlay(); else startAutoPlay(); }
+    function startAutoPlay() {
+        isAutoPlaying = true;
+        document.getElementById('btn-autoplay').innerText = "⏹ Dừng phát";
+        document.getElementById('btn-autoplay').style.background = "var(--danger)";
+        currentFieldIndex = 1; updateDisplay(); playSequence();
+    }
+    function stopAutoPlay() {
+        isAutoPlaying = false; synth.cancel();
+        document.getElementById('btn-autoplay').innerText = "▶ Tự động phát";
+        document.getElementById('btn-autoplay').style.background = "#8b5cf6";
+    }
+
+    function playSequence() {
+        if (!isAutoPlaying) return;
+        const utterHeader = new SpeechSynthesisUtterance(headers[currentFieldIndex]);
+        utterHeader.lang = 'vi-VN'; utterHeader.rate = document.getElementById('voiceRate').value;
+        utterHeader.onend = () => {
+            if (!isAutoPlaying) return;
+            speakText(() => {
+                if (!isAutoPlaying) return;
+                setTimeout(() => {
+                    if (!isAutoPlaying) return;
+                    if (currentFieldIndex < headers.length - 1) { currentFieldIndex++; updateDisplay(); playSequence(); } 
+                    else {
+                        if (reviewIndex < reviewPool.length - 1) { reviewIndex++; currentFieldIndex = 1; updateDisplay(); playSequence(); } 
+                        else { alert("Hết từ!"); stopAutoPlay(); }
+                    }
+                }, 800);
+            });
+        };
+        synth.speak(utterHeader);
+    }
+
+    function showQuizScreen() {
+        stopAutoPlay();
+        document.getElementById('study-screen').classList.add('hidden');
+        document.getElementById('quiz-screen').classList.remove('hidden');
+        document.getElementById('quiz-setup').classList.remove('hidden');
+        document.getElementById('quiz-playing').classList.add('hidden');
+        
+        const pool = rawData.filter(w => stats[w[headers[0]]]);
+        document.getElementById('quiz-header-title').innerText = `📝 Trắc nghiệm (${pool.length})`;
+        if (scenarios.length === 0) { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); }
+        renderScenarios();
+    }
+
+    function addScenario() { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); renderScenarios(); }
+    function removeScenario(idx) { scenarios.splice(idx, 1); if (scenarios.length === 0) addScenario(); else { saveScenarios(); renderScenarios(); } }
+    function saveScenarios() { localStorage.setItem('quiz_scenarios', JSON.stringify(scenarios)); }
+    function renderScenarios() {
+        const list = document.getElementById('scenarios-list'); list.innerHTML = "";
+        scenarios.forEach((sc, idx) => {
+            const box = document.createElement('div'); box.className = 'scenario-box';
+            let rootOpts = headers.slice(1).map(h => `<option value="${h}" ${h === sc.root ? 'selected' : ''}>${h}</option>`).join('');
+            let exOpts = headers.slice(1).filter(h => h !== sc.root).map(h => `<label class="exclude-item"><input type="checkbox" ${sc.exclude.includes(h) ? 'checked' : ''} onchange="toggleExclude(${idx}, '${h}')"> ${h}</label>`).join('');
+            box.innerHTML = `<span class="remove-scenario" onclick="removeScenario(${idx})">✖ Xóa</span><span class="scenario-title">Kịch bản ${idx+1}</span>
+                <div class="select-group"><label>Cột gốc:</label><select onchange="updateRoot(${idx}, this.value)">${rootOpts}</select></div>
+                <div class="select-group"><label>Cột loại trừ:</label><div class="exclude-list">${exOpts}</div></div>`;
+            list.appendChild(box);
+        });
+    }
+    function updateRoot(idx, val) { scenarios[idx].root = val; saveScenarios(); renderScenarios(); }
+    function toggleExclude(idx, val) {
+        const i = scenarios[idx].exclude.indexOf(val);
+        if (i > -1) scenarios[idx].exclude.splice(i, 1); else scenarios[idx].exclude.push(val);
+        saveScenarios(); renderScenarios();
+    }
+
+    // --- QUIZ LOGIC UPDATE ---
+    function startQuiz() {
+        const Q = parseInt(document.getElementById('quizCount').value) || null;
+        const timeVal = parseInt(document.getElementById('timePerQuestion').value) || 10;
+        const pool = rawData.filter(w => stats[w[headers[0]]]);
+        if (!pool.length) { alert("Học thêm từ đi!"); return; }
+
+        quizData = []; userAnswers = {};
+        scenarios.forEach(sc => {
+            const targets = headers.filter((h, i) => i !== 0 && h !== sc.root && !sc.exclude.includes(h));
+            pool.forEach(word => {
+                targets.forEach(t => { quizData.push({ rH: sc.root, tH: t, rV: word[sc.root], cV: word[t] }); });
+            });
+        });
+
+        quizData.sort(() => Math.random() - 0.5);
+        if (Q && Q < quizData.length) quizData = quizData.slice(0, Q);
+
+        document.getElementById('quiz-setup').classList.add('hidden');
+        document.getElementById('quiz-playing').classList.remove('hidden');
+        document.getElementById('quiz-result-summary').classList.add('hidden');
+        document.getElementById('quiz-finish-btn').classList.remove('hidden');
+        
+        const container = document.getElementById('quiz-container');
+        container.innerHTML = "";
+        quizData.forEach((q, idx) => {
+            const item = document.createElement('div');
+            item.className = 'quiz-item'; item.id = `quiz-q-${idx}`;
+            let allVals = [...new Set(rawData.map(w => w[q.tH]))];
+            let choices = [q.cV, ...allVals.filter(v => v !== q.cV).sort(() => Math.random() - 0.5).slice(0, 3)].sort(() => Math.random() - 0.5);
+            item.innerHTML = `<h4>Câu ${idx+1}: "${q.tH}" của <u>${q.rV}</u>?</h4>`;
+            choices.forEach(c => {
+                const b = document.createElement('button'); b.className = 'option-btn'; b.innerText = c;
+                b.onclick = () => {
+                    if (document.getElementById('quiz-finish-btn').classList.contains('hidden')) return;
+                    Array.from(item.querySelectorAll('.option-btn')).forEach(btn => btn.classList.remove('selected'));
+                    b.classList.add('selected'); userAnswers[idx] = c;
+                };
+                item.appendChild(b);
+            });
+            container.appendChild(item);
+        });
+
+        let timeLeft = quizData.length * timeVal;
+        clearInterval(quizInterval);
+        quizInterval = setInterval(() => {
+            timeLeft--;
+            let m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+            document.getElementById('time-left').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            if (timeLeft <= 0) { clearInterval(quizInterval); finishQuiz(); }
+        }, 1000);
+    }
+
+    function finishQuiz() {
+        clearInterval(quizInterval);
+        document.getElementById('quiz-finish-btn').classList.add('hidden');
+        const summary = document.getElementById('quiz-result-summary');
+        summary.classList.remove('hidden');
+        let score = 0;
+        
+        quizData.forEach((q, idx) => {
+            const item = document.getElementById(`quiz-q-${idx}`);
+            const btns = item.querySelectorAll('.option-btn');
+            btns.forEach(b => {
+                b.style.pointerEvents = 'none';
+                if (b.innerText === q.cV) b.classList.add('correct-ans');
+                if (userAnswers[idx] === b.innerText && b.innerText !== q.cV) b.classList.add('wrong-ans');
+            });
+            if (userAnswers[idx] === q.cV) score++;
+        });
+
+        summary.innerHTML = `<h3 style="margin-top:0">Kết quả: ${score}/${quizData.length}</h3>`;
+        quizData.forEach((_, i) => {
+            const dot = document.createElement('span');
+            dot.className = 'dot-nav';
+            dot.style.background = (userAnswers[i] === quizData[i].cV) ? 'var(--success)' : 'var(--danger)';
+            dot.innerText = i + 1;
+            dot.onclick = () => document.getElementById(`quiz-q-${i}`).scrollIntoView({ behavior: 'smooth' });
+            summary.appendChild(dot);
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function exitQuiz() { clearInterval(quizInterval); document.getElementById('quiz-screen').classList.add('hidden'); document.getElementById('study-screen').classList.remove('hidden'); }
+    function resetDatabase() { if(confirm("Xóa sạch?")) { localStorage.clear(); location.reload(); } }
+</script>
+</body>
+</html>
