@@ -226,13 +226,18 @@
         'forgot': '3', 'speak': 'r', 'fieldNext': 'arrowdown', 'fieldPrev': 'arrowup'
     };
 
+
     // Load voices cho iPhone
-    function loadVoices() {
-        availableVoices = synth.getVoices();
-    }
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = loadVoices;
-    }
+	function loadVoices() {
+		availableVoices = synth.getVoices();
+	}
+	
+	// Quan trọng: iOS cần sự kiện này
+	if (speechSynthesis.onvoiceschanged !== undefined) {
+		speechSynthesis.onvoiceschanged = loadVoices;
+	}
+	// Chạy ngay lập tức một lần
+	loadVoices();
 
 	window.onload = async function() {
 		loadVoices();
@@ -636,46 +641,41 @@
 
     /* FIX LỖI ÂM THANH IPHONE TRIỆT ĐỂ */
 	function speakText(callback) {
-        const text = document.getElementById('display-text').innerText;
-        if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
-        
-        synth.cancel(); 
-        const utter = new SpeechSynthesisUtterance(text);
-        
-        // 1. Nhận diện ngôn ngữ
-        const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
-        const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
-        let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
-        utter.lang = langCode;
-
-        // 2. Chọn giọng chuẩn (Fix lỗi ông Mỹ nói tiếng Nhật)
-        if (availableVoices.length > 0) {
-            let voices = availableVoices.filter(v => v.lang.startsWith(langCode));
-            let selectedVoice = null;
-            
-            if (isJP) {
-                // Ưu tiên tìm đúng giọng Nhật bản địa để tránh bị ông Mỹ đọc bồi
-                selectedVoice = voices.find(v => v.name.includes('Kyoko (Enhanced)') || voices[0]);
-            } else if (isVN) {
-                // Tìm giọng Linh hoặc giọng Việt Nam bất kỳ
-                selectedVoice = voices.find(v => v.name.includes('Linh (Enhanced)') || voices[0]);
-            } else {
-                // Tiếng Anh ưu tiên Siri hoặc Enhanced
-                selectedVoice = voices.find(v => v.name.includes('Allison (Enhanced)') || voices[0]);
-            }
-            utter.voice = selectedVoice;
-        }
-
-        // 3. Các thông số kỹ thuật (Tốc độ giữ theo thanh trượt UI)
-        utter.rate = document.getElementById('voiceRate').value || 1;
-        utter.pitch = 1.0; // Giữ nguyên cao độ mặc định, không can thiệp
-
-        utter.onend = () => { if (callback) callback(); };
-        utter.onerror = () => { if (callback) callback(); };
-        
-        // Delay nhỏ để iOS xử lý luồng âm thanh ổn định hơn
-        setTimeout(() => { synth.speak(utter); }, 50);
-    }
+		const text = document.getElementById('display-text').innerText;
+		if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
+		
+		synth.cancel(); 
+		const utter = new SpeechSynthesisUtterance(text);
+		
+		// Nhận diện ngôn ngữ chuẩn hơn
+		const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
+		const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
+		let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
+		utter.lang = langCode;
+	
+		// Cập nhật lại danh sách giọng trước khi đọc
+		let voices = synth.getVoices().filter(v => v.lang.includes(langCode.split('-')[0]));
+		
+		if (voices.length > 0) {
+			let selectedVoice = null;
+			if (isJP) {
+				// Tìm Kyoko hoặc bất cứ ai có chữ ja
+				selectedVoice = voices.find(v => v.name.includes('Kyoko')) || voices[0];
+			} else if (isVN) {
+				selectedVoice = voices.find(v => v.name.includes('Linh')) || voices[0];
+			} else {
+				selectedVoice = voices.find(v => v.name.includes('Samantha')) || voices[0];
+			}
+			utter.voice = selectedVoice;
+		}
+	
+		utter.rate = document.getElementById('voiceRate').value || 1;
+		utter.onend = () => { if (callback) callback(); };
+		utter.onerror = () => { if (callback) callback(); };
+		
+		// Trick dành riêng cho iPhone: Delay nhẹ 100ms
+		setTimeout(() => { synth.speak(utter); }, 100);
+	}
 
     function toggleAutoPlay() { if (isAutoPlaying) stopAutoPlay(); else startAutoPlay(); }
     function startAutoPlay() { isAutoPlaying = true; document.getElementById('btn-autoplay').innerText = "⏹ Dừng phát"; document.getElementById('btn-autoplay').style.background = "var(--danger)"; currentFieldIndex = 1; updateDisplay(); playSequence(); }
@@ -845,7 +845,33 @@
     }
 
     function exitQuiz() { clearInterval(quizInterval); document.getElementById('quiz-screen').classList.add('hidden'); document.getElementById('study-screen').classList.remove('hidden'); }
-    function resetDatabase() { if(confirm("Xóa sạch?")) { localStorage.clear(); location.reload(); } }
+    async function resetDatabase() {
+    if (confirm("Bạn có chắc chắn muốn XÓA SẠCH dữ liệu trên Cloud không? Hành động này không thể hoàn tác!")) {
+        try {
+            // 1. Xóa toàn bộ từ vựng trong bảng hoc_tap
+            const { error: err1 } = await supabaseClient.from('hoc_tap').delete().neq('row_index', -1);
+            
+            // 2. Reset tiến độ và tiêu đề trong bảng user_progress
+            const { error: err2 } = await supabaseClient.from('user_progress').upsert({
+                id: 'current_user',
+                stats: {},
+                headers: [],
+                current_index: 0
+            });
+
+            if (err1 || err2) throw new Error("Lỗi khi xóa dữ liệu trên Cloud");
+
+            // 3. Xóa nốt localStorage cho sạch máy
+            localStorage.clear();
+            
+            alert("Đã xóa sạch dữ liệu trên Cloud! Trang web sẽ tải lại.");
+            location.reload();
+        } catch (err) {
+            console.error(err);
+            alert("Có lỗi xảy ra: " + err.message);
+        }
+    }
+}
 </script>
 </body>
 </html>
