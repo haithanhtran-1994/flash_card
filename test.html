@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vocab Master Pro - Study & Review</title>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #2563eb; --success: #16a34a; --warning: #ca8a04; --danger: #ef4444; --bg: #f1f5f9; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
@@ -203,6 +204,10 @@
     </div>
 
 <script>
+    const SUPABASE_URL = 'https://xolhvdgltrhkixuwaipp.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvbGh2ZGdsdHJoa2l4dXdhaXBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2MTk4MTMsImV4cCI6MjA4MzE5NTgxM30.A-o0LI-LkorVerHMkDjCwNTJLONeYJAnZdEB1GLgaco';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     let rawData = [], headers = [], currentWordIndex = 0, currentFieldIndex = 1;
     let reviewPool = [], reviewIndex = 0;
     let stats = JSON.parse(localStorage.getItem('vocab_stats')) || {}; 
@@ -229,18 +234,61 @@
         speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    window.onload = function() {
-        loadVoices();
-        const savedData = localStorage.getItem('vocab_data');
-        const savedHeaders = localStorage.getItem('vocab_headers');
-        if (savedData && savedHeaders) {
-            rawData = JSON.parse(savedData);
-            headers = JSON.parse(savedHeaders);
-            // Hiện overlay mở khóa âm thanh nếu đã có data
-            document.getElementById('audio-unlock').classList.remove('hidden');
-        }
-    };
-
+	window.onload = async function() {
+		loadVoices();
+		console.log("1. Bắt đầu tải dữ liệu từ Cloud...");
+	
+		try {
+			// Tải Headers và Tiến độ
+			const { data: prog, error: pErr } = await supabaseClient.from('user_progress').select('*').eq('id', 'current_user').single();
+			if (pErr) console.warn("Lưu ý: Chưa có tiến độ cũ (có thể là user mới)");
+			
+			if (prog) {
+				stats = prog.stats || {};
+				headers = prog.headers || [];
+				currentWordIndex = prog.current_index || 0;
+				console.log("2. Đã tải Headers:", headers);
+			}
+	
+			// Tải Từ vựng
+			const { data: vocab, error: vErr } = await supabaseClient.from('hoc_tap').select('*').order('row_index', { ascending: true });
+			
+			if (vErr) {
+				console.error("Lỗi tải vocab:", vErr);
+				return;
+			}
+	
+			if (vocab && vocab.length > 0 && headers.length > 0) {
+				console.log("3. Đã thấy vocab, số lượng:", vocab.length);
+				
+				rawData = vocab.map(row => {
+					let obj = {};
+					headers.forEach((h, i) => { obj[h] = row[`col${i+1}`]; });
+					return obj;
+				});
+	
+				// Lệnh quan trọng nhất: ÉP hiện màn hình học
+				console.log("4. Đang kích hoạt initApp...");
+				initApp(); 
+				
+				// Ép thêm một lần nữa cho chắc
+				document.getElementById('setup-screen').classList.add('hidden');
+				document.getElementById('study-screen').classList.remove('hidden');
+			} else {
+				console.log("5. Cloud trống hoặc thiếu Headers. Giữ nguyên màn hình Setup.");
+			}
+		} catch (err) {
+			console.error("6. Lỗi hệ thống:", err);
+		}
+	};
+	async function syncToCloud() {
+		await supabaseClient.from('user_progress').upsert({
+			id: 'current_user',
+			stats: stats,
+			headers: headers,
+			current_index: currentWordIndex
+		});
+	}
     function unlockAudio() {
         // Phát một âm thanh rỗng để "mồi" iPhone
         const utter = new SpeechSynthesisUtterance("");
@@ -427,27 +475,58 @@
     function handleNext() { if (currentMode === 'study') moveWord(1); else nextReviewWord(); }
     function handlePrev() { if (currentMode === 'study') moveWord(-1); else prevReviewWord(); }
 
-    document.getElementById('fileInput').addEventListener('change', (e) => {
+	document.getElementById('fileInput').addEventListener('change', (e) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+        reader.onload = async (event) => { // Thêm async ở đây
+            const workbook = XLSX.read(new Uint8Array(event.target.result), {type: 'array'});
             rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: "N.A"});
-            headers = Object.keys(rawData[0]);
-            localStorage.setItem('vocab_data', JSON.stringify(rawData));
-            localStorage.setItem('vocab_headers', JSON.stringify(headers));
-            // Sau khi chọn file, hiện overlay để kích hoạt audio
-            document.getElementById('audio-unlock').classList.remove('hidden');
+            
+            if (rawData.length > 0) {
+                headers = Object.keys(rawData[0]);
+
+                // 1. Chuẩn bị dữ liệu chuẩn để đẩy lên bảng 'hoc_tap'
+                const toInsert = rawData.map((row, i) => {
+                    let dbRow = { row_index: i };
+                    headers.forEach((h, index) => {
+                        // Ánh xạ cột Excel vào col1, col2, col3... trong Database
+                        dbRow[`col${index+1}`] = String(row[h] || "N.A");
+                    });
+                    return dbRow;
+                });
+
+                try {
+                    // 2. Xóa dữ liệu cũ trên Cloud để nạp bộ mới hoàn toàn
+                    await supabaseClient.from('hoc_tap').delete().neq('row_index', -1);
+                    
+                    // 3. Đẩy dữ liệu mới lên
+                    const { error } = await supabaseClient.from('hoc_tap').insert(toInsert);
+                    
+                    if (error) throw error;
+
+                    // 4. Lưu cả tiêu đề cột (headers) lên Cloud
+                    await syncToCloud(); 
+
+                    alert("✅ Đã đồng bộ " + rawData.length + " từ vựng lên Cloud thành công!");
+                    
+                    // Hiện nút bắt đầu âm thanh
+                    document.getElementById('audio-unlock').classList.remove('hidden');
+                } catch (err) {
+                    console.error("Lỗi Supabase:", err);
+                    alert("Có lỗi khi đẩy data lên Cloud: " + err.message);
+                }
+            }
         };
         reader.readAsArrayBuffer(e.target.files[0]);
     });
 
-    function initApp() {
-        if (!rawData.length) return;
-        document.getElementById('setup-screen').classList.add('hidden');
-        document.getElementById('study-screen').classList.remove('hidden');
-        updateDisplay();
-    }
-
+	function initApp() {
+		console.log("Hàm initApp đang chạy...");
+		if (rawData && rawData.length > 0) {
+			document.getElementById('setup-screen').classList.add('hidden');
+			document.getElementById('study-screen').classList.remove('hidden');
+			updateDisplay();
+		}
+	}
     function switchMode(mode) {
         stopAutoPlay();
         currentMode = mode;
@@ -523,16 +602,24 @@
         }
     }
 
-    function moveWord(step) { currentWordIndex = (currentWordIndex + step + rawData.length) % rawData.length; currentFieldIndex = 1; updateDisplay(); }
+	function moveWord(step) { 
+        currentWordIndex = (currentWordIndex + step + rawData.length) % rawData.length; 
+        currentFieldIndex = 1; 
+        updateDisplay(); 
+        syncToCloud(); // Lưu lại vị trí đang xem
+    }
     function nextReviewWord() { if (reviewIndex < reviewPool.length - 1) reviewIndex++; else { prepareReviewPool(); reviewIndex = 0; } currentFieldIndex = 1; updateDisplay(); }
     function prevReviewWord() { reviewIndex = (reviewIndex - 1 + reviewPool.length) % reviewPool.length; currentFieldIndex = 1; updateDisplay(); }
 
-    function setStatus(status) {
+	async function setStatus(status) {
         let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
         if (!word) return;
         const wordKey = word[headers[0]];
         if (status === null) delete stats[wordKey]; else stats[wordKey] = status;
-        localStorage.setItem('vocab_stats', JSON.stringify(stats));
+        
+        // Lưu lên Cloud thay vì localStorage
+        await syncToCloud();
+
         if (currentMode === 'review' && (status === 'mastered' || status === null)) {
             reviewPool.splice(reviewIndex, 1);
             if (reviewPool.length === 0) { stopAutoPlay(); alert("Xong!"); switchMode('study'); return; }
