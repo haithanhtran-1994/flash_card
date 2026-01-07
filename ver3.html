@@ -16,10 +16,11 @@
         .field-label { flex: 1; text-align: center; font-size: 0.75rem; color: #94a3b8; padding: 5px; overflow: hidden; }
         .field-active { color: var(--primary); font-size: 1.1rem; font-weight: 800; border-bottom: 3px solid var(--primary); }
 		/* --- PHẦN THÊM MỚI VÀO STYLE --- */
-.card-container { 
-    perspective: 1000px; 
-    width: 100%; 
-    margin-bottom: 20px; 
+.card-container {
+    position: relative; /* Để các nút căn theo khung này */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .card { 
@@ -64,14 +65,66 @@
     z-index: 1;
 }
 		/* Style Furigana */
-		ruby rt { font-size: 0.45em; color: var(--primary); font-weight: normal; }
+/* Container chung để lấy mức trung bình */
+.card-content {
+    font-size: 1.8rem; /* Mức nền trung bình */
+    line-height: 1.6;
+    text-align: center;
+}
+
+/* Ép tiếng Nhật (Kanji) to hẳn lên để nhìn rõ nét */
+.lang-jp {
+    font-size: 2.3rem !important; 
+    font-weight: 500;
+}
+
+/* Ép tiếng Việt nhỏ lại cho thanh thoát, không bị thô */
+.lang-vi {
+    font-size: 1.6rem !important;
+    color: #334155;
+}
+
+/* Sửa lại Furigana (rt) cho dễ nhìn */
+ruby rt {
+    font-size: 0.55em; /* Tăng từ 0.45 lên 0.55 để dễ đọc hơn */
+    color: var(--primary);
+    font-weight: normal;
+    padding-bottom: 2px;
+}
 		.furigana-hidden rt { visibility: hidden; }
 		.flip-hint { position: absolute; bottom: 15px; font-size: 0.7rem; color: #94a3b8; font-style: italic; }
 		.btn-furi { background: #0ea5e9; color: white; padding: 4px 8px; font-size: 0.7rem; border-radius: 10px; border: none; cursor: pointer; margin-left: 10px; }
         .speaker-icon { font-size: 1.8rem; cursor: pointer; color: var(--primary); margin-top: 10px; background: #eff6ff; border: 2px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
-        .nav-arrow { position: absolute; top: 0; bottom: 0; width: 50px; border: none; background: rgba(0,0,0,0.03); cursor: pointer; font-size: 1.5rem; transition: 0.2s; }
-        .arrow-left { left: 0; border-radius: 20px 0 0 20px; }
-        .arrow-right { right: 0; border-radius: 0 20px 20px 0; }
+.nav-arrow {
+    position: absolute;
+    /* Đẩy xuống đáy thẻ */
+    bottom: 20px; 
+    /* Bỏ cái top 50% cũ đi */
+    top: auto;
+    transform: none; 
+    
+    z-index: 10;
+    width: 45px;
+    height: 45px;
+    background: rgba(0, 0, 0, 0.05); /* Màu nền mờ nhẹ */
+    border-radius: 8px; /* Bo góc vuông nhẹ cho hiện đại */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.nav-arrow:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.arrow-left {
+    left: 20px; /* Cách lề trái 20px */
+}
+
+.arrow-right {
+    right: 20px; /* Cách lề phải 20px */
+}
         .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
         button { padding: 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
         button:active { transform: scale(0.98); }
@@ -160,50 +213,60 @@
             <div id="next-field" class="field-label">---</div>
         </div>
 
-		<div class="card-container">
-			<div class="card" id="main-card" onclick="handleCardClick(event)">
-				<div class="card-face card-front">
-					<button class="nav-arrow arrow-left" onclick="changeField(-1, event)">❮</button>
-					<div id="display-text" class="card-content">---</div>
-					<button class="speaker-icon" onclick="handleSpeak(event)">🔊</button>
-					<button class="nav-arrow arrow-right" onclick="changeField(1, event)">❯</button>
-					<span class="flip-hint" id="flip-hint-text">Chạm để lật mặt sau</span>
-				</div>
-				<div class="card-face card-back">
-					<div id="display-text-back" class="card-content">---</div>
-					<button class="speaker-icon" onclick="handleSpeak(event)">🔊</button>
-					<span class="flip-hint">Chạm để quay lại mặt trước</span>
-				</div>
-			</div>
-		</div>
-        <div class="voice-settings">
-            <span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
-                <span id="speed-display" class="speed-val">1x</span>
-            </span>
-            <label><input type="checkbox" id="autoSpeak" checked> Tự động học</label>
-            <button class="btn-furi" id="toggleFuri" onclick="toggleFuriganaDisplay()">Furigana: ON</button>
-            <label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random từ nhiều nghĩa</label>
+<div class="card-container">
+    <button class="nav-arrow arrow-left" onclick="changeField(-1, event)">❮</button>
+    <button class="nav-arrow arrow-right" onclick="changeField(1, event)">❯</button>
+    <div class="card" id="main-card" onclick="handleCardClick(event)">
+        <div class="card-face card-front">
+            <div id="display-text" class="card-content">---</div>
+            <span class="flip-hint" id="flip-hint-text">Chạm để lật mặt sau</span>
         </div>
-        <div id="study-controls" class="btn-group" style="margin-top: 15px;">
-			<button id="btn-learned" class="btn-learned" onclick="setStatus('learned')">⭐ Đã học</button>
-			<button id="btn-mastered" class="btn-mastered" onclick="setStatus('mastered')">✅ Đã nhớ</button>
-            <button id="btn-forgot" class="btn-forgot" onclick="setStatus(null)">Quên rồi 😢 </button>
-            <div class="btn-next-prev">
-                <button onclick="handlePrev()">❮ TRƯỚC</button>				
-                <span id="word-counter">0 / 0</span>
-                <button onclick="handleNext()">SAU ❯</button>
-            </div>
+        <div class="card-face card-back">
+            <div id="display-text-back" class="card-content">---</div>
+            <span class="flip-hint">Chạm để quay lại mặt trước</span>
         </div>
-        <div id="review-controls" class="btn-group hidden" style="margin-top: 15px;">
-			<button class="btn-mastered review-mastered" onclick="setStatus('mastered')" style="grid-column: span 1.5;">⭐ Đã nhớ</button>
-            <button class="btn-forgot" onclick="setStatus(null)" style="grid-column: span 1.5;">Quên rồi 😢 </button>
-            <div class="btn-next-prev">
-                <button onclick="handlePrev()">❮ TRƯỚC</button>
-                <span id="review-counter">0 / 0</span>
-                <button onclick="handleNext()">SAU ❯</button>
-            </div>
-            <button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()">▶ Tự động phát</button>
-        </div>
+    </div>
+</div>
+
+<div class="voice-settings">
+    <span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
+        <span id="speed-display" class="speed-val">1x</span>
+    </span>
+    <label><input type="checkbox" id="autoSpeak" checked> Tự động học</label>
+    <button class="btn-furi" id="toggleFuri" onclick="toggleFuriganaDisplay()">Furigana: ON</button>
+    <button class="btn-furi" style="background: var(--primary); margin-left:5px" onclick="handleSpeak(event)">🔊 Đọc</button> 
+</div>
+
+<div id="study-controls" class="btn-group" style="margin-top: 15px;">
+    <button id="btn-learned" class="btn-learned" onclick="setStatus('learned')">⭐ Đã học</button>
+    <button id="btn-mastered" class="btn-mastered" onclick="setStatus('mastered')">✅ Đã nhớ</button>
+    <button id="btn-forgot" class="btn-forgot" onclick="setStatus(null)">Quên rồi 😢</button>
+    <div class="btn-next-prev">
+        <button onclick="handlePrev()">❮ TRƯỚC</button>				
+        <span id="word-counter">0 / 0</span>
+        <button onclick="handleNext()">SAU ❯</button>
+    </div>
+</div>
+
+<div id="review-controls" class="btn-group hidden" style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+    <button class="btn-mastered review-mastered" onclick="setStatus('mastered')" style="width: 100%; padding: 10px 5px;">⭐ Đã nhớ</button>
+    
+    <button class="btn-forgot" onclick="setStatus(null)" style="width: 100%; padding: 10px 5px;">Quên rồi 😢</button>
+    
+    <div id="random-multi-wrap" style="display: flex; align-items: center; justify-content: center; background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0 5px;">
+        <label style="font-size: 0.75rem; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 3px; line-height: 1.2;">
+            <input type="checkbox" id="randomMulti"> 🔀 Random từ nhiều nghĩa
+        </label>
+    </div>
+
+    <div class="btn-next-prev" style="grid-column: span 3; margin-top: 5px;">
+        <button onclick="handlePrev()">❮ TRƯỚC</button>
+        <span id="review-counter">0 / 0</span>
+        <button onclick="handleNext()">SAU ❯</button>
+    </div>
+    
+    <button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()" style="grid-column: span 3;">▶ Tự động phát</button>
+</div>
         <div class="menu-grid">
             <button id="btn-to-review" class="btn-menu" onclick="switchMode('review')">🔄 Chuyển sang Ôn tập</button>
             <button id="btn-to-study" class="btn-menu hidden" onclick="switchMode('study')">📚 Quay lại Học tập</button>
@@ -723,71 +786,94 @@ function parseFurigana(text) {
 function updateDisplay() {
     if (!rawData.length) return;
     const card = document.getElementById('main-card');
-    card.classList.remove('is-flipped'); 
-
+    
     let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
     if (!word) return;
 
-    // --- ĐOẠN CODE HIỂN THỊ BIỂU TƯỢNG (FIX LỖI) ---
+    // Hiển thị ⭐/✅ (Giữ nguyên)
     const statusDiv = document.getElementById('status-display');
-    const wordKey = word[headers[0]]; // Lấy STT hoặc khóa định danh của từ
+    const wordKey = word[headers[0]];
     const currentStatus = stats[wordKey];
-    
-    statusDiv.innerHTML = ''; // Xóa trắng trước khi kiểm tra trạng thái mới
-    if (currentStatus === 'learned') {
-        statusDiv.innerHTML = '<span class="status-star">⭐</span>';
-    } else if (currentStatus === 'mastered') {
-        statusDiv.innerHTML = '<span class="status-check">✅</span>';
-    }
-    // ----------------------------------------------
+    statusDiv.innerHTML = (currentStatus === 'learned') ? '⭐' : (currentStatus === 'mastered' ? '✅' : '');
 
-    // 1. Nạp mặt trước (Cột hiện tại - ví dụ Từ vựng)
+    // 1. Nạp mặt trước (Giữ nguyên)
     const frontHeader = headers[currentFieldIndex];
     document.getElementById('display-text').innerHTML = parseFurigana(word[frontHeader] || "");
+    card.dataset.frontTitle = frontHeader;
 
-    // 2. Tìm cột đối tác (Mặt sau)
+    // 2. Tìm mặt sau (Logic Grouping - Giữ nguyên)
     const currentMarker = String(groupMarkers[currentFieldIndex] || "");
     const backContent = document.getElementById('display-text-back');
     const hint = document.getElementById('flip-hint-text');
-
-    // MẶC ĐỊNH XOÁ TRẮNG MẶT SAU ĐỂ TRÁNH LỖI LỘ CHỮ CŨ
+    
     backContent.innerHTML = "---";
+    card.dataset.backTitle = ""; 
 
     if (currentMarker.includes('-F')) {
         const groupID = currentMarker.split('-')[0];
-        const targetMarker = groupID + "-B"; // Tìm đúng thằng đuôi -B
-        
-        // Tìm vị trí của cột Nghĩa trong hàng 2
+        const targetMarker = groupID + "-B";
         const partnerIdx = groupMarkers.findIndex(m => String(m).trim() === targetMarker);
         
         if (partnerIdx !== -1) {
             const partnerHeader = headers[partnerIdx];
-            const backData = word[partnerHeader] || "N/A";
-            
-            // ÉP GHI ĐÈ NỘI DUNG MỚI VÀO MẶT SAU
-            backContent.innerHTML = `
-                <div style="font-size: 1rem; color: #3b82f6; margin-bottom: 10px;">${partnerHeader}</div>
-                <div style="font-size: 2rem;">${parseFurigana(backData)}</div>
-            `;
+            card.dataset.backTitle = partnerHeader;
+            backContent.innerHTML = `<div style="font-size: 2rem;">${parseFurigana(word[partnerHeader])}</div>`;
             hint.innerText = "Chạm để xem: " + partnerHeader;
             hint.classList.remove('hidden');
-            console.log("Đã nạp mặt sau thành công:", partnerHeader, backData);
         } else {
-            console.warn("Không tìm thấy cột có marker:", targetMarker);
             hint.classList.add('hidden');
         }
     } else {
         hint.classList.add('hidden');
     }
 
-    // Cập nhật Nav và STT
-    document.getElementById('curr-field').innerText = frontHeader;
+    // Cập nhật thanh Nav (Giữ nguyên)
+    if (!card.classList.contains('is-flipped')) {
+        document.getElementById('curr-field').innerText = frontHeader;
+    }
+    
     const counterId = currentMode === 'study' ? 'word-counter' : 'review-counter';
     document.getElementById(counterId).innerText = `${word[headers[0]]} / ${rawData.length}`;
+
+    // --- LOGIC ẨN/HIỆN NÚT ĐIỀU HƯỚNG THEO BIÊN (PHẦN THÊM MỚI) ---
+    const btnLeft = document.querySelector('.arrow-left');
+    const btnRight = document.querySelector('.arrow-right');
+
+    if (btnLeft && btnRight) {
+        // Ẩn nút trái nếu đang ở cột đầu tiên (Index 1)
+        if (currentFieldIndex <= 1) {
+            btnLeft.style.display = 'none';
+        } else {
+            btnLeft.style.display = 'block';
+        }
+
+        // Kiểm tra nút phải: Tính thử bước tiếp theo
+        let nextIdx = currentFieldIndex;
+        const m = String(groupMarkers[nextIdx] || "").trim();
+        nextIdx += (m.includes('-F')) ? 2 : 1;
+        // Nếu nhảy trúng -B của group tiếp theo thì nhảy thêm cái nữa
+        if (nextIdx < headers.length && String(groupMarkers[nextIdx] || "").includes('-B')) {
+            nextIdx++;
+        }
+
+        // Ẩn nút phải nếu bước nhảy tiếp theo vượt quá số cột
+        if (nextIdx >= headers.length) {
+            btnRight.style.display = 'none';
+        } else {
+            btnRight.style.display = 'block';
+        }
+    }
+
+    // --- TỰ ĐỘNG ĐỌC KHI CHUYỂN CỘT / CHUYỂN TỪ (Giữ nguyên) ---
+    if (document.getElementById('autoSpeak').checked) {
+        setTimeout(() => { speakText(); }, 300);
+    }
 }
 	function moveWord(step) { 
         currentWordIndex = (currentWordIndex + step + rawData.length) % rawData.length; 
         currentFieldIndex = 1; 
+		// Khi sang từ mới thì mới reset về mặt trước
+		document.getElementById('main-card').classList.remove('is-flipped');
         updateDisplay(); 
         syncToCloud(); // Lưu lại vị trí đang xem
     }
@@ -814,86 +900,119 @@ function updateDisplay() {
 	// Sửa lại hàm changeField để chặn sự kiện nổi bọt
 function changeField(dir, e) {
     if (e) e.stopPropagation();
-    let newIdx = currentFieldIndex + dir;
+    
+    // DỪNG ĐỌC NGAY LẬP TỨC để giải phóng hệ thống khi chuyển cột
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+    
+    let newIdx = currentFieldIndex;
+    const marker = String(groupMarkers[newIdx] || "").trim();
 
-    // Nếu nhảy sang phải mà trúng cột mặt sau (-B), thì nhảy thêm bước nữa
-    if (dir > 0 && newIdx < headers.length) {
-        if (String(groupMarkers[newIdx]).includes('-B')) {
+    if (dir > 0) { // Nút TIẾN (>)
+        // Logic: Nếu đang ở mặt trước Group (-F) thì nhảy 2, nếu không (cột đơn/mặt sau) nhảy 1
+        newIdx += (marker.includes('-F')) ? 2 : 1;
+
+        // Nếu vị trí mới lọt vào cột mặt sau (-B) của group khác, nhảy thêm 1 cái nữa
+        if (newIdx < headers.length && String(groupMarkers[newIdx] || "").includes('-B')) {
             newIdx++;
         }
-    }
-    // Nếu nhảy sang trái mà trúng cột mặt sau (-B), nhảy lùi thêm bước nữa
-    if (dir < 0 && newIdx >= 1) {
-        if (String(groupMarkers[newIdx]).includes('-B')) {
-            newIdx--;
+    } else { // Nút LÙI (<)
+        newIdx -= 1;
+        // Nếu lùi trúng cột mặt sau (-B), lùi thêm phát nữa về mặt trước (-F)
+        if (newIdx >= 1 && String(groupMarkers[newIdx] || "").includes('-B')) {
+            newIdx -= 1;
         }
     }
 
+    // Kiểm tra giới hạn mảng
     if (newIdx >= 1 && newIdx < headers.length) {
         currentFieldIndex = newIdx;
+        const card = document.getElementById('main-card');
+        if (card) card.classList.remove('is-flipped'); 
+        
         updateDisplay();
         return true;
     }
     return false;
 }
-
 	function handleSpeak(e) {
 		if (e) e.stopPropagation();
 		speakText();
 	}
-	function handleCardClick(e) {
-		if (e.target.closest('.speaker-icon') || e.target.closest('.nav-arrow')) return;
-		
-		const marker = String(groupMarkers[currentFieldIndex] || "");
-		if (marker.includes('-F') || marker.includes('-B')) {
-			const card = document.getElementById('main-card');
-			card.classList.toggle('is-flipped');
-			
-			// Nếu lật ra và có bật auto speak thì đọc nội dung mặt mới lộ ra
-			if (document.getElementById('autoSpeak').checked) {
-				setTimeout(() => { speakText(); }, 250);
-			}
-		}
-	}
+function handleCardClick(e) {
+    // Không lật nếu bấm trúng loa hoặc mũi tên
+    if (e.target.closest('.speaker-icon') || e.target.closest('.nav-arrow')) return;
+    
+    const marker = String(groupMarkers[currentFieldIndex] || "");
+    // Chỉ cho lật nếu cột có đánh dấu -F hoặc -B
+    if (marker.includes('-F') || marker.includes('-B')) {
+        const card = document.getElementById('main-card');
+        const navTitle = document.getElementById('curr-field');
+        
+        card.classList.toggle('is-flipped');
+        
+        // Đổi tiêu đề Nav dựa trên trạng thái lật
+        if (card.classList.contains('is-flipped')) {
+            navTitle.innerText = card.dataset.backTitle || card.dataset.frontTitle;
+        } else {
+            navTitle.innerText = card.dataset.frontTitle;
+        }
+
+        if (document.getElementById('autoSpeak').checked) {
+            setTimeout(() => { speakText(); }, 250);
+        }
+    }
+}
     /* FIX LỖI ÂM THANH IPHONE TRIỆT ĐỂ */
-	function speakText(callback) {
-		// 1. Xác định mặt nào đang hiển thị để lấy text mặt đó
-		const isFlipped = document.getElementById('main-card')?.classList.contains('is-flipped');
-		const containerId = isFlipped ? 'display-text-back' : 'display-text';
-		const text = document.getElementById(containerId).innerText; // Tự lọc Furigana
-	
-		if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
-		
-		synth.cancel(); 
-		const utter = new SpeechSynthesisUtterance(text);
-		
-		// 2. Nhận diện ngôn ngữ (Giữ nguyên từ bản cũ của bạn)
-		const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
-		const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
-		let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
-		utter.lang = langCode;
-	
-		// 3. Chọn giọng hay nhất (Kyoko/Linh/Samantha) - Giữ từ bản 900 dòng
-		let voices = synth.getVoices().filter(v => v.lang.includes(langCode.split('-')[0]));
-		if (voices.length > 0) {
-			let selectedVoice = null;
-			if (isJP) {
-				selectedVoice = voices.find(v => v.name.includes('Kyoko')) || voices[0];
-			} else if (isVN) {
-				selectedVoice = voices.find(v => v.name.includes('Linh')) || voices[0];
-			} else {
-				selectedVoice = voices.find(v => v.name.includes('Samantha')) || voices[0];
-			}
-			utter.voice = selectedVoice;
-		}
-	
-		utter.rate = document.getElementById('voiceRate').value || 1;
-		utter.onend = () => { if (callback) callback(); };
-		utter.onerror = () => { if (callback) callback(); };
-		
-		// 4. Trick delay 100ms cho iPhone
-		setTimeout(() => { synth.speak(utter); }, 100);
-	}
+function speakText(callback) {
+    const card = document.getElementById('main-card');
+    const isFlipped = card?.classList.contains('is-flipped');
+    const containerId = isFlipped ? 'display-text-back' : 'display-text';
+    const originalElement = document.getElementById(containerId);
+    
+    if (!originalElement) { if (callback) callback(); return; }
+
+    // --- CHIẾN THUẬT XỬ LÝ RUBY TRIỆT ĐỂ ---
+    // Tạo một bản sao tạm thời để không làm hỏng giao diện đang hiện
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = originalElement.innerHTML;
+    
+    // Tìm tất cả các thẻ <rt> (phần Furigana) và xóa sạch chúng
+    const rts = tempDiv.querySelectorAll('rt');
+    rts.forEach(rt => rt.remove());
+    
+    // Lấy text sau khi đã xóa rt và xóa sạch các dấu ngoặc nếu có
+    let cleanText = tempDiv.innerText.replace(/\([^)]+\)/g, "").replace(/\[[^\]]+\]/g, "").trim();
+
+    if (cleanText === "N.A" || !cleanText || cleanText === "---") { 
+        if (callback) callback(); 
+        return; 
+    }
+    
+    synth.cancel(); 
+    const utter = new SpeechSynthesisUtterance(cleanText);
+    
+    // Giữ nguyên logic nhận diện ngôn ngữ và chọn giọng của bạn
+    const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(cleanText);
+    const isVN = /[à-ỹ]|[À-Ỹ]/i.test(cleanText);
+    let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
+    utter.lang = langCode;
+
+    let voices = synth.getVoices().filter(v => v.lang.includes(langCode.split('-')[0]));
+    if (voices.length > 0) {
+        let selectedVoice = isJP ? (voices.find(v => v.name.includes('Kyoko')) || voices[0]) :
+                           (isVN ? (voices.find(v => v.name.includes('Linh')) || voices[0]) :
+                           (voices.find(v => v.name.includes('Samantha')) || voices[0]));
+        utter.voice = selectedVoice;
+    }
+
+    utter.rate = document.getElementById('voiceRate').value || 1;
+    utter.onend = () => { if (callback) callback(); };
+    utter.onerror = () => { if (callback) callback(); };
+    
+    setTimeout(() => { synth.speak(utter); }, 100);
+}
 
     function toggleAutoPlay() { if (isAutoPlaying) stopAutoPlay(); else startAutoPlay(); }
     function startAutoPlay() { isAutoPlaying = true; document.getElementById('btn-autoplay').innerText = "⏹ Dừng phát"; document.getElementById('btn-autoplay').style.background = "var(--danger)"; currentFieldIndex = 1; updateDisplay(); playSequence(); }
