@@ -71,6 +71,10 @@
         
         /* OVERLAY MỚI ĐỂ KÍCH HOẠT ÂM THANH TRÊN IOS */
         #audio-unlock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
+		/* Thêm vào khoảng dòng 45 */
+ruby { ruby-align: center; ruby-position: over; }
+rt { font-size: 0.5em; color: var(--primary); line-height: 1.2; user-select: none; }
+#display-text { line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -111,16 +115,20 @@
         <div class="card">
             <button class="nav-arrow arrow-left" onclick="changeField(-1)">❮</button>
             <div id="display-text" class="card-content">---</div>
+			
+			<div id="debug-tts" style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 10px; color: red; width: 100%; text-align: center; pointer-events: none;"></div>
+			
             <button class="speaker-icon" onclick="speakText()">🔊</button>
             <button class="nav-arrow arrow-right" onclick="changeField(1)">❯</button>
         </div>
-        <div class="voice-settings">
-            <span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
-                <span id="speed-display" class="speed-val">1x</span>
-            </span>
-            <label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
-            <label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random từ nhiều nghĩa</label>
-        </div>
+		<div class="voice-settings">
+			<span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
+				<span id="speed-display" class="speed-val">1x</span>
+			</span>
+			<label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
+			<label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random</label>
+			<button id="furiganaToggle" onclick="toggleFurigana()" style="background: #e2e8f0; color: #475569; padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1; cursor: pointer; min-width: 100px;">Furigana: OFF</button>
+		</div>
         <div id="study-controls" class="btn-group" style="margin-top: 15px;">
 			<button id="btn-learned" class="btn-learned" onclick="setStatus('learned')">⭐ Đã học</button>
 			<button id="btn-mastered" class="btn-mastered" onclick="setStatus('mastered')">✅ Đã nhớ</button>
@@ -226,7 +234,37 @@
         'forgot': '3', 'speak': 'r', 'fieldNext': 'arrowdown', 'fieldPrev': 'arrowup'
     };
 
+// Thay thế đoạn gây lỗi cũ bằng đoạn này
+let isFuriganaEnabled = false;
+try {
+    const savedFurigana = localStorage.getItem('vocab_furigana');
+    isFuriganaEnabled = savedFurigana ? JSON.parse(savedFurigana) : false;
+} catch (e) {
+    isFuriganaEnabled = false;
+}
 
+function toggleFurigana() {
+    isFuriganaEnabled = !isFuriganaEnabled;
+    localStorage.setItem('vocab_furigana', JSON.stringify(isFuriganaEnabled));
+    updateFuriganaButtons();
+    updateDisplay();
+}
+
+function updateFuriganaButtons() {
+    const btn = document.getElementById('furiganaToggle');
+    if (btn) {
+        btn.innerText = isFuriganaEnabled ? "Furigana: ON" : "Furigana: OFF";
+        btn.style.background = isFuriganaEnabled ? "var(--primary)" : "#e2e8f0";
+        btn.style.color = isFuriganaEnabled ? "white" : "#475569";
+    }
+}
+
+function formatFurigana(text) {
+    if (!text || typeof text !== 'string') return text;
+    if (!isFuriganaEnabled) return text.replace(/\((.*?)\)/g, '');
+    // Logic: Tìm cụm chữ Nhật đứng ngay trước dấu ngoặc
+    return text.replace(/([\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF]+)\((.*?)\)/g, '<ruby>$1<rt>$2</rt></ruby>');
+}
     // Load voices cho iPhone
 	function loadVoices() {
 		availableVoices = synth.getVoices();
@@ -597,7 +635,8 @@
         document.getElementById('prev-field').innerText = (prevIdx > 0) ? headers[prevIdx] : "";
         document.getElementById('curr-field').innerText = headers[currentFieldIndex];
         document.getElementById('next-field').innerText = (nextIdx < headers.length) ? headers[nextIdx] : "";
-        document.getElementById('display-text').innerText = word[headers[currentFieldIndex]];
+		document.getElementById('display-text').innerHTML = formatFurigana(word[headers[currentFieldIndex]] || "");
+		updateFuriganaButtons(); // Đảm bảo nút bấm luôn đúng trạng thái
         const statusDiv = document.getElementById('status-display');
 		statusDiv.innerHTML = stats[sttExcel] === 'learned' ? '<span title="Đã học" class="status-star">⭐</span>' : stats[sttExcel] === 'mastered' ? '<span title="Đã nhớ" class="status-check">✅</span>' : "";
         
@@ -605,6 +644,7 @@
         if (!isAutoPlaying && document.getElementById('autoSpeak').checked) { 
             setTimeout(() => { speakText(); }, 100); 
         }
+		updateFuriganaButtons();
     }
 
 	function moveWord(step) { 
@@ -640,43 +680,61 @@
     }
 
     /* FIX LỖI ÂM THANH IPHONE TRIỆT ĐỂ */
-	function speakText(callback) {
-		const text = document.getElementById('display-text').innerText;
-		if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
-		
-		synth.cancel(); 
-		const utter = new SpeechSynthesisUtterance(text);
-		
-		// Nhận diện ngôn ngữ chuẩn hơn
-		const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
-		const isVN = /[à-ỹ]|[À-Ỹ]/i.test(text);
-		let langCode = isJP ? 'ja-JP' : (isVN ? 'vi-VN' : 'en-US');
-		utter.lang = langCode;
-	
-		// Cập nhật lại danh sách giọng trước khi đọc
-		let voices = synth.getVoices().filter(v => v.lang.includes(langCode.split('-')[0]));
-		
-		if (voices.length > 0) {
-			let selectedVoice = null;
-			if (isJP) {
-				// Tìm Kyoko hoặc bất cứ ai có chữ ja
-				selectedVoice = voices.find(v => v.name.includes('Kyoko')) || voices[0];
-			} else if (isVN) {
-				selectedVoice = voices.find(v => v.name.includes('Linh')) || voices[0];
-			} else {
-				selectedVoice = voices.find(v => v.name.includes('Samantha')) || voices[0];
-			}
-			utter.voice = selectedVoice;
-		}
-	
-		utter.rate = document.getElementById('voiceRate').value || 1;
-		utter.onend = () => { if (callback) callback(); };
-		utter.onerror = () => { if (callback) callback(); };
-		
-		// Trick dành riêng cho iPhone: Delay nhẹ 100ms
-		setTimeout(() => { synth.speak(utter); }, 100);
-	}
+function speakText(callback) {
+    const displayEl = document.getElementById('display-text');
+    if (!displayEl) { if (callback) callback(); return; }
 
+    const tempEl = displayEl.cloneNode(true);
+    const rts = tempEl.querySelectorAll('rt');
+    rts.forEach(rt => rt.remove()); 
+    let text = tempEl.innerText.replace(/\(.*?\)/g, '').trim();
+
+    if (text === "N.A" || !text || text === "---") { if (callback) callback(); return; }
+    
+    const isVN = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(text);
+    const isJP = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
+    let langCode = isVN ? 'vi-VN' : (isJP ? 'ja-JP' : 'en-US');
+
+    synth.cancel(); 
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = langCode;
+
+    let allVoices = synth.getVoices();
+    let selectedVoice = null;
+
+if (langCode === 'vi-VN') {
+        // Ưu tiên: Linh Enhanced -> Linh thường -> Bất kỳ giọng vi nào
+        selectedVoice = allVoices.find(v => v.lang.startsWith('vi') && v.name.includes('Linh') && v.name.includes('Enhanced')) ||
+                        allVoices.find(v => v.lang.startsWith('vi') && (v.name.includes('Linh') || v.name.includes('An'))) ||
+                        allVoices.find(v => v.lang.startsWith('vi'));
+    } else if (langCode === 'ja-JP') {
+        // Ưu tiên: Kyoko Enhanced -> Kyoko thường -> Haruka (Win) -> Bất kỳ giọng ja nào
+        selectedVoice = allVoices.find(v => v.lang.startsWith('ja') && v.name.includes('Kyoko') && v.name.includes('Enhanced')) ||
+                        allVoices.find(v => v.lang.startsWith('ja') && (v.name.includes('Kyoko') || v.name.includes('Haruka') || v.name.includes('Ichiro'))) ||
+                        allVoices.find(v => v.lang.startsWith('ja'));
+    } else {
+        // Ưu tiên: Allison/Samantha Enhanced -> Samantha thường -> Bất kỳ giọng en nào
+        selectedVoice = allVoices.find(v => v.lang.startsWith('en') && (v.name.includes('Allison') || v.name.includes('Samantha')) && v.name.includes('Enhanced')) ||
+                        allVoices.find(v => v.lang.startsWith('en') && (v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('David'))) ||
+                        allVoices.find(v => v.lang.startsWith('en'));
+    }
+
+    if (selectedVoice) {
+        utter.voice = selectedVoice;
+    }
+
+    const debugBox = document.getElementById('debug-tts');
+    if (debugBox) {
+        const voiceName = selectedVoice ? selectedVoice.name : "KHÔNG TÌM THẤY GIỌNG (Dùng mặc định)";
+        debugBox.innerText = `Lang: ${langCode} | Voice: ${voiceName}`;
+    }
+
+    utter.rate = document.getElementById('voiceRate').value || 1;
+    utter.onend = () => { if (callback) callback(); };
+    utter.onerror = () => { if (callback) callback(); };
+    
+    setTimeout(() => { synth.speak(utter); }, 100);
+}
     function toggleAutoPlay() { if (isAutoPlaying) stopAutoPlay(); else startAutoPlay(); }
     function startAutoPlay() { isAutoPlaying = true; document.getElementById('btn-autoplay').innerText = "⏹ Dừng phát"; document.getElementById('btn-autoplay').style.background = "var(--danger)"; currentFieldIndex = 1; updateDisplay(); playSequence(); }
     function stopAutoPlay() { isAutoPlaying = false; synth.cancel(); document.getElementById('btn-autoplay').innerText = "▶ Tự động phát"; document.getElementById('btn-autoplay').style.background = "#8b5cf6"; }
