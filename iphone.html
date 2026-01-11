@@ -191,6 +191,20 @@
 .column-item input { width: 20px; height: 20px; }
 .modal-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
 .btn-hide-cols { background: #64748b; color: white; padding: 5px 12px; font-size: 0.8rem; border-radius: 6px; }
+/* Menu thả xuống cho tiêu đề */
+.mode-menu-container { position: relative; cursor: pointer; }
+.mode-dropdown {
+    position: absolute; top: 100%; left: 0; background: white;
+    box-shadow: 0 10px 15px rgba(0,0,0,0.2); border-radius: 8px;
+    z-index: 2000; width: 180px; display: none; border: 1px solid #e2e8f0;
+}
+.mode-dropdown.show { display: block !important; }
+.mode-item {
+    padding: 12px 15px; border-bottom: 1px solid #f1f5f9;
+    color: #334155; font-size: 0.9rem; font-weight: bold;
+}
+.mode-item:last-child { border-bottom: none; color: var(--danger); }
+.mode-item:active { background: #f8fafc; }
 </style>
 </head>
 <body>
@@ -220,12 +234,21 @@
         <div id="status-display" class="status-badge"></div>
 		<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; background: #f8fafc; padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0;">
 			<div style="flex: 1;">
-				<h3 id="mode-title" style="margin: 0; color: var(--primary); font-size: 0.75rem; text-transform: uppercase;">Chế độ học tập</h3>
+				<div class="mode-menu-container" onclick="toggleModeMenu(event)">
+					<h3 id="mode-title" style="margin: 0; color: var(--primary); font-size: 0.85rem; text-transform: uppercase; display: flex; align-items: center; gap: 5px;">
+						Chế độ học tập <span id="menu-arrow">▾</span>
+					</h3>
+					<div id="mode-dropdown" class="mode-dropdown">
+						<div class="mode-item" onclick="selectMode('study', event)">📚 Chế độ Học tập</div>
+						<div class="mode-item" onclick="selectMode('review', event)">🔄 Chế độ Ôn tập</div>
+						<div class="mode-item" onclick="showQuizScreen(event)">📝 Trắc nghiệm</div>
+					</div>
+				</div>
 			</div>
 		
 			<div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;">
 				<span id="word-counter-top" style="font-weight: 800; font-size: 0.9rem; color: #1e293b;">0 / 0</span>
-				<div id="status-display-top" style="font-size: 1.2rem; height: 1.4rem;"></div>
+				<div id="status-display-top" onclick="setStatus(null)" style="font-size: 1.2rem; height: 1.4rem;"></div>
 			</div>
 		
 			<div style="flex: 1; text-align: right;">
@@ -274,28 +297,28 @@
 			</span>
 			<label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
 			<label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random</label>
-			<button id="furiganaToggle" onclick="toggleFurigana()" style="background: #e2e8f0; color: #475569; padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1; cursor: pointer; min-width: 100px;">Furigana: OFF</button>
+			<div style="display: flex; gap: 5px; width: 100%; margin-top: 5px;">
+				<button id="furiganaToggle" onclick="toggleFurigana()" style="flex: 1; background: #e2e8f0; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">Furigana: OFF</button>
+				<button id="btn-data-toggle" onclick="toggleDataMenu()" style="flex: 1; background: #334155; color: white; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: none;">Data ▾</button>
+			</div>
 		</div>
-        <div id="study-controls" class="btn-group" style="margin-top: 15px;">
-			<button id="btn-learned" class="btn-learned" onclick="setStatus('learned')">✅ Đã học</button>
-			<button id="btn-mastered" class="btn-mastered" onclick="setStatus('mastered')">⭐ Đã nhớ</button>
-            <button id="btn-forgot" class="btn-forgot" onclick="setStatus(null)">Quên rồi 😢 </button>
-        </div>
-        <div id="review-controls" class="btn-group hidden" style="margin-top: 15px;">
-			<button class="btn-mastered review-mastered" onclick="setStatus('mastered')" style="grid-column: span 1.5;">⭐ Đã nhớ</button>
-            <button class="btn-forgot" onclick="setStatus(null)" style="grid-column: span 1.5;">Quên rồi 😢 </button>
-            <button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()">▶ Tự động phát</button>
-        </div>
-        <div class="menu-grid">
-            <button id="btn-to-review" class="btn-menu" onclick="switchMode('review')">🔄 Chuyển sang Ôn tập</button>
-            <button id="btn-to-study" class="btn-menu hidden" onclick="switchMode('study')">📚 Quay lại Học tập</button>
-            <button class="btn-menu" onclick="showQuizScreen()">📝 Trắc nghiệm</button>
-        </div>
+		<div id="data-controls-wrapper" class="hidden" style="margin-top: 10px; background: #f1f5f9; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+			<div class="action-panel" style="margin-top: 0; border-top: none; padding: 0;">
+				<button class="btn-sync" onclick="exportFullBackup()" style="background:#6366f1">💾 Backup nhanh (.json)</button>
+				<button class="btn-sync" onclick="showAddFromFile()" style="background:#8b5cf6">➕ Thêm từ vào DB</button>
+			</div>
+			
+			<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+				<button class="btn-db-action" style="background: #1e293b; color: white; width: 100%; padding: 12px; border-radius: 10px; font-weight: bold;" onclick="showDatabaseView()">📊 Xem & Quản lý Database (DB)</button>
+				<button onclick="resetDatabase()" style="background:none; color:#ef4444; font-size:11px; border:none; text-decoration: underline; cursor: pointer;">[Xóa sạch Database hệ thống]</button>
+			</div>
+		</div>
+		<div id="study-controls" class="hidden"></div> 
+		
+		<div id="review-controls" class="hidden" style="margin-top: 10px;">
+			<button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()" style="width: 100%;">▶ Tự động phát</button>
+		</div>
 
-        <div class="action-panel">
-            <button class="btn-sync" onclick="exportFullBackup()" style="background:#6366f1">💾 Backup nhanh (.json)</button>
-            <button class="btn-sync" onclick="showAddFromFile()" style="background:#8b5cf6">➕ Thêm từ vào DB</button>
-        </div>
         
         <div id="add-file-panel" class="hidden" style="margin-top: 20px; padding: 15px; background: #fefce8; border: 1px solid #fef08a; border-radius: 12px;">
             <h4 style="margin: 0 0 10px 0;">➕ Thêm từ vựng từ File</h4>
@@ -306,10 +329,6 @@
             </div>
         </div>
 
-        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
-			<button class="btn-db-action" style="background: #334155; color: white; width: 100%; padding: 12px; border-radius: 10px; font-weight: bold;" onclick="showDatabaseView()">📊 Xem & Quản lý Database (DB)</button>
-			<button onclick="resetDatabase()" style="background:none; color:#ef4444; font-size:11px; border:none; text-decoration: underline;">[Xóa sạch Database hệ thống]</button>
-		</div>
     </div>
 
     <div id="db-view-screen" class="container db-view-container hidden">
@@ -376,6 +395,42 @@
 
 // Khai báo biến lưu trữ (Dán dưới chỗ let currentMode)
 let hiddenColumns = JSON.parse(localStorage.getItem('vocab_hidden_cols')) || { study: [], review: [] };
+
+// 1. Hàm bật/tắt Menu khi bấm vào tiêu đề
+function toggleModeMenu(event) {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById('mode-dropdown');
+    const arrow = document.getElementById('menu-arrow');
+    
+    // Chỉ dùng duy nhất class 'show' để điều khiển
+    const isShowing = dropdown.classList.toggle('show');
+    
+    if(arrow) arrow.style.transform = isShowing ? "rotate(180deg)" : "rotate(0deg)";
+}
+
+// 2. Hàm chọn chế độ (Bấm xong là TẮT)
+function selectMode(mode, event) {
+    if (event) event.stopPropagation(); // Chặn để không bị nảy ngược lại hàm toggle
+
+    // TẮT MENU bằng cách xóa class show
+    document.getElementById('mode-dropdown').classList.remove('show');
+    const arrow = document.getElementById('menu-arrow');
+    if(arrow) arrow.style.transform = "rotate(0deg)";
+
+    // Logic chuyển mode của bạn
+    if (mode === 'study' || mode === 'review') {
+        if (currentMode !== mode) switchMode(mode);
+    } else {
+        showQuizScreen();
+    }
+}
+
+// Thêm dòng này vào đầu script để click ra ngoài thì đóng menu
+window.onclick = function(event) {
+    if (!event.target.closest('.mode-menu-container')) {
+        document.getElementById('mode-dropdown').classList.remove('show');
+    }
+}
 
 function openColumnModal() {
     const listContainer = document.getElementById('column-checkbox-list');
@@ -453,6 +508,23 @@ function updateFuriganaButtons() {
         btn.innerText = isFuriganaEnabled ? "Furigana: ON" : "Furigana: OFF";
         btn.style.background = isFuriganaEnabled ? "var(--primary)" : "#e2e8f0";
         btn.style.color = isFuriganaEnabled ? "white" : "#475569";
+    }
+}
+
+function toggleDataMenu() {
+    const wrapper = document.getElementById('data-controls-wrapper');
+    const btn = document.getElementById('btn-data-toggle');
+    
+    if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+        btn.innerText = 'Data ▴';
+        btn.style.background = 'var(--primary)';
+        // Cuộn xuống một chút để người dùng thấy menu vừa mở
+        setTimeout(() => wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+    } else {
+        wrapper.classList.add('hidden');
+        btn.innerText = 'Data ▾';
+        btn.style.background = '#334155';
     }
 }
 
@@ -774,29 +846,45 @@ async function syncToCloud() {
 			updateDisplay();
 		}
 	}
-    function switchMode(mode) {
-        stopAutoPlay();
-        currentMode = mode;
-        if (mode === 'review') {
-            prepareReviewPool();
-            if (reviewPool.length === 0) { alert("Trống!"); currentMode = 'study'; return; }
-            document.getElementById('mode-title').innerText = "Chế độ ôn tập";
-            document.getElementById('study-controls').classList.add('hidden');
-            document.getElementById('review-controls').classList.remove('hidden');
-            document.getElementById('btn-to-review').classList.add('hidden');
-            document.getElementById('btn-to-study').classList.remove('hidden');
-            document.getElementById('random-multi-wrap').classList.remove('hidden');
-            reviewIndex = 0; currentFieldIndex = 1; updateDisplay(true);
-        } else {
-            document.getElementById('mode-title').innerText = "Chế độ học tập";
-            document.getElementById('study-controls').classList.remove('hidden');
-            document.getElementById('review-controls').classList.add('hidden');
-            document.getElementById('btn-to-review').classList.remove('hidden');
-            document.getElementById('btn-to-study').classList.add('hidden');
-            document.getElementById('random-multi-wrap').classList.add('hidden');
-            currentFieldIndex = 1; updateDisplay(true);
+function switchMode(mode) {
+    stopAutoPlay();
+    currentMode = mode;
+    const titleEl = document.getElementById('mode-title'); // Lấy phần tử tiêu đề
+
+    if (mode === 'review') {
+        prepareReviewPool();
+        if (reviewPool.length === 0) { 
+            alert("Trống!"); 
+            currentMode = 'study'; 
+            return; 
         }
+        
+        // SỬA Ở ĐÂY: Dùng innerHTML để giữ lại thẻ span chứa mũi tên ▾
+        titleEl.innerHTML = 'Chế độ ôn tập <span id="menu-arrow">▾</span>';
+        
+        document.getElementById('study-controls').classList.add('hidden');
+        document.getElementById('review-controls').classList.remove('hidden');
+        document.getElementById('btn-to-review').classList.add('hidden');
+        document.getElementById('btn-to-study').classList.remove('hidden');
+        document.getElementById('random-multi-wrap').classList.remove('hidden');
+        reviewIndex = 0; 
+        currentFieldIndex = 1; 
+        updateDisplay(true);
+    } else {
+        // SỬA Ở ĐÂY: Dùng innerHTML để giữ lại thẻ span chứa mũi tên ▾
+        titleEl.innerHTML = 'Chế độ học tập <span id="menu-arrow">▾</span>';
+        
+        document.getElementById('study-controls').classList.remove('hidden');
+        document.getElementById('review-controls').classList.add('hidden');
+        document.getElementById('btn-to-review').classList.remove('hidden');
+        document.getElementById('btn-to-study').classList.add('hidden');
+        document.getElementById('random-multi-wrap').classList.add('hidden');
+        currentFieldIndex = 1; 
+        updateDisplay(true);
     }
+// --- DÒNG LỆNH TẮT MENU ---
+document.getElementById('mode-dropdown').style.display = 'none';
+}
 
     function prepareReviewPool() {
         const learned = rawData.filter(w => stats[w[headers[0]]] === 'learned');
@@ -836,7 +924,7 @@ function updateDisplay(shouldSpeak = false) {
     // Hiển thị STT lên dòng đầu
     document.getElementById('word-counter-top').innerText = `${sttExcel} / ${total}`;
 
-    // Xử lý Nav (Giữ nguyên logic ẩn cột của bạn)
+    // --- GIỮ NGUYÊN LOGIC ẨN CỘT ---
     const currentHidden = (window.hiddenColumns && window.hiddenColumns[currentMode]) ? window.hiddenColumns[currentMode] : [];
     let prevLabel = "";
     for (let i = currentFieldIndex - 1; i >= 1; i--) {
@@ -853,7 +941,7 @@ function updateDisplay(shouldSpeak = false) {
     document.getElementById('btn-prev-field').style.visibility = (prevLabel === "") ? 'hidden' : 'visible';
     document.getElementById('btn-next-field').style.visibility = (nextLabel === "") ? 'hidden' : 'visible';
 
-    // Nội dung thẻ
+    // --- NỘI DUNG THẺ (GIỮ NGUYÊN FURIGANA) ---
     let rawContent = word[headers[currentFieldIndex]] || "";
     if (isFuriganaEnabled) {
         document.getElementById('display-text').innerHTML = formatFurigana(rawContent);
@@ -861,13 +949,20 @@ function updateDisplay(shouldSpeak = false) {
         document.getElementById('display-text').innerHTML = rawContent.replace(/\(.*?\)/g, '');
     }
     
-    // HIỂN THỊ ICON LÊN DÒNG ĐẦU (Chỉ hiện nếu có status)
+    // --- HIỂN THỊ ICON LÊN DÒNG ĐẦU (Cập nhật để bấm được) ---
     const statusDivTop = document.getElementById('status-display-top');
     const currentStatus = stats[sttExcel];
-    if (currentStatus === 'learned') statusDivTop.innerHTML = "✅";
-    else if (currentStatus === 'mastered') statusDivTop.innerHTML = "⭐";
-    else statusDivTop.innerHTML = "";
     
+    if (currentStatus === 'learned') {
+        statusDivTop.innerHTML = "✅";
+    } else if (currentStatus === 'mastered') {
+        statusDivTop.innerHTML = "⭐";
+    } else {
+        // Hiện dấu chấm nhỏ để người dùng biết vị trí này có thể click (Reset)
+        statusDivTop.innerHTML = '<span style="opacity: 0.2;">•</span>'; 
+    }
+    
+    // --- GIỮ NGUYÊN LOGIC ÂM THANH ---
     if (shouldSpeak && !isAutoPlaying && document.getElementById('autoSpeak').checked) { 
         setTimeout(() => { speakText(); }, 100); 
     }
@@ -887,16 +982,35 @@ async function setStatus(status) {
     if (!word) return;
     const wordKey = word[headers[0]];
     
-    // Cập nhật local: status truyền vào là 'learned', 'mastered' hoặc null
+    // --- BẮT ĐẦU HIỆU ỨNG NHÁY ---
+    const currFieldEl = document.getElementById('curr-field');
+    if (currFieldEl) {
+        // Xác định màu nháy dựa trên status
+        let flashColor = '#475569'; // Màu mặc định
+        if (status === 'learned') flashColor = '#22c55e'; // Xanh lá
+        else if (status === 'mastered') flashColor = '#eab308'; // Vàng
+        else if (status === null) flashColor = '#ef4444'; // Đỏ
+
+        currFieldEl.style.transition = 'none'; // Nháy lập tức
+        currFieldEl.style.color = flashColor;
+        currFieldEl.style.transform = 'scale(1.1)'; // Phóng nhẹ để cảm nhận lực vuốt
+
+        setTimeout(() => {
+            currFieldEl.style.transition = 'all 0.3s ease';
+            currFieldEl.style.color = ''; // Về màu mặc định trong CSS
+            currFieldEl.style.transform = 'scale(1)';
+        }, 200);
+    }
+    // --- KẾT THÚC HIỆU ỨNG NHÁY ---
+
+    // Cập nhật local
     if (status === null) delete stats[wordKey]; 
     else stats[wordKey] = status;
     
-    // Đợi lưu lên Cloud thành công (Dùng await để chắc chắn dữ liệu đã đi)
+    // Đợi lưu lên Cloud
     await syncToCloud();
-	
 
-    // Logic xử lý hàng chờ Ôn tập
-    // Nếu Đã nhớ (mastered) hoặc Quên (null) thì bỏ khỏi pool ôn tập
+    // Logic xử lý hàng chờ Ôn tập (Giữ nguyên gốc của bạn)
     if (currentMode === 'review' && (status === 'mastered' || status === null)) {
         reviewPool.splice(reviewIndex, 1);
         if (reviewPool.length === 0) { 
@@ -909,7 +1023,6 @@ async function setStatus(status) {
         updateDisplay();
     } else { 
         updateDisplay(); 
-        // Nếu đang ôn tập mà chỉ bấm "Đã học" (✅) thì nhảy sang từ tiếp theo
         if(currentMode === 'review') nextReviewWord(); 
     }
 }
@@ -1024,17 +1137,26 @@ function speakText(callback) {
         synth.speak(utterHeader);
     }
 
-    function showQuizScreen() {
-        stopAutoPlay();
-        document.getElementById('study-screen').classList.add('hidden');
-        document.getElementById('quiz-screen').classList.remove('hidden');
-        document.getElementById('quiz-setup').classList.remove('hidden');
-        document.getElementById('quiz-playing').classList.add('hidden');
-        const pool = rawData.filter(w => stats[w[headers[0]]]);
-        document.getElementById('quiz-header-title').innerText = `📝 Trắc nghiệm (${pool.length})`;
-        if (scenarios.length === 0) { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); }
-        renderScenarios();
-    }
+// 3. Hàm Trắc nghiệm (Bấm xong cũng phải TẮT)
+function showQuizScreen(event) {
+    if (event) event.stopPropagation();
+
+    // TẮT MENU
+    document.getElementById('mode-dropdown').classList.remove('show');
+    const arrow = document.getElementById('menu-arrow');
+    if(arrow) arrow.style.transform = "rotate(0deg)";
+
+    // Logic Quiz của bạn
+    stopAutoPlay();
+    document.getElementById('study-screen').classList.add('hidden');
+    document.getElementById('quiz-screen').classList.remove('hidden');
+    document.getElementById('quiz-setup').classList.remove('hidden');
+    document.getElementById('quiz-playing').classList.add('hidden');
+    const pool = rawData.filter(w => stats[w[headers[0]]]);
+    document.getElementById('quiz-header-title').innerText = `📝 Trắc nghiệm (${pool.length})`;
+    if (scenarios.length === 0) { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); }
+    renderScenarios();
+}
 
     function addScenario() { scenarios.push({ root: headers[1], exclude: [headers[0]] }); saveScenarios(); renderScenarios(); }
     function removeScenario(idx) { scenarios.splice(idx, 1); if (scenarios.length === 0) addScenario(); else { saveScenarios(); renderScenarios(); } }
@@ -1202,6 +1324,27 @@ function handleSwipe() {
         handlePrev();
     }
 }
+// Logic Vuốt cho tiêu đề cột để Đã học/Đã nhớ
+let titleStartX = 0;
+const titleZone = document.getElementById('nav-center');
+
+titleZone.addEventListener('touchstart', e => {
+    titleStartX = e.changedTouches[0].screenX;
+}, {passive: true});
+
+titleZone.addEventListener('touchend', e => {
+    let titleEndX = e.changedTouches[0].screenX;
+    const diff = titleEndX - titleStartX;
+    const threshold = 40; // độ dài vuốt
+
+    if (diff > threshold) {
+        // Vuốt sang PHẢI -> Đã học (✅)
+        setStatus('learned');
+    } else if (diff < -threshold) {
+        // Vuốt sang TRÁI -> Đã nhớ (⭐)
+        setStatus('mastered');
+    }
+}, {passive: true});
 </script>
 </body>
 </html>
