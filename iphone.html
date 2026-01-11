@@ -1299,31 +1299,49 @@ function showQuizScreen(event) {
     }
 }
 // Logic Vuốt cho iPhone
+// --- ĐOẠN CODE SỬA LẠI ---
 let touchstartX = 0;
+let touchstartY = 0; // Thêm biến lưu vị trí Y bắt đầu
 let touchendX = 0;
+let touchendY = 0;   // Thêm biến lưu vị trí Y kết thúc
 
 const card = document.querySelector('.card');
 
 card.addEventListener('touchstart', e => {
     touchstartX = e.changedTouches[0].screenX;
+    touchstartY = e.changedTouches[0].screenY; // Lưu tọa độ Y
 }, {passive: true});
 
 card.addEventListener('touchend', e => {
     touchendX = e.changedTouches[0].screenX;
+    touchendY = e.changedTouches[0].screenY; // Lưu tọa độ Y khi kết thúc
     handleSwipe();
 }, {passive: true});
 
 function handleSwipe() {
-    const swipeThreshold = 50; // Độ dài vuốt tối thiểu
-    if (touchendX < touchstartX - swipeThreshold) {
-        // Vuốt sang trái -> Sang từ tiếp theo
-        handleNext();
-    }
-    if (touchendX > touchstartX + swipeThreshold) {
-        // Vuốt sang phải -> Quay lại từ cũ
-        handlePrev();
+    const swipeThreshold = 100; // Tăng từ 50 lên 100 để "với" xa hơn mới ăn
+    const verticalThreshold = 60; // Nếu vuốt dọc quá 60px thì coi như đang cuộn trang, không chuyển từ
+
+    const diffX = touchendX - touchstartX;
+    const diffY = touchendY - touchstartY;
+
+    // Kiểm tra: 
+    // 1. Quãng đường ngang (diffX) phải lớn hơn ngưỡng Threshold
+    // 2. Quãng đường ngang phải lớn hơn quãng đường dọc (đảm bảo đang vuốt ngang chứ không phải vuốt chéo hay cuộn)
+    // 3. Độ lệch dọc (diffY) không được quá lớn
+    if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
+        if (Math.abs(diffY) < verticalThreshold) {
+            if (diffX < 0) {
+                // Vuốt sang trái -> Sang từ tiếp theo
+                handleNext();
+            } else {
+                // Vuốt sang phải -> Quay lại từ cũ
+                handlePrev();
+            }
+        }
     }
 }
+// --- HẾT ĐOẠN CODE SỬA ---
 // Logic Vuốt cho tiêu đề cột để Đã học/Đã nhớ
 let titleStartX = 0;
 const titleZone = document.getElementById('nav-center');
