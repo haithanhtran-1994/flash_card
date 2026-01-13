@@ -175,34 +175,28 @@
     .btn-add-row { background: var(--primary); color: white; margin-bottom: 10px; }
     .btn-delete-row { background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;}
     #audio-unlock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
-    
-/* Container chứa chữ phải là khối ổn định */
-#display-text {
-    display: block; /* Chuyển từ flex sang block để Safari không tính toán nhầm */
+/* Fix lỗi Kanji đè nhau trên iPhone */
+.ruby-wrapper {
+    display: block;
     width: 100%;
-    min-height: 100px;
     text-align: center;
-    line-height: 1.8; /* Tăng khoảng cách để Furigana không chạm dòng trên */
-    word-break: break-word;
-    white-space: normal;
+    line-height: 2.2; /* Tăng khoảng cách dòng để rt không đè lên dòng trên */
+    word-break: break-all; /* Cho phép ngắt chữ nếu quá dài */
 }
 
-/* Ép thẻ Ruby hiển thị theo dòng văn bản */
 ruby {
-    display: inline-block; /* Quan trọng: inline-block giúp cụm Kanji-Furi đi cùng nhau */
+    display: inline-block;
     ruby-position: over;
-    vertical-align: bottom;
-    margin: 0 2px;
+    -webkit-ruby-position: before;
+    margin: 0 0.15em; /* Tạo khoảng cách nhỏ giữa các từ */
 }
 
 rt {
-    display: block; /* Safari cần block để nằm đúng trên đầu Kanji */
-    font-size: 0.45em;
-    line-height: 1.2;
+    font-size: 0.5em;
     color: var(--primary);
-    padding-bottom: 3px;
-    font-family: sans-serif; /* Font đơn giản giúp Safari render nhanh hơn */
-}
+    line-height: 1;
+    display: block; /* Ép rt nằm riêng biệt */
+}  
 	/* --- CSS CHO MODAL ẨN CỘT --- */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -982,7 +976,8 @@ function updateDisplay(shouldSpeak = false) {
     // SỬA: Luôn đảm bảo display-text nhận nội dung đúng dù mày chạm vào đâu
     const displayEl = document.getElementById('display-text');
     if (isFuriganaEnabled) {
-        displayEl.innerHTML = formatFurigana(rawContent);
+		let formatted = formatFurigana(rawContent);
+        displayEl.innerHTML = `<div class="ruby-wrapper">${formatted}</div>`;
     } else {
         displayEl.innerHTML = rawContent.replace(/\(.*?\)/g, '');
     }
