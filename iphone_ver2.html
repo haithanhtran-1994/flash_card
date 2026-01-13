@@ -52,6 +52,7 @@
 
  /* --- THIẾT LẬP LẠI THẺ CARD --- */
 /* --- THIẾT LẬP LẠI THẺ CARD --- */
+/* --- THẺ CARD GỐC --- */
 .card { 
     height: 450px; 
     border: 2px solid #e2e8f0; 
@@ -59,41 +60,35 @@
     position: relative; 
     margin-bottom: 20px; 
     background: #fff; 
-    overflow: hidden; 
-    display: block; 
+    overflow: hidden;
     -webkit-tap-highlight-color: transparent; 
 }
 
-/* LỚP ĐỆM MỚI: Bắt buộc Safari render theo bảng để căn giữa dòng */
-.card-inner {
-    display: table;
-    width: 100%;
-    height: 100%;
-    table-layout: fixed;
-}
-
+/* --- VÙNG NỘI DUNG: Dùng Absolute để Safari không thể làm lệch --- */
 .card-content { 
-    /* Thay đổi: Dùng table-cell để Safari không bao giờ làm lệch Furigana */
-    display: table-cell; 
-    vertical-align: middle; 
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Căn giữa tuyệt đối */
+    width: 90%; /* Để chừa lề 2 bên */
+    max-height: 80%; /* Không để tràn lên nút đọc */
+    overflow-y: auto;
+    
     text-align: center; 
-    width: 100%;
-    height: 100%;
-    padding: 60px 35px; /* Padding rộng để chữ không dính sát nút << >> */
-    box-sizing: border-box;
     font-size: 2.2rem; 
     font-weight: bold; 
     color: #1e293b;
-    line-height: 1.8; /* Tăng thêm để Furigana thoáng đãng */
+    line-height: 1.8; /* Khoảng cách đủ cho Furigana */
     word-break: break-word;
+    white-space: normal; /* Ép Safari giữ đúng dòng */
 }
 
+/* --- HAI NÚT ĐIỀU HƯỚNG: Trong suốt nhưng vẫn bấm được --- */
 .nav-btn-card {
     position: absolute;
-    /* CẬP NHẬT: Mở rộng vùng chạm dọc để cực nhạy trên mobile */
     top: 0;
-    bottom: 60px; /* Trừa chỗ cho vùng đọc */
-    width: 20%; /* Vùng chạm chiếm 20% mỗi bên mép card */
+    bottom: 60px;
+    width: 15%; 
     display: flex;
     align-items: center;
     justify-content: center;
@@ -102,11 +97,11 @@
     color: rgba(203, 213, 225, 0.4);
     z-index: 100;
     user-select: none;
-    cursor: pointer;
 }
 .nav-btn-left { left: 0; }
 .nav-btn-right { right: 0; }
 
+/* --- VÙNG ĐỌC: Nằm đè lên trên tất cả --- */
 .read-zone {
     position: absolute;
     bottom: 0;
@@ -116,8 +111,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(transparent, rgba(255, 255, 255, 1) 70%); 
-    z-index: 110; /* Cao hơn cả nút điều hướng để dễ chạm */
+    background: linear-gradient(transparent, #fff 60%); 
+    z-index: 110;
     cursor: pointer;
 }
 .read-text {
@@ -315,10 +310,8 @@
 </div>
 
 <div class="card">
-    <div class="card-inner">
-        <div id="display-text" class="card-content">
-            ---
-        </div>
+    <div id="display-text" class="card-content">
+        ---
     </div>
 
     <div class="nav-btn-card nav-btn-left" onclick="handlePrev()">&lt;&lt;</div>
