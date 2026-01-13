@@ -51,63 +51,64 @@
     .field-active { color: var(--primary); font-size: 1.1rem; font-weight: 800; border-bottom: 3px solid var(--primary); display: inline-block; padding-bottom: 2px; }
 
  /* --- THIẾT LẬP LẠI THẺ CARD --- */
+/* --- THIẾT LẬP LẠI THẺ CARD --- */
 .card { 
     height: 450px; 
     border: 2px solid #e2e8f0; 
     border-radius: 20px; 
-    position: relative; /* Gốc để các nút bám vào */
+    position: relative; 
     margin-bottom: 20px; 
     background: #fff; 
     overflow: hidden; 
-    /* BỎ flex-direction và align-items cũ để tránh ép chữ */
-    display: block; 
+    display: block; /* Quay về block thuần túy */
     -webkit-tap-highlight-color: transparent; 
 }
 
-/* --- VÙNG NỘI DUNG CHÍNH (LỚP DƯỚI CÙNG) --- */
+/* --- VÙNG NỘI DUNG CHÍNH (FIX LỖI NHẢY CHỮ) --- */
 .card-content { 
     width: 100%;
     height: 100%;
-    display: flex; /* Vẫn dùng flex ở đây để căn giữa chữ */
-    align-items: center;
-    justify-content: center;
-    font-size: 2.2rem; 
-    text-align: center; 
-    padding: 60px 30px; /* Padding rộng để chữ không bị nút che khuất hoàn toàn */
-    font-weight: bold; 
-    color: #1e293b; 
+    /* BỎ flex ở đây để tránh làm hỏng cấu trúc ruby/furigana */
+    display: block; 
+    overflow-y: auto; 
+    padding: 60px 25px; /* Để trống không gian cho nút << >> và CHẠM ĐỂ ĐỌC */
     box-sizing: border-box;
-    overflow-y: auto; /* Nếu ví dụ quá dài, nó tự cuộn đè dưới các nút */
+    
+    /* Căn giữa chữ bằng text-align và một chút mẹo line-height */
+    text-align: center; 
+    font-size: 2.2rem; 
+    font-weight: bold; 
+    color: #1e293b;
+    line-height: 1.6; /* Khoảng cách dòng rộng ra cho Furigana khỏi đè nhau */
 }
 
-/* --- HAI NÚT ĐIỀU HƯỚNG (BAY TRÊN NỘI DUNG) --- */
+/* --- HAI NÚT ĐIỀU HƯỚNG (GIỮ NGUYÊN ABSOLUTE) --- */
 .nav-btn-card {
     position: absolute;
-    top: 50%; /* Căn giữa dọc thẻ */
+    top: 50%; 
     transform: translateY(-50%);
-    font-size: 1.8rem;
+    font-size: 2rem;
     font-weight: bold;
-    color: rgba(203, 213, 225, 0.5); /* Màu mờ hẳn để nhìn xuyên thấu text */
-    padding: 30px 10px;
+    color: rgba(203, 213, 225, 0.4); /* Mờ hơn nữa để không gây nhiễu */
+    padding: 40px 15px;
     cursor: pointer;
-    z-index: 100; /* Nổi trên cùng để luôn bấm được */
+    z-index: 100;
     user-select: none;
 }
-.nav-btn-left { left: 5px; }
-.nav-btn-right { right: 5px; }
+.nav-btn-left { left: 0; }
+.nav-btn-right { right: 0; }
 
-/* --- KHUNG CHẠM ĐỂ ĐỌC (NẰM DƯỚI ĐÁY) --- */
+/* --- KHUNG CHẠM ĐỂ ĐỌC (GIỮ NGUYÊN DƯỚI ĐÁY) --- */
 .read-zone {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 50px;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Hiệu ứng gradient mờ để text bên dưới vẫn mờ ảo hiện ra */
-    background: linear-gradient(transparent, rgba(241, 245, 249, 0.9)); 
+    background: linear-gradient(transparent, rgba(255, 255, 255, 0.95) 50%); 
     z-index: 90;
     cursor: pointer;
 }
