@@ -176,26 +176,33 @@
     .btn-delete-row { background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;}
     #audio-unlock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
     
-    /* Ruby & Furigana */
-    ruby {
-        display: inline-flex;
-        flex-direction: column-reverse;
-        vertical-align: bottom;
-        align-items: center; 
-        ruby-align: space-between;
-        text-indent: 0;
-        margin: 0 1px; 
-    }
-    rt {
-        display: block; 
-        font-size: 0.45em; 
-        line-height: 1; 
-        color: var(--primary);
-        text-align: center;
-        width: 100%; 
-        white-space: nowrap; 
-        overflow: visible;
-    }   
+/* Container chứa chữ phải là khối ổn định */
+#display-text {
+    display: block; /* Chuyển từ flex sang block để Safari không tính toán nhầm */
+    width: 100%;
+    min-height: 100px;
+    text-align: center;
+    line-height: 1.8; /* Tăng khoảng cách để Furigana không chạm dòng trên */
+    word-break: break-word;
+    white-space: normal;
+}
+
+/* Ép thẻ Ruby hiển thị theo dòng văn bản */
+ruby {
+    display: inline-block; /* Quan trọng: inline-block giúp cụm Kanji-Furi đi cùng nhau */
+    ruby-position: over;
+    vertical-align: bottom;
+    margin: 0 2px;
+}
+
+rt {
+    display: block; /* Safari cần block để nằm đúng trên đầu Kanji */
+    font-size: 0.45em;
+    line-height: 1.2;
+    color: var(--primary);
+    padding-bottom: 3px;
+    font-family: sans-serif; /* Font đơn giản giúp Safari render nhanh hơn */
+}
 	/* --- CSS CHO MODAL ẨN CỘT --- */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
