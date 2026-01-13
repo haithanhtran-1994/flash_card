@@ -176,27 +176,45 @@
     .btn-delete-row { background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;}
     #audio-unlock { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
 /* Fix lỗi Kanji đè nhau trên iPhone */
-.ruby-wrapper {
-    display: block;
-    width: 100%;
-    text-align: center;
-    line-height: 2.2; /* Tăng khoảng cách dòng để rt không đè lên dòng trên */
-    word-break: break-all; /* Cho phép ngắt chữ nếu quá dài */
+/* Container chứa chữ và Furigana */
+.ruby-container {
+    display: inline-flex;
+    flex-direction: column-reverse; /* Đảo ngược để dễ kiểm soát khoảng cách */
+    vertical-align: bottom;
+    margin: 0 2px;
+    line-height: 1;
 }
 
 ruby {
-    display: inline-block;
-    ruby-position: over;
-    -webkit-ruby-position: before;
-    margin: 0 0.15em; /* Tạo khoảng cách nhỏ giữa các từ */
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    text-indent: 0;
 }
 
+/* Ép Furigana nằm đúng vị trí và không bao giờ đè chữ */
 rt {
+    display: block;
     font-size: 0.5em;
+    line-height: 1.2;
+    margin-bottom: 2px; /* Tạo khe hở cố định với Kanji */
     color: var(--primary);
-    line-height: 1;
-    display: block; /* Ép rt nằm riêng biệt */
-}  
+    text-align: center;
+    white-space: nowrap;
+    position: relative;
+    /* Khử mọi thuộc tính mặc định của trình duyệt */
+    all: unset; 
+    display: block;
+    font-size: 12px; /* Set cứng size nhỏ để test */
+}
+
+/* Đảm bảo display-text có đủ khoảng cách dòng */
+#display-text {
+    line-height: 2.5 !important; /* Tăng mạnh khoảng cách dòng để không bao giờ chạm nhau */
+    display: block !important;
+    text-align: center;
+    word-wrap: break-word;
+}
 	/* --- CSS CHO MODAL ẨN CỘT --- */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -561,9 +579,11 @@ function toggleDataMenu() {
 
 function formatFurigana(text) {
     if (!text) return "";
-    // Hỗ trợ Kanji, Hiragana, Katakana trước dấu ngoặc
+    
+    // Regex này sẽ tìm các cụm Kanji(Furigana)
     return text.replace(/([一-龠々a-zA-Z0-9]+)\(([^)]+)\)/g, (match, kanji, furigana) => {
-        return `<ruby>${kanji}<rt>${furigana}</rt></ruby>`;
+        // Bao bọc cả cụm ruby vào một span để cô lập hoàn toàn với các ký tự xung quanh
+        return `<span class="ruby-container"><ruby>${kanji}<rt>${furigana}</rt></ruby></span>`;
     });
 }
     // Load voices cho iPhone
@@ -975,9 +995,10 @@ function updateDisplay(shouldSpeak = false) {
     let rawContent = word[headers[currentFieldIndex]] || "";
     // SỬA: Luôn đảm bảo display-text nhận nội dung đúng dù mày chạm vào đâu
     const displayEl = document.getElementById('display-text');
-    if (isFuriganaEnabled) {
-		let formatted = formatFurigana(rawContent);
-        displayEl.innerHTML = `<div class="ruby-wrapper">${formatted}</div>`;
+	if (isFuriganaEnabled) {
+        // Loại bỏ mọi xuống dòng thừa trong chuỗi trước khi format
+        let cleanContent = rawContent.replace(/\s+/g, ' ').trim();
+        displayEl.innerHTML = formatFurigana(cleanContent);
     } else {
         displayEl.innerHTML = rawContent.replace(/\(.*?\)/g, '');
     }
