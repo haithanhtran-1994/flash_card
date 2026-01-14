@@ -995,40 +995,36 @@ async function moveWord(step) {
     function nextReviewWord() { if (reviewIndex < reviewPool.length - 1) reviewIndex++; else { prepareReviewPool(); reviewIndex = 0; } currentFieldIndex = 1; updateDisplay(true); }
     function prevReviewWord() { reviewIndex = (reviewIndex - 1 + reviewPool.length) % reviewPool.length; currentFieldIndex = 1; updateDisplay(true); }
 
+// --- 1. GIỮ NGUYÊN HÀM SETSTATUS VỚI LOGIC CŨ CỦA BẠN ---
 async function setStatus(status) {
     let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
     if (!word) return;
     const wordKey = word[headers[0]];
     
-    // --- BẮT ĐẦU HIỆU ỨNG NHÁY ---
+    // Logic nháy màu tiêu đề khi đổi trạng thái (Giữ nguyên)
     const currFieldEl = document.getElementById('curr-field');
     if (currFieldEl) {
-        // Xác định màu nháy dựa trên status
-        let flashColor = '#475569'; // Màu mặc định
-        if (status === 'learned') flashColor = '#22c55e'; // Xanh lá
-        else if (status === 'mastered') flashColor = '#eab308'; // Vàng
-        else if (status === null) flashColor = '#ef4444'; // Đỏ
+        let flashColor = '#475569'; 
+        if (status === 'learned') flashColor = '#22c55e'; 
+        else if (status === 'mastered') flashColor = '#eab308'; 
+        else if (status === null) flashColor = '#ef4444'; 
 
-        currFieldEl.style.transition = 'none'; // Nháy lập tức
+        currFieldEl.style.transition = 'none';
         currFieldEl.style.color = flashColor;
-        currFieldEl.style.transform = 'scale(1.1)'; // Phóng nhẹ để cảm nhận lực vuốt
+        currFieldEl.style.transform = 'scale(1.1)';
 
         setTimeout(() => {
             currFieldEl.style.transition = 'all 0.3s ease';
-            currFieldEl.style.color = ''; // Về màu mặc định trong CSS
+            currFieldEl.style.color = ''; 
             currFieldEl.style.transform = 'scale(1)';
         }, 200);
     }
-    // --- KẾT THÚC HIỆU ỨNG NHÁY ---
 
-    // Cập nhật local
     if (status === null) delete stats[wordKey]; 
     else stats[wordKey] = status;
     
-    // Đợi lưu lên Cloud
     await syncToCloud();
 
-    // Logic xử lý hàng chờ Ôn tập (Giữ nguyên gốc của bạn)
     if (currentMode === 'review' && (status === 'mastered' || status === null)) {
         reviewPool.splice(reviewIndex, 1);
         if (reviewPool.length === 0) { 
@@ -1044,6 +1040,29 @@ async function setStatus(status) {
         if(currentMode === 'review') nextReviewWord(); 
     }
 }
+
+// --- 2. LOGIC CLICK 1 LẦN/2 LẦN VÀO TIÊU ĐỀ (THÊM MỚI) ---
+let fieldClickTimer = null;
+document.getElementById('curr-field').onclick = function(e) {
+    e.stopPropagation(); 
+    if (fieldClickTimer === null) {
+        fieldClickTimer = setTimeout(() => {
+            fieldClickTimer = null;
+            setStatus('learned'); // Click 1 lần -> Đã học
+        }, 300); 
+    } else {
+        clearTimeout(fieldClickTimer);
+        fieldClickTimer = null;
+        setStatus('mastered'); // Click 2 lần -> Đã nhớ
+    }
+};
+
+// --- 3. KHÔI PHỤC/ĐẢM BẢO NÚT RESET PHÍA TRÊN VẪN HOẠT ĐỘNG ---
+// Bạn click vào dấu chấm/icon ở dòng đầu để xóa trạng thái
+//document.getElementById('status-display-top').onclick = function(e) {
+//    e.stopPropagation();
+//    setStatus(null); // Click nút trên cùng -> Xóa trạng thái (Reset)
+//};
 // GHI ĐÈ HÀM changeField ĐỂ NHẢY QUA CỘT ẨN
 function changeField(dir) {
     const currentHidden = hiddenColumns[currentMode] || [];
