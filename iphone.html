@@ -1057,12 +1057,6 @@ document.getElementById('curr-field').onclick = function(e) {
     }
 };
 
-// --- 3. KHÔI PHỤC/ĐẢM BẢO NÚT RESET PHÍA TRÊN VẪN HOẠT ĐỘNG ---
-// Bạn click vào dấu chấm/icon ở dòng đầu để xóa trạng thái
-//document.getElementById('status-display-top').onclick = function(e) {
-//    e.stopPropagation();
-//    setStatus(null); // Click nút trên cùng -> Xóa trạng thái (Reset)
-//};
 // GHI ĐÈ HÀM changeField ĐỂ NHẢY QUA CỘT ẨN
 function changeField(dir) {
     const currentHidden = hiddenColumns[currentMode] || [];
@@ -1336,40 +1330,55 @@ function showQuizScreen(event) {
     }
 }
 // --- ĐOẠN CODE ĐÃ TỐI ƯU ĐỂ VUỐT NHƯ APP XỊN ---
+// --- ĐOẠN CODE ĐÃ TỐI ƯU: VUỐT NHẠY + CHỈ CHẶN CUỘN TRÊN THẺ ---
 let touchstartX = 0;
 let touchstartY = 0;
-let touchendX = 0;
-let touchendY = 0;
 
 const card = document.querySelector('.card');
 
+// 1. Khi chạm vào thẻ: Lưu vị trí bắt đầu
 card.addEventListener('touchstart', e => {
     touchstartX = e.changedTouches[0].screenX;
     touchstartY = e.changedTouches[0].screenY;
-}, {passive: false});
+}, {passive: true});
 
+// 2. KHI ĐANG DI CHUYỂN NGÓN TAY TRÊN THẺ (QUAN TRỌNG NHẤT)
+card.addEventListener('touchmove', e => {
+    let currX = e.changedTouches[0].screenX;
+    let currY = e.changedTouches[0].screenY;
+    
+    let diffX = Math.abs(currX - touchstartX);
+    let diffY = Math.abs(currY - touchstartY);
+
+    // Nếu bạn đang vuốt ngang (X > Y) thì chặn tuyệt đối việc cuộn màn hình
+    // giúp cái thẻ nó không bị trượt lên trượt xuống khi đang gạt trái/phải
+    if (diffX > diffY) {
+        if (e.cancelable) e.preventDefault(); 
+    }
+}, {passive: false}); // Phải để passive: false thì mới chặn cuộn được
+
+// 3. Khi nhấc tay ra: Quyết định chuyển từ
 card.addEventListener('touchend', e => {
-    touchendX = e.changedTouches[0].screenX;
-    touchendY = e.changedTouches[0].screenY;
+    let touchendX = e.changedTouches[0].screenX;
+    let touchendY = e.changedTouches[0].screenY;
     
     const diffX = touchendX - touchstartX;
     const diffY = touchendY - touchstartY;
 
-    // CẤU HÌNH MỚI:
-    const swipeThreshold = 30; // Giảm xuống 30px để cực nhạy, chỉ cần gạt nhẹ là đi
+    const swipeThreshold = 30; // Vuốt nhẹ 30px là nhận
 
-    // BỎ QUA verticalThreshold khắt khe. 
-    // Chỉ cần độ dài vuốt ngang (X) lớn hơn độ dài vuốt dọc (Y) là nhận lệnh.
+    // Chỉ nhận lệnh nếu vuốt ngang mạnh hơn vuốt dọc
     if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
         if (diffX < 0) {
-            handleNext(); // Vuốt sang trái -> Tiếp
+            handleNext(); // Vuốt trái -> Tiếp
         } else {
-            handlePrev(); // Vuốt sang phải -> Trước
+            handlePrev(); // Vuốt phải -> Trước
         }
-        // Reset để tránh dính lệnh
-        touchstartX = 0;
-        touchstartY = 0;
     }
+    
+    // Reset
+    touchstartX = 0;
+    touchstartY = 0;
 }, {passive: true});
 // --- HẾT ĐOẠN TỐI ƯU ---
 </script>
