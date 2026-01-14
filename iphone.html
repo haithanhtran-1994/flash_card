@@ -225,6 +225,28 @@
 }
 .mode-item:last-child { border-bottom: none; color: var(--danger); }
 .mode-item:active { background: #f8fafc; }
+/* Thêm đoạn này để màn hình trắc nghiệm cuộn được */
+#quiz-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg); /* Lấy màu nền của app */
+    overflow-y: auto;      /* Quan trọng: Cho phép cuộn dọc */
+    padding-bottom: 50px;  /* Để không bị che mất nút dưới cùng */
+    z-index: 100;          /* Đảm bảo nó đè lên các màn hình khác */
+    -webkit-overflow-scrolling: touch; /* Vuốt mượt cho iPhone */
+}
+
+/* Tùy chỉnh thêm để các câu hỏi trắc nghiệm nhìn thoáng hơn */
+.quiz-item {
+    background: white;
+    margin: 15px;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
 </style>
 </head>
 <body>
@@ -1331,84 +1353,49 @@ function showQuizScreen(event) {
         }
     }
 }
-// --- ĐOẠN CODE ĐÃ TỐI ƯU ĐỂ VUỐT NHƯ APP XỊN ---
-// --- ĐOẠN CODE ĐÃ TỐI ƯU: VUỐT NHẠY + CHỈ CHẶN CUỘN TRÊN THẺ ---
+// --- LOGIC VUỐT (SWIPE) THÔNG MINH: NHẠY NHƯNG KHÔNG LIỆT CUỘN ---
 let touchstartX = 0;
 let touchstartY = 0;
 
-const card = document.querySelector('.card');
+// Chỉ lắng nghe vuốt trên vùng thẻ học
+const cardElement = document.querySelector('.card');
 
-// 1. Khi chạm vào thẻ: Lưu vị trí bắt đầu
-card.addEventListener('touchstart', e => {
-    touchstartX = e.changedTouches[0].screenX;
-    touchstartY = e.changedTouches[0].screenY;
-}, {passive: true});
+if (cardElement) {
+    cardElement.addEventListener('touchstart', e => {
+        touchstartX = e.changedTouches[0].screenX;
+        touchstartY = e.changedTouches[0].screenY;
+    }, {passive: true});
 
-// 2. KHI ĐANG DI CHUYỂN NGÓN TAY TRÊN THẺ (QUAN TRỌNG NHẤT)
-card.addEventListener('touchmove', e => {
-    let currX = e.changedTouches[0].screenX;
-    let currY = e.changedTouches[0].screenY;
-    
-    let diffX = Math.abs(currX - touchstartX);
-    let diffY = Math.abs(currY - touchstartY);
-
-    // Nếu bạn đang vuốt ngang (X > Y) thì chặn tuyệt đối việc cuộn màn hình
-    // giúp cái thẻ nó không bị trượt lên trượt xuống khi đang gạt trái/phải
-    if (diffX > diffY) {
-        if (e.cancelable) e.preventDefault(); 
-    }
-}, {passive: false}); // Phải để passive: false thì mới chặn cuộn được
-
-// 3. Khi nhấc tay ra: Quyết định chuyển từ
-card.addEventListener('touchend', e => {
-    let touchendX = e.changedTouches[0].screenX;
-    let touchendY = e.changedTouches[0].screenY;
-    
-    const diffX = touchendX - touchstartX;
-    const diffY = touchendY - touchstartY;
-
-    const swipeThreshold = 30; // Vuốt nhẹ 30px là nhận
-
-    // Chỉ nhận lệnh nếu vuốt ngang mạnh hơn vuốt dọc
-    if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
-        if (diffX < 0) {
-            handleNext(); // Vuốt trái -> Tiếp
-        } else {
-            handlePrev(); // Vuốt phải -> Trước
-        }
-    }
-    
-    // Reset
-    touchstartX = 0;
-    touchstartY = 0;
-}, {passive: true});
-// --- HẾT ĐOẠN TỐI ƯU ---
-</script>
-<script>
-// CHIẾN THUẬT: Mặc định cho cuộn tất cả, CHỈ chặn khi tay đang chạm vào THẺ HỌC
-document.addEventListener('touchmove', function (e) {
-    const quizScreen = document.getElementById('quiz-screen');
-    const isStudyScreen = !document.getElementById('study-screen').classList.contains('hidden');
-    
-    // 1. KIỂM TRA MÀN HÌNH TRẮC NGHIỆM: Nếu đang hiện thì THOÁT NGAY, cho cuộn thoải mái
-    if (quizScreen && !quizScreen.classList.contains('hidden')) {
-        return; 
-    }
-
-    // 2. KIỂM TRA MÀN HÌNH HỌC TẬP:
-    if (isStudyScreen) {
-        // Nếu tay đang chạm vào thẻ (.card) hoặc khu vực nội dung thẻ
-        const isInsideCard = e.target.closest('.card') || e.target.closest('.card-content');
+    cardElement.addEventListener('touchmove', e => {
+        let currX = e.changedTouches[0].screenX;
+        let currY = e.changedTouches[0].screenY;
         
-        if (isInsideCard) {
-            // Khi đang ở trên thẻ, ta chặn cuộn mặc định của trình duyệt 
-            // ĐỂ việc vuốt Trái/Phải/Lên/Xuống (để học) không làm trôi cả cái màn hình lên xuống
-            if (e.cancelable) {
-                e.preventDefault();
-            }
+        let diffX = Math.abs(currX - touchstartX);
+        let diffY = Math.abs(currY - touchstartY);
+
+        // Nếu vuốt ngang (để chuyển từ) rõ rệt hơn vuốt dọc -> Chặn cuộn trang
+        if (diffX > diffY && diffX > 10) {
+            if (e.cancelable) e.preventDefault();
         }
-    }
-}, { passive: false }); // BẮT BUỘC phải là false thì mới chặn được sự trôi màn hình trên iPhone
+    }, {passive: false});
+
+    cardElement.addEventListener('touchend', e => {
+        let touchendX = e.changedTouches[0].screenX;
+        let touchendY = e.changedTouches[0].screenY;
+        
+        const diffX = touchendX - touchstartX;
+        const diffY = touchendY - touchstartY;
+        const swipeThreshold = 40; 
+
+        // Chỉ xử lý nếu vuốt ngang mạnh hơn vuốt dọc
+        if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX < 0) handleNext(); // Vuốt sang trái -> Sang từ tiếp theo
+            else handlePrev();           // Vuốt sang phải -> Về từ trước
+        }
+        touchstartX = 0; touchstartY = 0;
+    }, {passive: true});
+}
+// --- HẾT ĐOẠN TỐI ƯU ---
 </script>
 </body>
 </html>
