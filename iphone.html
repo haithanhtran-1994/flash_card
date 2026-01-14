@@ -1383,26 +1383,30 @@ card.addEventListener('touchend', e => {
 // --- HẾT ĐOẠN TỐI ƯU ---
 </script>
 <script>
-// Chặn cuộn nền nhưng cho phép cuộn bên trong các vùng cần thiết
-// CHỈ CHẶN CUỘN KHI CẦN THIẾT
+// CHIẾN THUẬT: Mặc định cho cuộn tất cả, CHỈ chặn khi tay đang chạm vào THẺ HỌC
 document.addEventListener('touchmove', function (e) {
     const quizScreen = document.getElementById('quiz-screen');
-    const studyScreen = document.getElementById('study-screen');
-
-    // 1. Nếu màn hình Trắc nghiệm đang HIỆN (không có class hidden) -> CHO PHÉP CUỘN
+    const isStudyScreen = !document.getElementById('study-screen').classList.contains('hidden');
+    
+    // 1. KIỂM TRA MÀN HÌNH TRẮC NGHIỆM: Nếu đang hiện thì THOÁT NGAY, cho cuộn thoải mái
     if (quizScreen && !quizScreen.classList.contains('hidden')) {
-        return; // Thoát ra, để trình duyệt tự cuộn
-    }
-
-    // 2. Nếu đang ở màn hình Học tập và vuốt TRÊN thẻ bài
-    const isInsideCard = e.target.closest('.card');
-    if (studyScreen && !studyScreen.classList.contains('hidden') && isInsideCard) {
-        // Kiểm tra xem là vuốt ngang hay dọc
-        // Nếu vuốt ngang để chuyển từ thì mới chặn cuộn lên xuống
-        // Đoạn này giúp thao tác vuốt Next/Prev không bị trôi màn hình
         return; 
     }
-}, { passive: true }); // Để passive: true để Trắc nghiệm cuộn mượt nhất
+
+    // 2. KIỂM TRA MÀN HÌNH HỌC TẬP:
+    if (isStudyScreen) {
+        // Nếu tay đang chạm vào thẻ (.card) hoặc khu vực nội dung thẻ
+        const isInsideCard = e.target.closest('.card') || e.target.closest('.card-content');
+        
+        if (isInsideCard) {
+            // Khi đang ở trên thẻ, ta chặn cuộn mặc định của trình duyệt 
+            // ĐỂ việc vuốt Trái/Phải/Lên/Xuống (để học) không làm trôi cả cái màn hình lên xuống
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+        }
+    }
+}, { passive: false }); // BẮT BUỘC phải là false thì mới chặn được sự trôi màn hình trên iPhone
 </script>
 </body>
 </html>
