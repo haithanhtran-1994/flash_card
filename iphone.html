@@ -12,7 +12,22 @@
 	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
     :root { --primary: #2563eb; --success: #16a34a; --warning: #ca8a04; --danger: #ef4444; --bg: #f1f5f9; }
-    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    html, body { 
+    margin: 0; 
+    padding: 0; 
+    width: 100%; 
+    height: 100%; 
+    overflow: hidden; 
+    position: fixed; 
+    overscroll-behavior: none; 
+}
+body { 
+    font-family: 'Segoe UI', sans-serif; 
+    background: var(--bg); 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+}
     .container { width: 95%; max-width: 700px; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin: 20px 0; position: relative; }
     .hidden { display: none !important; }
     .status-badge { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 1.5rem; display: flex; gap: 5px; z-index: 10; }
@@ -77,27 +92,26 @@
         transition: background-color 0.1s;
     }
     .card-touch-zone:active { background-color: #f8fafc;}
-
-    .card-content { 
+.card-content { 
         font-size: 2.2rem; 
         text-align: center; 
         padding: 20px; 
         font-weight: bold; 
         color: #1e293b; 
         word-break: break-word; 
-        overflow-y: auto; /* Cho phép cuộn nội dung dài */
-        width: 92%; 
-        max-height: 85%; 
+        
+        /* Giữ nguyên logic cuộn của bạn */
+        overflow-y: auto; 
         white-space: pre-wrap;
         line-height: 1.5;
-		width:  100%;       /* Phải để 100% để vùng chạm rộng ra tận mép */
-		height: 100%;      /* Cao hết cỡ để chạm chỗ nào cũng dính */
-        pointer-events: auto; /* Cho phép vuốt để cuộn */
-		/* Hỗ trợ vuốt mượt trên iPhone */
-		-webkit-overflow-scrolling: touch; 
-		
-		/* Để tránh việc vuốt nhầm làm nhảy cả trang web */
-		touch-action: pan-y;
+        width: 100%;       
+        height: 100%;      
+        pointer-events: auto; 
+        -webkit-overflow-scrolling: touch; 
+        touch-action: pan-y;
+
+        /* ĐIỀU CHỈNH QUAN TRỌNG: */
+        max-height: 100%; /* Thay vì 85%, để 100% để nó khít hoàn toàn vào thẻ cha .card */
     }
 
     /* Tùy chỉnh thanh cuộn cho tinh tế */
@@ -1313,7 +1327,7 @@ const card = document.querySelector('.card');
 card.addEventListener('touchstart', e => {
     touchstartX = e.changedTouches[0].screenX;
     touchstartY = e.changedTouches[0].screenY;
-}, {passive: true});
+}, {passive: false});
 
 card.addEventListener('touchend', e => {
     touchendX = e.changedTouches[0].screenX;
@@ -1339,6 +1353,17 @@ card.addEventListener('touchend', e => {
     }
 }, {passive: true});
 // --- HẾT ĐOẠN TỐI ƯU ---
+</script>
+<script>
+// Chặn cuộn nền nhưng cho phép cuộn bên trong các vùng cần thiết
+document.addEventListener('touchmove', function (e) {
+    const isScrollable = e.target.closest('.card-content') || 
+                         e.target.closest('.excel-table-wrapper') || 
+                         e.target.closest('.column-list');
+    if (!isScrollable) {
+        e.preventDefault();
+    }
+}, { passive: false });
 </script>
 </body>
 </html>
