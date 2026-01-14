@@ -225,28 +225,7 @@
 }
 .mode-item:last-child { border-bottom: none; color: var(--danger); }
 .mode-item:active { background: #f8fafc; }
-/* Thêm đoạn này để màn hình trắc nghiệm cuộn được */
-#quiz-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--bg); /* Lấy màu nền của app */
-    overflow-y: auto;      /* Quan trọng: Cho phép cuộn dọc */
-    padding-bottom: 50px;  /* Để không bị che mất nút dưới cùng */
-    z-index: 100;          /* Đảm bảo nó đè lên các màn hình khác */
-    -webkit-overflow-scrolling: touch; /* Vuốt mượt cho iPhone */
-}
 
-/* Tùy chỉnh thêm để các câu hỏi trắc nghiệm nhìn thoáng hơn */
-.quiz-item {
-    background: white;
-    margin: 15px;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
 </style>
 </head>
 <body>
