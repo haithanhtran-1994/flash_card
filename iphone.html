@@ -324,7 +324,7 @@
 				<span id="speed-display" class="speed-val">1x</span>
 			</span>
 			<label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
-			<label id="random-multi-wrap" class="hidden"><input type="checkbox" id="randomMulti"> Random</label>
+			<label id="random-multi-wrap"><input type="checkbox" id="randomMulti" checked> Random</label>
 			<div style="display: flex; gap: 5px; width: 100%; margin-top: 5px;">
 				<button id="furiganaToggle" onclick="toggleFurigana()" style="flex: 1; background: #e2e8f0; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">Furigana: OFF</button>
 				<button id="btn-data-toggle" onclick="toggleDataMenu()" style="flex: 1; background: #334155; color: white; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: none;">Data ▾</button>
@@ -1264,6 +1264,11 @@ function showQuizScreen(event) {
             let allVals = [...new Set(rawData.map(w => w[q.tH]))];
             let choices = [q.cV, ...allVals.filter(v => v !== q.cV).sort(() => Math.random() - 0.5).slice(0, 3)].sort(() => Math.random() - 0.5);
             item.innerHTML = `<h4>Câu ${idx+1}: "${q.tH}" của <u>${q.rV}</u>?</h4>`;
+			item.innerHTML = `
+				<h4 onclick="document.getElementById('quiz-result-summary').scrollIntoView({behavior: 'smooth'})" 
+					style="cursor: pointer; color: var(--primary); text-decoration: underline;">
+					Câu ${idx+1}: "${q.tH}" của <u>${q.rV}</u>?
+				</h4>`;
             choices.forEach(c => {
                 const b = document.createElement('button'); b.className = 'option-btn'; b.innerText = c;
                 b.onclick = () => {
@@ -1285,6 +1290,13 @@ function showQuizScreen(event) {
         }, 1000);
     }
 
+function restartQuiz() {
+    clearInterval(quizInterval); // Dừng đếm ngược cũ
+    document.getElementById('quiz-result-summary').classList.add('hidden'); // Ẩn bảng điểm
+    document.getElementById('quiz-finish-btn').classList.remove('hidden'); // Hiện lại nút nộp bài
+    startQuiz(); // Chạy lại từ đầu với data mới
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
     function finishQuiz() {
         clearInterval(quizInterval);
         document.getElementById('quiz-finish-btn').classList.add('hidden');
@@ -1300,7 +1312,11 @@ function showQuizScreen(event) {
             });
             if (userAnswers[idx] === q.cV) score++;
         });
-        summary.innerHTML = `<h3 style="margin-top:0">Kết quả: ${score}/${quizData.length}</h3>`;
+        summary.innerHTML = `<h3 style="margin-top:0">Kết quả: ${score}/${quizData.length}</h3>
+		<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button onclick="restartQuiz()" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold;">🔄 Làm lại</button>
+            <button onclick="exitQuiz(true)" style="flex:1; padding:12px; background:#64748b; color:white; border:none; border-radius:8px; font-weight:bold;">🏠 Thoát</button>
+        </div>`;
         quizData.forEach((_, i) => {
             const dot = document.createElement('span'); dot.className = 'dot-nav';
             dot.style.background = (userAnswers[i] === quizData[i].cV) ? 'var(--success)' : 'var(--danger)';
@@ -1311,7 +1327,44 @@ function showQuizScreen(event) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function exitQuiz() { clearInterval(quizInterval); document.getElementById('quiz-screen').classList.add('hidden'); document.getElementById('study-screen').classList.remove('hidden'); }
+    function exitQuiz(forceQuit = false) {
+    // Vẫn giữ lệnh dừng thời gian cũ của mày
+    clearInterval(quizInterval); 
+
+    const quizSetup = document.getElementById('quiz-setup');
+    const quizPlaying = document.getElementById('quiz-playing');
+    const quizResult = document.getElementById('quiz-result-summary');
+
+if (forceQuit) {
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('study-screen').classList.remove('hidden');
+        // Reset ngầm các màn hình bên trong về trạng thái chờ cho lần sau
+        quizPlaying.classList.add('hidden');
+        quizResult.classList.add('hidden');
+        quizSetup.classList.remove('hidden');
+        return; // Thoát hàm luôn
+    }
+    // Kiểm tra: Nếu đang ở màn hình kết quả HOẶC đang chơi 
+    // thì khi bấm "Quay lại" chỉ ẩn kết quả/trận đấu đi để hiện lại màn hình Setup
+    if (!quizResult.classList.contains('hidden') || !quizPlaying.classList.contains('hidden')) {
+        quizPlaying.classList.add('hidden');
+        quizResult.classList.add('hidden');
+        quizSetup.classList.remove('hidden');
+        
+        // Hiện lại nút nộp bài (nếu trước đó bị ẩn)
+        const finishBtn = document.getElementById('quiz-finish-btn');
+        if (finishBtn) finishBtn.classList.remove('hidden');
+
+        // Cuộn lên đầu trang setup cho dễ nhìn
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } 
+    // Nếu đang đứng ở màn hình Setup (không chơi, không xem kết quả) 
+    // thì mới thoát hẳn về trang học chính (đây là lệnh cũ của mày)
+    else {
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('study-screen').classList.remove('hidden');
+    }
+}
     async function resetDatabase() {
     if (confirm("Bạn có chắc chắn muốn XÓA SẠCH dữ liệu trên Cloud không? Hành động này không thể hoàn tác!")) {
         try {
