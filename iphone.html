@@ -1331,11 +1331,12 @@ function showQuizScreen(event) {
         }
     }
 }
-// --- LOGIC VUỐT (SWIPE) VÀ CÔ LẬP VÙNG ĐỎ ---
+// --- LOGIC VUỐT (SWIPE) ĐÃ TỐI ƯU CHO IPHONE ---
 let touchstartX = 0;
 let touchstartY = 0;
 
 const cardElement = document.querySelector('.card');
+const cardContent = document.getElementById('display-text'); // Vùng đỏ chứa chữ
 
 if (cardElement) {
     cardElement.addEventListener('touchstart', e => {
@@ -1350,25 +1351,35 @@ if (cardElement) {
         let diffX = Math.abs(currX - touchstartX);
         let diffY = Math.abs(currY - touchstartY);
 
-        // TRƯỜNG HỢP 1: Vuốt ngang rõ rệt (Chuyển từ)
-        if (diffX > diffY && diffX > 10) {
-            if (e.cancelable) e.preventDefault(); // Chặn app trôi ngang/dọc
+        // 1. Nếu vuốt ngang (chuyển từ): Chặn tuyệt đối để app không bị trôi
+        if (diffX > diffY && diffX > 5) {
+            if (e.cancelable) e.preventDefault(); 
         } 
-        // TRƯỜNG HỢP 2: Vuốt dọc TRONG thẻ (Để xem thêm chữ)
+        // 2. Nếu vuốt dọc (để cuộn xem nội dung dài):
         else if (diffY > diffX) {
-            // Đây là mấu chốt: Chặn không cho sự kiện cuộn lan ra vùng xanh (App)
-            // Nhưng nội dung bên trong card-content vẫn cuộn được nhờ CSS overflow-y: auto
-            e.stopPropagation(); 
+            // Kiểm tra xem vùng đỏ có bị tràn nội dung không
+            const isScrollable = cardContent.scrollHeight > cardContent.clientHeight;
+            
+            if (isScrollable) {
+                // Nếu đang cuộn trong vùng đỏ, cho phép cuộn tự nhiên, 
+                // KHÔNG gọi preventDefault để iPhone tự xử lý scrolling
+                e.stopPropagation(); 
+            } else {
+                // Nếu nội dung ngắn mà vẫn vuốt dọc, chặn để app không bị kéo lên kéo xuống
+                if (e.cancelable) e.preventDefault();
+            }
         }
-    }, {passive: false}); // Bắt buộc false để chặn được sự kiện
+    }, {passive: false}); // Quan trọng: Phải là false để preventDefault có tác dụng
 
     cardElement.addEventListener('touchend', e => {
         let touchendX = e.changedTouches[0].screenX;
+        let touchendY = e.changedTouches[0].screenY;
+        
         const diffX = touchendX - touchstartX;
-        const diffY = e.changedTouches[0].screenY - touchstartY;
+        const diffY = touchendY - touchstartY;
         const swipeThreshold = 40; 
 
-        // Chỉ xử lý chuyển từ khi vuốt ngang đủ mạnh và hơn vuốt dọc
+        // Chỉ chuyển từ khi vuốt ngang rõ rệt (ngang > dọc)
         if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
             if (diffX < 0) handleNext();
             else handlePrev();
@@ -1376,6 +1387,9 @@ if (cardElement) {
         touchstartX = 0; touchstartY = 0;
     }, {passive: true});
 }
+
+// Thêm một mẹo nhỏ để vùng đỏ luôn mượt:
+document.getElementById('display-text').style.webkitOverflowScrolling = 'touch';
 </script>
 </body>
 </html>
