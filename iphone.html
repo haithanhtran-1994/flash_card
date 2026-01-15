@@ -105,14 +105,22 @@
     
     flex: 1;
     width: 100%;       
+    display: block; /* Chuyển từ flex sang block để scroll ổn định */
+    
+    /* Logic cuộn nội bộ quan trọng */
+    overflow-y: auto !important; 
+    -webkit-overflow-scrolling: touch; 
+    overscroll-behavior: contain; 
+    box-sizing: border-box; /* Đảm bảo padding không làm hỏng layout */
+}
+
+/* Thêm đoạn này để chữ vẫn nằm giữa khi nó ngắn */
+#display-text {
+    min-height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-
-    /* Logic cuộn nội bộ quan trọng */
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch; /* Mượt cho iPhone */
-    overscroll-behavior: contain; 
+    flex-direction: column;
 }
 
     /* Tùy chỉnh thanh cuộn cho tinh tế */
@@ -1332,11 +1340,12 @@ function showQuizScreen(event) {
     }
 }
 // --- LOGIC VUỐT (SWIPE) ĐÃ TỐI ƯU CHO IPHONE ---
+// --- LOGIC VUỐT (SWIPE) TỐI ƯU ---
 let touchstartX = 0;
 let touchstartY = 0;
 
 const cardElement = document.querySelector('.card');
-const cardContent = document.getElementById('display-text'); // Vùng đỏ chứa chữ
+const scrollArea = document.querySelector('.card-content'); // Chính là cái vùng đỏ của mày
 
 if (cardElement) {
     cardElement.addEventListener('touchstart', e => {
@@ -1351,45 +1360,42 @@ if (cardElement) {
         let diffX = Math.abs(currX - touchstartX);
         let diffY = Math.abs(currY - touchstartY);
 
-        // 1. Nếu vuốt ngang (chuyển từ): Chặn tuyệt đối để app không bị trôi
-        if (diffX > diffY && diffX > 5) {
+        // 1. Ưu tiên vuốt ngang rõ rệt (diffX > diffY) -> Chặn trôi app để chuyển từ
+        if (diffX > diffY && diffX > 10) {
             if (e.cancelable) e.preventDefault(); 
         } 
-        // 2. Nếu vuốt dọc (để cuộn xem nội dung dài):
+        // 2. Nếu vuốt dọc (diffY > diffX)
         else if (diffY > diffX) {
-            // Kiểm tra xem vùng đỏ có bị tràn nội dung không
-            const isScrollable = cardContent.scrollHeight > cardContent.clientHeight;
+            // Kiểm tra xem nội dung bên trong có thực sự dài đến mức cần cuộn không
+            const isScrollable = scrollArea.scrollHeight > scrollArea.clientHeight;
             
             if (isScrollable) {
-                // Nếu đang cuộn trong vùng đỏ, cho phép cuộn tự nhiên, 
-                // KHÔNG gọi preventDefault để iPhone tự xử lý scrolling
-                e.stopPropagation(); 
+                // Nếu đang ở đỉnh hoặc đáy, ngăn không cho cuộn kéo cả trang web đi (overscroll)
+                const isAtTop = scrollArea.scrollTop === 0;
+                const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop <= scrollArea.clientHeight + 1;
+                
+                // Nếu cuộn dọc bên trong vùng đỏ, dùng stopPropagation để nó không tác động ra ngoài
+                e.stopPropagation();
             } else {
-                // Nếu nội dung ngắn mà vẫn vuốt dọc, chặn để app không bị kéo lên kéo xuống
+                // Nếu nội dung ngắn, chặn vuốt dọc luôn để app đứng im
                 if (e.cancelable) e.preventDefault();
             }
         }
-    }, {passive: false}); // Quan trọng: Phải là false để preventDefault có tác dụng
+    }, {passive: false});
 
     cardElement.addEventListener('touchend', e => {
         let touchendX = e.changedTouches[0].screenX;
         let touchendY = e.changedTouches[0].screenY;
-        
         const diffX = touchendX - touchstartX;
         const diffY = touchendY - touchstartY;
-        const swipeThreshold = 40; 
 
-        // Chỉ chuyển từ khi vuốt ngang rõ rệt (ngang > dọc)
-        if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
+        // Chỉ xử lý chuyển từ khi vuốt ngang đủ mạnh
+        if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
             if (diffX < 0) handleNext();
             else handlePrev();
         }
-        touchstartX = 0; touchstartY = 0;
     }, {passive: true});
 }
-
-// Thêm một mẹo nhỏ để vùng đỏ luôn mượt:
-document.getElementById('display-text').style.webkitOverflowScrolling = 'touch';
 </script>
 </body>
 </html>
