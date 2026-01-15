@@ -71,18 +71,18 @@
 
     /* --- CẬP NHẬT THẺ CARD: SẠCH SẼ, KHÔNG MŨI TÊN --- */
 .card { 
-        height: 450px; 
-        border: 2px solid #e2e8f0; 
-        border-radius: 20px; 
-        display: flex; 
-        flex-direction: column; 
-        /* Cực kỳ quan trọng: */
-        overflow: hidden; 
-        background: #fff; 
-        position: relative;
-        margin-bottom: 20px;
-        touch-action: none; /* Ngăn chặn vuốt ở viền thẻ làm xê dịch trang */
-    }
+    height: 450px; 
+    border: 2px solid #e2e8f0; 
+    border-radius: 20px; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    background: #fff; 
+    position: relative;
+    margin-bottom: 20px;
+    /* Xóa touch-action: none cũ để cho phép sự kiện truyền đi có kiểm soát */
+    touch-action: pan-y; 
+}
 
     .card-touch-zone {
         width: 100%;
@@ -96,25 +96,24 @@
     }
     .card-touch-zone:active { background-color: #f8fafc;}
 .card-content { 
-        font-size: 2.2rem; 
-        text-align: center; 
-        padding: 20px; 
-        font-weight: bold; 
-        color: #1e293b; 
-        word-break: break-word; 
-        
-        /* Cho phép cuộn nội dung bên trong thẻ */
-        overflow-y: auto; 
-        flex: 1; /* Tự lấp đầy không gian thẻ */
-        width: 100%;       
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        
-        /* Chặn sự kiện cuộn lan ra ngoài màn hình chính */
-        overscroll-behavior: contain; 
-        touch-action: pan-y; /* Chỉ cho phép vuốt lên xuống bên trong thẻ */
-    }
+    font-size: 2.2rem; 
+    text-align: center; 
+    padding: 20px; 
+    font-weight: bold; 
+    color: #1e293b; 
+    word-break: break-word; 
+    
+    flex: 1;
+    width: 100%;       
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Logic cuộn nội bộ quan trọng */
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; /* Mượt cho iPhone */
+    overscroll-behavior: contain; 
+}
 
     /* Tùy chỉnh thanh cuộn cho tinh tế */
     .card-content::-webkit-scrollbar { width: 5px; }
@@ -1332,11 +1331,10 @@ function showQuizScreen(event) {
         }
     }
 }
-// --- LOGIC VUỐT (SWIPE) THÔNG MINH: NHẠY NHƯNG KHÔNG LIỆT CUỘN ---
+// --- LOGIC VUỐT (SWIPE) VÀ CÔ LẬP VÙNG ĐỎ ---
 let touchstartX = 0;
 let touchstartY = 0;
 
-// Chỉ lắng nghe vuốt trên vùng thẻ học
 const cardElement = document.querySelector('.card');
 
 if (cardElement) {
@@ -1352,29 +1350,32 @@ if (cardElement) {
         let diffX = Math.abs(currX - touchstartX);
         let diffY = Math.abs(currY - touchstartY);
 
-        // Nếu vuốt ngang (để chuyển từ) rõ rệt hơn vuốt dọc -> Chặn cuộn trang
+        // TRƯỜNG HỢP 1: Vuốt ngang rõ rệt (Chuyển từ)
         if (diffX > diffY && diffX > 10) {
-            if (e.cancelable) e.preventDefault();
+            if (e.cancelable) e.preventDefault(); // Chặn app trôi ngang/dọc
+        } 
+        // TRƯỜNG HỢP 2: Vuốt dọc TRONG thẻ (Để xem thêm chữ)
+        else if (diffY > diffX) {
+            // Đây là mấu chốt: Chặn không cho sự kiện cuộn lan ra vùng xanh (App)
+            // Nhưng nội dung bên trong card-content vẫn cuộn được nhờ CSS overflow-y: auto
+            e.stopPropagation(); 
         }
-    }, {passive: false});
+    }, {passive: false}); // Bắt buộc false để chặn được sự kiện
 
     cardElement.addEventListener('touchend', e => {
         let touchendX = e.changedTouches[0].screenX;
-        let touchendY = e.changedTouches[0].screenY;
-        
         const diffX = touchendX - touchstartX;
-        const diffY = touchendY - touchstartY;
+        const diffY = e.changedTouches[0].screenY - touchstartY;
         const swipeThreshold = 40; 
 
-        // Chỉ xử lý nếu vuốt ngang mạnh hơn vuốt dọc
+        // Chỉ xử lý chuyển từ khi vuốt ngang đủ mạnh và hơn vuốt dọc
         if (Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > Math.abs(diffY)) {
-            if (diffX < 0) handleNext(); // Vuốt sang trái -> Sang từ tiếp theo
-            else handlePrev();           // Vuốt sang phải -> Về từ trước
+            if (diffX < 0) handleNext();
+            else handlePrev();
         }
         touchstartX = 0; touchstartY = 0;
     }, {passive: true});
 }
-// --- HẾT ĐOẠN TỐI ƯU ---
 </script>
 </body>
 </html>
