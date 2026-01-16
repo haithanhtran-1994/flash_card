@@ -97,7 +97,7 @@
     .card-touch-zone:active { background-color: #f8fafc;}
 .card-content { 
     font-size: 2.2rem; 
-    text-align: center; 
+    text-align: left; 
     padding: 20px; 
     font-weight: bold; 
     color: #1e293b; 
@@ -107,20 +107,13 @@
     width: 100%;       
     display: block; /* Chuyển từ flex sang block để scroll ổn định */
     
+	white-space: pre-wrap;
+	
     /* Logic cuộn nội bộ quan trọng */
     overflow-y: auto !important; 
     -webkit-overflow-scrolling: touch; 
     overscroll-behavior: contain; 
     box-sizing: border-box; /* Đảm bảo padding không làm hỏng layout */
-}
-
-/* Thêm đoạn này để chữ vẫn nằm giữa khi nó ngắn */
-#display-text {
-    min-height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
 }
 
     /* Tùy chỉnh thanh cuộn cho tinh tế */
