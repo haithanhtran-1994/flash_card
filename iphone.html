@@ -1443,18 +1443,18 @@ if (cardElement) {
             else handlePrev();
         }
 		// --- NHÁNH 2: Vuốt lên để hiện Furigana tạm thời (Thêm mới) ---
-        else if (diffY < -40 && Math.abs(diffY) > Math.abs(diffX)) {
+        else if (diffY < -30 && Math.abs(diffY) > Math.abs(diffX)) {
             // Chỉ chạy nếu Furigana đang OFF
             if (!isFuriganaEnabled) {
                 let word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
                 if (word) {
                     tempFuriganaIndex = word[headers[0]];
-                    updateDisplay(false); // Gọi hàm để hiện, truyền false để KHÔNG phát âm
+                    updateDisplay(); // Gọi hàm để hiện, truyền false để KHÔNG phát âm
 
                     if (tempFuriganaTimer) clearTimeout(tempFuriganaTimer);
                     tempFuriganaTimer = setTimeout(() => {
                         tempFuriganaIndex = null;
-                        updateDisplay(false); // Ẩn đi, vẫn truyền false để im lặng
+                        updateDisplay(); // Ẩn đi, vẫn truyền false để im lặng
                     }, 1200);
                 }
             }
