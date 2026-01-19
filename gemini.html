@@ -3,66 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading App</title>
+    <title>JP Active Reading Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--primary); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--primary); }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        
-        /* Mapping UI */
-        #mapping-container select { width: 100%; padding: 8px; margin: 5px 0; border-radius: 5px; }
         .hidden { display: none; }
         
         /* Reading UI */
-        .sentence-item { margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px; cursor: pointer; position: relative; }
-        .original-text { font-size: 1.2rem; line-height: 2; margin-bottom: 10px; display: block; }
-        .highlight { background-color: yellow; }
-        .translation-text { color: #666; font-style: italic; font-size: 0.95rem; margin-top: 5px; }
+        .sentence-item { margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px; }
+        .original-text { font-size: 1.3rem; line-height: 2.8; margin-bottom: 10px; display: block; min-height: 1.5em; }
+        
+        /* Highlight & Note */
+        .hl-span { cursor: help; border-radius: 3px; position: relative; display: inline-block; line-height: 1.2; }
+        .translation-text { color: #2ecc71; font-weight: 500; font-size: 1rem; margin-top: 8px; border-left: 3px solid #2ecc71; padding-left: 10px; }
+        
+        /* Menu & Controls */
+        .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+        .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+        .btn-note { background: #8e44ad; }
         
         /* Popup */
-        .popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-height: 70%; 
-                  background: white; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.3); z-index: 1000; padding: 20px; overflow-y: auto; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+        .popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-height: 80%; 
+                  background: white; border-radius: 15px; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 1000; padding: 20px; overflow-y: auto; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
         
-        /* Menu */
-        .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-        .btn { padding: 8px; border: none; border-radius: 5px; background: var(--accent); color: white; font-size: 0.8rem; cursor: pointer; text-align: center; }
-        .btn-close { background: #e74c3c; width: 100%; margin-top: 15px; padding: 10px; }
+        /* Tooltip Note */
+        .note-text { display: block; font-size: 0.75rem; color: #e67e22; font-weight: bold; margin-top: 2px; border-top: 1px dotted #e67e22; }
+        
+        ruby rt { font-size: 0.6em; color: #7f8c8d; }
     </style>
 </head>
 <body>
 
     <div id="step-1" class="card">
-        <h3>1. Chọn Database Excel</h3>
+        <h3>1. Nạp Database</h3>
         <input type="file" id="upload-file" accept=".xlsx, .xls">
-        <div id="sheet-selector-wrapper" class="hidden">
-            <p>Chọn bài đọc (Sheet):</p>
-            <select id="sheet-selector"></select>
+        <div id="sheet-selector-wrapper" class="hidden" style="margin-top:15px;">
+            <label>Chọn Sheet (Bài đọc):</label>
+            <select id="sheet-selector" style="width:100%; padding:10px; margin-top:5px;"></select>
         </div>
     </div>
 
     <div id="step-mapping" class="card hidden">
-        <h3>2. Mapping cột dữ liệu</h3>
+        <h3>2. Mapping Cột</h3>
         <div id="mapping-fields"></div>
-        <button class="btn" style="width:100%; margin-top:15px; background: #27ae60;" onclick="startApp()">Bắt đầu đọc</button>
+        <button class="btn" style="width:100%; margin-top:15px; background: #27ae60; font-size: 1rem;" onclick="startApp()">Bắt đầu đọc</button>
     </div>
 
     <div id="app-content" class="hidden">
+        <div class="card" style="position: sticky; top: 10px; z-index: 100; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd;">
+            <div style="display:flex; align-items:center;">
+                <label style="font-size:0.8rem; margin-right:5px;">Màu:</label>
+                <input type="color" id="hl-color" value="#ffff00" title="Chọn màu highlight">
+            </div>
+            <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
+        </div>
         <div id="reader-view"></div>
     </div>
 
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
+    
     <div id="info-popup" class="popup hidden">
         <div id="popup-content"></div>
-        <button class="btn btn-close" onclick="closePopup()">Đóng</button>
+        <button class="btn" style="background:#e74c3c; width:100%; margin-top:20px; padding:12px;" onclick="closePopup()">Đóng</button>
+    </div>
+
+    <div id="sentence-menu" class="popup hidden" style="width:85%;">
+        <div id="sentence-menu-content" class="action-menu"></div>
+        <button class="btn" style="background:#95a5a6; width:100%; margin-top:15px;" onclick="closePopup()">Hủy</button>
     </div>
 
 <script>
     let workbook, currentData, currentSheetName;
     const standardColumns = ['STT', 'Câu gốc', 'Furigana', 'Dịch', 'Ngữ pháp', 'Thành phần câu', 'Audio gốc', 'Audio dịch'];
     let mapping = JSON.parse(localStorage.getItem('mapping')) || {};
-    let userNotes = JSON.parse(localStorage.getItem('userNotes')) || {};
+    let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
 
     document.getElementById('upload-file').addEventListener('change', handleFile);
 
@@ -72,7 +89,6 @@
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
             workbook = XLSX.read(data, {type: 'array'});
-            
             const sheetSelector = document.getElementById('sheet-selector');
             sheetSelector.innerHTML = '<option value="">-- Chọn bài --</option>';
             workbook.SheetNames.forEach(name => {
@@ -87,33 +103,20 @@
         currentSheetName = this.value;
         const worksheet = workbook.Sheets[currentSheetName];
         currentData = XLSX.utils.sheet_to_json(worksheet);
-        const excelCols = Object.keys(currentData[0]);
-        showMappingUI(excelCols);
+        showMappingUI(Object.keys(currentData[0]));
     });
 
     function showMappingUI(excelCols) {
         const container = document.getElementById('mapping-fields');
         container.innerHTML = '';
         document.getElementById('step-mapping').classList.remove('hidden');
-
         standardColumns.forEach(col => {
-            let options = excelCols.map(exCol => 
-                `<option value="${exCol}" ${mapping[col] === exCol ? 'selected' : ''}>${exCol}</option>`
-            ).join('');
-            container.innerHTML += `<div>
-                <label>${col}:</label>
-                <select onchange="saveMapping('${col}', this.value)">
-                    <option value="">-- Bỏ qua / Click lại để xóa --</option>
-                    ${options}
-                </select>
-            </div>`;
+            let options = excelCols.map(exCol => `<option value="${exCol}" ${mapping[col] === exCol ? 'selected' : ''}>${exCol}</option>`).join('');
+            container.innerHTML += `<div style="margin-bottom:10px;"><label>${col}:</label><select id="map-${col}" onchange="updateMap('${col}', this.value)"><option value="">-- Trống --</option>${options}</select></div>`;
         });
     }
 
-    function saveMapping(standard, excel) {
-        mapping[standard] = excel;
-        localStorage.setItem('mapping', JSON.stringify(mapping));
-    }
+    function updateMap(std, ex) { mapping[std] = ex; localStorage.setItem('mapping', JSON.stringify(mapping)); }
 
     function startApp() {
         document.getElementById('step-1').classList.add('hidden');
@@ -125,88 +128,133 @@
     function renderReader() {
         const container = document.getElementById('reader-view');
         container.innerHTML = '';
-        
         currentData.forEach((row, index) => {
             const rowId = `row-${currentSheetName}-${index}`;
-            const sentenceDiv = document.createElement('div');
-            sentenceDiv.className = 'sentence-item card';
-            sentenceDiv.innerHTML = `
-                <div class="original-text" id="text-${rowId}">${row[mapping['Câu gốc']]}</div>
-                <div class="translation-text hidden" id="trans-${rowId}">${row[mapping['Dịch']]}</div>
-                <div class="action-menu">
-                    <button class="btn" onclick="toggleFurigana('${rowId}', '${index}')">Furigana</button>
-                    <button class="btn" onclick="toggleTranslation('${rowId}')">Dịch</button>
-                    <button class="btn" onclick="showPopup('Thành phần câu', '${index}')">T.Phần</button>
-                    <button class="btn" onclick="showPopup('Ngữ pháp', '${index}')">Ngữ pháp</button>
-                    <button class="btn" onclick="playAudio('${index}')">Audio</button>
-                    <button class="btn" style="background:#8e44ad" onclick="makeHighlight('${rowId}')">Highlight</button>
+            const div = document.createElement('div');
+            div.className = 'sentence-item card';
+            div.innerHTML = `
+                <div class="original-text" id="text-${rowId}" onclick="openSentenceMenu(event, '${rowId}', ${index})">
+                    ${userStates[rowId] || row[mapping['Câu gốc']]}
+                </div>
+                <div class="translation-text hidden" id="trans-${rowId}">
+                    ${row[mapping['Dịch']]}
                 </div>
             `;
-            container.appendChild(sentenceDiv);
-            
-            // Restore Highlights/Notes
-            if(userNotes[rowId]) {
-                document.getElementById(`text-${rowId}`).innerHTML = userNotes[rowId];
-            }
+            container.appendChild(div);
+            rebindHighlights(rowId);
         });
     }
 
-    function toggleFurigana(rowId, index) {
+    function openSentenceMenu(e, rowId, idx) {
+        e.stopPropagation();
+        const menu = document.getElementById('sentence-menu');
+        const overlay = document.getElementById('overlay');
+
+        document.getElementById('sentence-menu-content').innerHTML = `
+            <button class="btn" onclick="toggleFurigana('${rowId}', ${idx})">Furigana</button>
+            <button class="btn" onclick="toggleTranslation('${rowId}')">Dịch</button>
+            <button class="btn" onclick="showPopup('Thành phần câu', ${idx})">Thành phần</button>
+            <button class="btn" onclick="showPopup('Ngữ pháp', ${idx})">Ngữ pháp</button>
+            <button class="btn" onclick="playAudio(${idx})">Audio</button>
+            <button class="btn btn-note" onclick="applyHighlight('${rowId}')">Highlight/Note</button>
+        `;
+
+        menu.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+    }
+
+    function toggleFurigana(rowId, idx) {
         const el = document.getElementById(`text-${rowId}`);
-        const isFuri = el.dataset.furi === "true";
-        if (isFuri) {
-            el.innerHTML = currentData[index][mapping['Câu gốc']];
-            el.dataset.furi = "false";
-        } else {
-            el.innerHTML = currentData[index][mapping['Furigana']];
-            el.dataset.furi = "true";
+        // Quan trọng: Xóa trạng thái lưu cũ để hiện được Furigana từ database
+        if(userStates[rowId]) {
+            if(!confirm("Hiện Furigana sẽ tạm thời ẩn các Highlight cũ của câu này. Tiếp tục?")) return;
+            delete userStates[rowId];
+            localStorage.setItem('userStates', JSON.stringify(userStates));
         }
-        // Apply highlights back after changing content
-        if(userNotes[rowId]) el.innerHTML = userNotes[rowId];
+
+        const isFuri = el.dataset.isFuri === "true";
+        if(isFuri) {
+            el.innerHTML = currentData[idx][mapping['Câu gốc']];
+            el.dataset.isFuri = "false";
+        } else {
+            el.innerHTML = currentData[idx][mapping['Furigana']];
+            el.dataset.isFuri = "true";
+        }
+        closePopup();
     }
 
-    function toggleTranslation(rowId) {
-        document.getElementById(`trans-${rowId}`).classList.toggle('hidden');
+    function toggleTranslation(rowId) { 
+        document.getElementById(`trans-${rowId}`).classList.toggle('hidden'); 
+        closePopup();
     }
 
-    function showPopup(type, index) {
-        const content = currentData[index][mapping[type]] || "Không có dữ liệu";
-        document.getElementById('popup-content').innerHTML = `<h4>${type}</h4><p style="white-space: pre-line">${content}</p>`;
+    function showPopup(type, idx) {
+        const content = currentData[idx][mapping[type]] || 'Trống';
+        document.getElementById('popup-content').innerHTML = `<h3>${type}</h3><div style="white-space:pre-wrap; line-height:1.6">${content}</div>`;
         document.getElementById('info-popup').classList.remove('hidden');
-        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('sentence-menu').classList.add('hidden');
     }
 
-    function closePopup() {
-        document.getElementById('info-popup').classList.add('hidden');
-        document.getElementById('overlay').classList.add('hidden');
+    function closePopup() { 
+        document.querySelectorAll('.popup, .overlay').forEach(el => el.classList.add('hidden')); 
     }
 
-    function playAudio(index) {
-        const url = currentData[index][mapping['Audio gốc']];
-        if(url && url.startsWith('http')) {
-            new Audio(url).play();
-        } else {
-            const msg = new SpeechSynthesisUtterance(currentData[index][mapping['Câu gốc']]);
-            msg.lang = 'ja-JP';
-            window.speechSynthesis.speak(msg);
-        }
+    function playAudio(idx) {
+        const text = currentData[idx][mapping['Câu gốc']];
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        window.speechSynthesis.speak(utter);
     }
 
-    function makeHighlight(rowId) {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
+    function applyHighlight(rowId) {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && !sel.isCollapsed) {
+            const range = sel.getRangeAt(0);
             const span = document.createElement('span');
-            span.className = 'highlight';
-            span.onclick = () => { if(confirm("Xóa highlight?")) span.outerHTML = span.innerHTML; saveState(rowId); };
-            range.surroundContents(span);
+            const color = document.getElementById('hl-color').value;
+            const note = prompt("Thêm ghi chú (nếu có):");
+            
+            span.className = 'hl-span';
+            span.style.backgroundColor = color;
+            if(note) span.innerHTML = `${range.toString()}<small class="note-text">[Note: ${note}]</small>`;
+            else span.innerHTML = range.toString();
+
+            span.onclick = (e) => { e.stopPropagation(); handleSpanClick(span, rowId); };
+            range.deleteContents();
+            range.insertNode(span);
             saveState(rowId);
+            sel.removeAllRanges();
+            closePopup();
+        } else {
+            alert("Hãy bôi đen chữ trước!");
         }
+    }
+
+    function handleSpanClick(span, rowId) {
+        const act = confirm("Chọn: \nOK: Xóa Highlight \nCancel: Sửa Note");
+        if(act) {
+            span.outerHTML = span.innerHTML.split('<small')[0];
+        } else {
+            const oldNote = span.querySelector('.note-text')?.innerText.replace('[Note: ', '').replace(']', '') || "";
+            const newNote = prompt("Ghi chú mới:", oldNote);
+            if(newNote !== null) {
+                const baseText = span.innerHTML.split('<small')[0];
+                span.innerHTML = baseText + (newNote ? `<small class="note-text">[Note: ${newNote}]</small>` : '');
+            }
+        }
+        saveState(rowId);
+    }
+
+    function rebindHighlights(rowId) {
+        document.querySelectorAll(`#text-${rowId} .hl-span`).forEach(span => {
+            span.onclick = (e) => { e.stopPropagation(); handleSpanClick(span, rowId); };
+        });
     }
 
     function saveState(rowId) {
-        userNotes[rowId] = document.getElementById(`text-${rowId}`).innerHTML;
-        localStorage.setItem('userNotes', JSON.stringify(userNotes));
+        userStates[rowId] = document.getElementById(`text-${rowId}`).innerHTML;
+        localStorage.setItem('userStates', JSON.stringify(userStates));
     }
 </script>
 </body>
