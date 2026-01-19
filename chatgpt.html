@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>JP Reading Trainer</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+body { font-family: system-ui; padding: 12px; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #ccc; padding: 4px 8px; }
+.sentence { margin: 8px 0; }
+.translation { color: #555; margin-left: 12px; display: none; }
+.component-span {
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.component-span * {
+  pointer-events: none;
+}
+
+#popup {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  background: #fff;
+  border: 1px solid #aaa;
+  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  padding: 10px;
+  display: none;
+  z-index: 999;
+}
+
+</style>
+</head>
+<body>
+
+<h2>JP Reading Trainer</h2>
+
+<input type="file" id="fileInput" accept=".xlsx"><br><br>
+
+<div id="mapping"></div>
+<button onclick="applyMapping()">Apply Mapping</button>
+
+<hr>
+
+<div>
+<button onclick="toggleTranslation()">Toggle Translation</button>
+<button onclick="toggleComponent()">Show Component</button>
+<button onclick="playAll()">▶ Play All</button>
+<label><input type="checkbox" id="repeatAll"> Repeat</label>
+</div>
+
+<div id="content"></div>
+<audio id="audio"></audio>
+
+<script>
+let workbook, headers = [], rows = [];
+let columnMap = {
+  original: '',
+  furigana: '',
+  translation: '',
+  grammar: '',
+  audio: '',
+  components: []
+};
+
+document.getElementById('fileInput').addEventListener('change', handleFile);
+
+function handleFile(e) {
+  const reader = new FileReader();
+  reader.onload = evt => {
+    const data = new Uint8Array(evt.target.result);
+    workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    headers = rows[0];
+    buildMappingUI();
+	const saved = localStorage.getItem('jp_mapping');
+	if (saved) {
+	columnMap = JSON.parse(saved);
+	Object.entries(columnMap).forEach(([k,v]) => {
+		if (k === 'components') {
+		v.forEach(c => {
+			const el = document.querySelector(`.component[value="${c}"]`);
+			if (el) el.checked = true;
+		});
+		} else if (v) {
+		const el = document.querySelector(`input[name="${k}"][value="${v}"]`);
+		if (el) el.checked = true;
+		}
+	});
+	}
+  };
+  reader.readAsArrayBuffer(e.target.files[0]);
+}
+
+function buildMappingUI() {
+  const div = document.getElementById('mapping');
+  let html = `<h3>Map Excel Columns</h3><table>
+    <tr><th>Excel Column</th><th>Original</th><th>Furigana</th><th>Translation</th><th>Grammar</th><th>Audio</th><th>Component</th></tr>`;
+  headers.forEach(h => {
+    html += `<tr>
+      <td>${h}</td>
+      <td><input type="radio" name="original" value="${h}"></td>
+	  <td><input type="radio" name="furigana" value="${h}"></td>
+      <td><input type="radio" name="translation" value="${h}"></td>
+      <td><input type="radio" name="grammar" value="${h}"></td>
+      <td><input type="radio" name="audio" value="${h}"></td>
+      <td><input type="checkbox" value="${h}" class="component"></td>
+    </tr>`;
+  });
+  html += `</table>`;
+  div.innerHTML = html;
+}
+
+function applyMapping() {
+  ['original','furigana','translation','grammar','audio'].forEach(r => {
+    const el = document.querySelector(`input[name="${r}"]:checked`);
+    columnMap[r] = el ? el.value : '';
+  });
+  columnMap.components = [...document.querySelectorAll('.component:checked')].map(c => c.value);
+  localStorage.setItem('jp_mapping', JSON.stringify(columnMap));
+  render();
+}
+
+let showTranslation = false;
+let showComponent = false;
+
+function render() {
+  const idx = h => headers.indexOf(h);
+  const div = document.getElementById('content');
+  div.innerHTML = '';
+  rows.slice(1).forEach(r => {
+	const original = r[idx(columnMap.original)] || '';
+	const furigana = columnMap.furigana
+	? r[idx(columnMap.furigana)]
+	: original;
+	
+	// 1️⃣ highlight LUÔN dựa trên original
+	let highlighted = original;
+	
+	if (showComponent) {
+	columnMap.components.forEach((col, i) => {
+		const items = parseComponentCell(r[idx(col)]);
+		highlighted = applyComponentHighlight(highlighted, items);
+	});
+	}
+	
+	// 2️⃣ quyết định câu hiển thị
+	let jp = showComponent
+	? highlighted        // khi show component → dùng original đã highlight
+	: furigana;          // khi không → dùng furigana cho dễ đọc
+
+    const vi = columnMap.translation ? r[idx(columnMap.translation)] : '';
+    const audio = columnMap.audio ? r[idx(columnMap.audio)] : '';
+    const d = document.createElement('div');
+    d.className = 'sentence';
+    d.innerHTML = `
+      <div>${jp}</div>
+      <div class="translation">${vi}</div>
+      ${audio ? `<button onclick="playAudio('${audio}')">🔊</button>` : ''}
+    `;
+    div.appendChild(d);
+  });
+}
+function toggleComponent() {
+  showComponent = !showComponent;
+  render();
+}
+
+function parseComponentCell(cell) {
+  if (!cell) return [];
+
+  const result = [];
+  const regex = /\{(\d+)\}\s*:\s*\{([^}]+)\}\s*:\s*\{([^}]+)\}/g;
+  let m;
+
+  while ((m = regex.exec(cell)) !== null) {
+    result.push({
+      group: m[1],               // số group
+      target: m[2],              // text gốc
+      explanation: m[3]          // giải thích
+    });
+  }
+
+  return result;
+}
+
+function colorForGroup(group) {
+  const g = parseInt(group, 10);
+  return `hsl(${(g * 67) % 360}, 80%, 85%)`;
+}
+
+
+
+function applyComponentHighlight(sentence, components) {
+  let html = '';
+  let cursor = 0;
+
+  components.forEach(c => {
+    const idx = sentence.indexOf(c.target, cursor);
+    if (idx === -1) return;
+
+    // text trước component
+    html += sentence.slice(cursor, idx);
+
+    const color = colorForGroup(c.group);
+    const escapedExplain = c.explanation
+      .replace(/&/g, '&amp;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    html +=
+      `<span class="component-span"
+        style="background:${color}"
+        onclick="showPopup('${escapedExplain}')">
+        ${c.target}
+      </span>`;
+
+    cursor = idx + c.target.length;
+  });
+
+  // phần còn lại của câu
+  html += sentence.slice(cursor);
+
+  return html;
+}
+
+
+function showPopup(text) {
+  const p = document.getElementById('popup');
+  p.innerHTML = text;
+  p.style.display = 'block';
+}
+
+
+function toggleTranslation() {
+  showTranslation = !showTranslation;
+  document.querySelectorAll('.translation').forEach(t=>{
+    t.style.display = showTranslation ? 'block' : 'none';
+  });
+}
+
+function playAudio(url) {
+  const a = document.getElementById('audio');
+  a.src = url;
+  a.play();
+}
+
+function playAll() {
+  // giữ lại từ phase trước, sẽ nối lại sau
+}
+
+document.addEventListener('click', e => {
+  if (e.target.type === 'radio') {
+    if (e.target.dataset.checked === '1') {
+      e.target.checked = false;
+      e.target.dataset.checked = '0';
+    } else {
+      document
+        .querySelectorAll(`input[name="${e.target.name}"]`)
+        .forEach(r => r.dataset.checked = '0');
+      e.target.dataset.checked = '1';
+    }
+  }
+});
+
+</script>
+<div id="popup" onclick="this.style.display='none'"></div>
+</body>
+</html>
