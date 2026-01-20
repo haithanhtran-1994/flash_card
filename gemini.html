@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - iPhone Fixed</title>
+    <title>JP Active Reading Pro - Hybrid View</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
@@ -11,14 +11,37 @@
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .hidden { display: none; }
         
-        #reader-view { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
+        /* CONTAINER CHÍNH CHO READER */
+        #reader-container {
+            position: relative;
+            background: white;
+            border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden; /* Quan trọng để cắt trang */
+        }
+
+        #reader-view { 
+            padding: 20px;
             line-height: 2.8;
+            transition: transform 0.3s ease-out;
+        }
+
+        /* CHẾ ĐỘ TRANG SÁCH */
+        .book-mode {
+            display: block;
+            height: 70vh; /* Cố định chiều cao để ép chia cột */
+            column-width: calc(100vw - 70px); /* Mỗi cột rộng bằng 1 màn hình */
+            column-gap: 40px;
+            column-fill: auto;
         }
         
+        /* CHẾ ĐỘ CUỘN */
+        .scroll-mode {
+            height: auto !important;
+            column-count: auto !important;
+            display: block;
+        }
+
         .sentence-item { 
             display: inline; 
             cursor: pointer;
@@ -44,13 +67,12 @@
         .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
         
-        /* POPUP FIX CHO SAFARI */
         .popup { 
             position: fixed; top: 10px; left: 50%; transform: translateX(-50%); 
             width: 95%; max-height: 50vh; background: white; border-radius: 15px; 
             box-shadow: 0 5px 30px rgba(0,0,0,0.4); z-index: 1000; 
             padding: 10px 15px 15px 15px; border: 2px solid var(--accent);
-            touch-action: none; /* Ngăn trình duyệt can thiệp thao tác vuốt */
+            touch-action: none;
         }
         .drag-handle { width: 60px; height: 8px; background: #ddd; border-radius: 10px; margin: 0 auto 15px auto; cursor: grab; }
         .popup-content-scroll { max-height: 35vh; overflow-y: auto; cursor: auto; touch-action: auto; }
@@ -59,6 +81,17 @@
         ruby { ruby-align: center; }
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
         .size-selector { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; }
+
+        /* ĐIỀU KHIỂN TRANG */
+        .page-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #eee;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -77,21 +110,39 @@
     </div>
 
     <div id="app-content" class="hidden">
-        <div class="card" style="position: sticky; top: 10px; z-index: 100; display: flex; justify-content: space-between; align-items: center; gap:10px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <input type="color" id="hl-color" value="#ffff00" style="width:35px; height:35px; border:none; padding:0;">
-                <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000; padding:8px 12px;">🖌️ Bút dạ</button>
-                <select id="font-size-select" class="size-selector" onchange="changeFontSize(this.value)">
+        <div class="card" style="position: sticky; top: 0px; z-index: 100; display: flex; flex-direction: column; gap:10px;">
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <div style="display:flex; gap:5px;">
+                    <input type="color" id="hl-color" value="#ffff00" style="width:30px; height:30px; border:none;">
+                    <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000;">🖌️ Bút</button>
+                </div>
+                <select id="view-mode" class="size-selector" onchange="updateViewMode()">
+                    <option value="scroll">Chế độ Cuộn ↓</option>
+                    <option value="book">Chế độ Sách 📖</option>
+                </select>
+                <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
+            </div>
+            
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <select id="font-size-select" class="size-selector" onchange="changeFontSize(this.value)" style="width: 48%;">
                     <option value="1.0">Size XS</option>
                     <option value="1.2">Size S</option>
                     <option value="1.5" selected>Size M</option>
                     <option value="1.8">Size L</option>
                     <option value="2.2">Size XL</option>
                 </select>
+                <span id="page-info" style="font-weight: bold; font-size: 0.9rem;"></span>
             </div>
-            <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
         </div>
-        <div id="reader-view"></div>
+
+        <div id="reader-container">
+            <div id="reader-view" class="scroll-mode"></div>
+        </div>
+
+        <div id="book-nav" class="page-controls hidden">
+            <button class="btn" style="width: 45%; background: #2c3e50;" onclick="prevPage()"> Trang trước</button>
+            <button class="btn" style="width: 45%; background: #2c3e50;" onclick="nextPage()">Trang sau </button>
+        </div>
     </div>
 
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
@@ -108,6 +159,7 @@
     let mapping = JSON.parse(localStorage.getItem('mapping')) || {};
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
+    let currentPage = 0;
 
     // --- LOGIC KÉO THẢ TỐI ƯU IPHONE/SAFARI ---
     const popup = document.getElementById('sentence-menu');
@@ -121,9 +173,7 @@
     }
 
     function dragStart(e) {
-        // Không cho kéo nếu bấm trúng nút bấm hoặc vùng cuộn nội dung
         if (e.target.closest('button') || e.target.closest('.popup-content-scroll')) return;
-        
         isDragging = true;
         const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
         startY = clientY - initialYOffset;
@@ -132,10 +182,7 @@
 
     function drag(e) {
         if (!isDragging) return;
-        
-        // Cực kỳ quan trọng: Ngăn Safari cuộn trang khi đang kéo popup
         if (e.cancelable) e.preventDefault();
-
         const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
         initialYOffset = clientY - startY;
         popup.style.top = (10 + initialYOffset) + "px";
@@ -148,7 +195,6 @@
         localStorage.setItem('popup-top-v3', initialYOffset);
     }
 
-    // Gán sự kiện với passive: false để fix lỗi chặn preventDefault trên Safari
     popup.addEventListener("touchstart", dragStart, { passive: false });
     document.addEventListener("touchmove", drag, { passive: false });
     document.addEventListener("touchend", dragEnd);
@@ -156,7 +202,51 @@
     document.addEventListener("mousemove", drag);
     document.addEventListener("mouseup", dragEnd);
 
-    // --- CÁC HÀM TÍNH NĂNG ---
+    // --- CHẾ ĐỘ HIỂN THỊ (MỚI) ---
+    function updateViewMode() {
+        const mode = document.getElementById('view-mode').value;
+        const view = document.getElementById('reader-view');
+        const nav = document.getElementById('book-nav');
+        currentPage = 0;
+        
+        if(mode === 'book') {
+            view.className = 'book-mode';
+            nav.classList.remove('hidden');
+            updateBookTransform();
+        } else {
+            view.className = 'scroll-mode';
+            nav.classList.add('hidden');
+            view.style.transform = `translateX(0)`;
+            document.getElementById('page-info').innerText = '';
+        }
+    }
+
+    function nextPage() {
+        const view = document.getElementById('reader-view');
+        const maxScroll = view.scrollWidth - view.clientWidth;
+        if (Math.abs(currentPage * (view.clientWidth + 40)) < maxScroll) {
+            currentPage++;
+            updateBookTransform();
+        }
+    }
+
+    function prevPage() {
+        if (currentPage > 0) {
+            currentPage--;
+            updateBookTransform();
+        }
+    }
+
+    function updateBookTransform() {
+        const view = document.getElementById('reader-view');
+        const step = view.clientWidth + 40; // Rộng cột + Gap
+        view.style.transform = `translateX(-${currentPage * step}px)`;
+        
+        const totalPages = Math.ceil(view.scrollWidth / step);
+        document.getElementById('page-info').innerText = `Trang ${currentPage + 1}/${totalPages}`;
+    }
+
+    // --- CÁC HÀM TÍNH NĂNG CŨ ---
     function changeFontSize(size) {
         const reader = document.getElementById('reader-view');
         if(reader) reader.style.lineHeight = (size * 1.8); 
@@ -164,6 +254,11 @@
             el.style.fontSize = size + 'rem';
         });
         localStorage.setItem('preferred-font-size', size);
+        
+        // Nếu đang ở chế độ sách, phải tính toán lại số trang sau khi đổi font
+        if(document.getElementById('view-mode').value === 'book') {
+            setTimeout(updateBookTransform, 100);
+        }
     }
 
     document.getElementById('upload-file').addEventListener('change', (e) => {
@@ -205,7 +300,10 @@
         renderReader();
         const savedSize = localStorage.getItem('preferred-font-size') || '1.5';
         document.getElementById('font-size-select').value = savedSize;
-        setTimeout(() => changeFontSize(savedSize), 100); 
+        setTimeout(() => {
+            changeFontSize(savedSize);
+            updateViewMode();
+        }, 200); 
     }
 
     function renderReader() {
@@ -220,7 +318,6 @@
             span.className = 'sentence-item';
             span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}">${savedContent}</span>`;
             
-            // Xử lý click/touch để mở menu hoặc tô màu
             span.onmouseup = span.ontouchend = (e) => {
                 const sel = window.getSelection();
                 if (sel.isCollapsed) {
@@ -318,8 +415,10 @@
 
     function saveState(rowId) {
         const el = document.getElementById(`text-${rowId}`);
-        userStates[rowId + '-content'] = el.innerHTML;
-        localStorage.setItem('userStates', JSON.stringify(userStates));
+        if(el) {
+            userStates[rowId + '-content'] = el.innerHTML;
+            localStorage.setItem('userStates', JSON.stringify(userStates));
+        }
     }
 
     function closePopup() { 
