@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Fix Furigana</title>
+    <title>JP Active Reading Pro - Custom Font Size</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
@@ -12,7 +12,7 @@
         .hidden { display: none; }
         .sentence-item { margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px; }
         
-        /* Cải tiến hiển thị văn bản */
+        /* Chỗ này quan trọng: dùng class để điều khiển size chữ tập trung */
         .original-text { 
             font-size: 1.5rem; 
             line-height: 2.5; 
@@ -23,14 +23,8 @@
             word-break: break-all;
         }
         
-        /* Highlight: Đảm bảo không làm lệch Ruby */
-        .hl-span { 
-            cursor: pointer; 
-            border-radius: 4px; 
-            padding: 2px 0;
-            transition: background 0.2s;
-        }
-        /* Quan trọng: Khi nằm trong ruby, span không được làm thay đổi vị trí rt */
+        .hide-furi rt { visibility: hidden; }
+        .hl-span { cursor: pointer; border-radius: 4px; padding: 2px 0; transition: background 0.2s; }
         ruby .hl-span { display: inline; }
         .note-text { display: none; } 
 
@@ -45,6 +39,16 @@
         
         ruby { ruby-align: center; }
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
+
+        /* Style cho ô chọn size chữ */
+        .size-selector {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-weight: bold;
+            background: white;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -67,6 +71,14 @@
             <div style="display:flex; align-items:center; gap:8px;">
                 <input type="color" id="hl-color" value="#ffff00" style="width:35px; height:35px; border:none; padding:0;">
                 <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000; padding:8px 12px;">🖌️ Bút dạ</button>
+                
+                <select id="font-size-select" class="size-selector" onchange="changeFontSize(this.value)">
+                    <option value="1.2">Size S</option>
+                    <option value="1.5" selected>Size M</option>
+                    <option value="1.8">Size L</option>
+                    <option value="2.2">Size XL</option>
+                    <option value="2.8">Size XXL</option>
+                </select>
             </div>
             <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
         </div>
@@ -76,17 +88,28 @@
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
     <div id="sentence-menu" class="popup hidden">
         <div id="sentence-menu-content" class="action-menu"></div>
-        <button class="btn" style="background:#95a5a6; width:100%; margin-top:15px; height:40px;" onclick="closePopup()">Đóng</button>
+        <button class="btn" id="close-btn-global" style="background:#95a5a6; width:100%; margin-top:15px; height:40px;" onclick="closePopup()">Đóng</button>
     </div>
 
 <script>
     let workbook, currentData, currentSheetName;
-    const standardColumns = ['STT', 'Câu gốc', 'Furigana', 'Dịch', 'Ngữ pháp', 'Thành phần câu'];
+    const standardColumns = ['STT', 'Furigana', 'Dịch', 'Ngữ pháp', 'Thành phần câu'];
     let mapping = JSON.parse(localStorage.getItem('mapping')) || {};
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
 
-    // FILE HANDLING
+    // Hàm đổi size chữ phát ăn ngay
+    function changeFontSize(size) {
+        const elements = document.querySelectorAll('.original-text');
+        elements.forEach(el => {
+            el.style.fontSize = size + 'rem';
+            // Tự động chỉnh line-height để Furigana không bị đè (thường gấp 1.7 lần size chữ)
+            el.style.lineHeight = (size * 1.7) ; 
+        });
+        // Lưu lựa chọn vào localStorage để lần sau không phải chọn lại
+        localStorage.setItem('preferred-font-size', size);
+    }
+
     document.getElementById('upload-file').addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -123,6 +146,11 @@
         document.getElementById('step-mapping').classList.add('hidden');
         document.getElementById('app-content').classList.remove('hidden');
         renderReader();
+        
+        // Áp dụng size chữ đã lưu hoặc mặc định sau khi render
+        const savedSize = localStorage.getItem('preferred-font-size') || '1.5';
+        document.getElementById('font-size-select').value = savedSize;
+        setTimeout(() => changeFontSize(savedSize), 100); 
     }
 
     function renderReader() {
@@ -130,15 +158,15 @@
         container.innerHTML = '';
         currentData.forEach((row, index) => {
             const rowId = `row-${currentSheetName}-${index}`;
-            const mode = userStates[rowId + '-mode'] || 'raw';
-            const content = userStates[`${rowId}-${mode}`] || row[mapping[mode === 'raw' ? 'Câu gốc' : 'Furigana']];
+            const savedContent = userStates[rowId + '-content'] || row[mapping['Furigana']];
+            const isFuriVisible = userStates[rowId + '-furi-visible'] !== false;
             
             const div = document.createElement('div');
             div.className = 'sentence-item card';
             div.innerHTML = `
-                <div class="original-text" id="text-${rowId}" data-mode="${mode}" 
+                <div class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
                      onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">
-                    ${content}
+                    ${savedContent}
                 </div>
                 <div class="translation-text hidden" id="trans-${rowId}">${row[mapping['Dịch']]}</div>
             `;
@@ -153,7 +181,6 @@
         document.getElementById('reader-view').classList.toggle('pen-active', isPenMode);
     }
 
-    // XỬ LÝ HIGHLIGHT - KHÔNG LÀM LỆCH FURIGANA
     function handleMouseUp(rowId) {
         const sel = window.getSelection();
         if (sel.isCollapsed) {
@@ -168,21 +195,16 @@
             const range = sel.getRangeAt(0);
             const color = document.getElementById('hl-color').value;
             const note = prompt("Nhập ghi chú (nếu có):");
-
             const span = document.createElement('span');
             span.className = 'hl-span';
             span.style.backgroundColor = color;
-            
-            // Xử lý thông minh: Nếu bôi đen một phần của Ruby, lấy toàn bộ nội dung HTML bôi đen
-            const content = range.extractContents();
-            span.appendChild(content);
+            span.appendChild(range.extractContents());
             if (note) {
                 const noteEl = document.createElement('small');
                 noteEl.className = 'note-text';
                 noteEl.innerText = note;
                 span.appendChild(noteEl);
             }
-            
             range.insertNode(span);
             saveState(rowId);
             rebindHighlights(rowId);
@@ -192,22 +214,36 @@
 
     function openSentenceMenu(rowId, idx) {
         const menuContent = document.getElementById('sentence-menu-content');
+        const cauTrucRaw = currentData[idx][mapping['Thành phần câu']] || 'Trống';
+        const nguPhapRaw = currentData[idx][mapping['Ngữ pháp']] || 'Trống';
+
         menuContent.innerHTML = `
-            <button class="btn" onclick="toggleFurigana('${rowId}', ${idx})">Furigana</button>
+            <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Bật/Tắt Furigana</button>
             <button class="btn" onclick="document.getElementById('trans-${rowId}').classList.toggle('hidden'); closePopup();">Dịch</button>
-            <button class="btn" onclick="showPopupContent('Cấu trúc', '${currentData[idx][mapping['Thành phần câu']] || 'Trống'}')">Cấu trúc</button>
-            <button class="btn" onclick="showPopupContent('Ngữ pháp', '${currentData[idx][mapping['Ngữ pháp']] || 'Trống'}')">Ngữ pháp</button>
+            <button class="btn" id="btn-cautruc-${idx}">Cấu trúc</button>
+            <button class="btn" id="btn-nguphap-${idx}">Ngữ pháp</button>
             <button class="btn" onclick="playVoice(${idx})">Loa</button>
         `;
+
+        document.getElementById(`btn-cautruc-${idx}`).onclick = () => showPopupContent('Cấu trúc', cauTrucRaw, rowId, idx);
+        document.getElementById(`btn-nguphap-${idx}`).onclick = () => showPopupContent('Ngữ pháp', nguPhapRaw, rowId, idx);
+
         document.getElementById('sentence-menu').classList.remove('hidden');
         document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function toggleFuriganaDisplay(rowId) {
+        const el = document.getElementById(`text-${rowId}`);
+        const isHidden = el.classList.toggle('hide-furi');
+        userStates[rowId + '-furi-visible'] = !isHidden;
+        localStorage.setItem('userStates', JSON.stringify(userStates));
+        closePopup();
     }
 
     function handleSpanClick(e, span, rowId) {
         e.stopPropagation();
         const note = span.querySelector('.note-text')?.innerText || "Không có ghi chú";
         const menuContent = document.getElementById('sentence-menu-content');
-        
         menuContent.innerHTML = `
             <div style="grid-column: span 3; background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; font-size:1rem; border-left:4px solid #e67e22;">
                 <strong>Ghi chú:</strong><br>${note}
@@ -224,26 +260,15 @@
             const span = window.currentSelectedSpan;
             const note = span.querySelector('.note-text');
             if(note) note.remove();
-            span.outerHTML = span.innerHTML; // Giữ lại nội dung bên trong (bao gồm thẻ ruby)
+            span.outerHTML = span.innerHTML;
             saveState(rowId);
         }
         closePopup();
     }
 
-    function toggleFurigana(rowId, idx) {
-        const el = document.getElementById(`text-${rowId}`);
-        const newMode = el.dataset.mode === "raw" ? "furi" : "raw";
-        el.dataset.mode = newMode;
-        userStates[rowId + '-mode'] = newMode;
-        el.innerHTML = userStates[`${rowId}-${newMode}`] || currentData[idx][mapping[newMode === 'raw' ? 'Câu gốc' : 'Furigana']];
-        rebindHighlights(rowId);
-        localStorage.setItem('userStates', JSON.stringify(userStates));
-        closePopup();
-    }
-
     function saveState(rowId) {
         const el = document.getElementById(`text-${rowId}`);
-        userStates[`${rowId}-${el.dataset.mode}`] = el.innerHTML;
+        userStates[rowId + '-content'] = el.innerHTML;
         localStorage.setItem('userStates', JSON.stringify(userStates));
     }
 
@@ -253,11 +278,13 @@
         });
     }
 
-    function showPopupContent(title, content) {
-        document.getElementById('sentence-menu-content').innerHTML = `
-            <div style="grid-column: span 3;">
-                <h3 style="margin-top:0;">${title}</h3>
-                <div style="white-space:pre-wrap; line-height:1.6; font-size:1.1rem; color:#444;">${content}</div>
+    function showPopupContent(title, content, rowId, idx) {
+        const menuContent = document.getElementById('sentence-menu-content');
+        menuContent.innerHTML = `
+            <div style="grid-column: span 3; max-height: 400px; overflow-y: auto;">
+                <h3 style="margin-top:0; color:var(--accent); border-bottom: 2px solid #eee; padding-bottom:5px;">${title}</h3>
+                <div style="white-space:pre-wrap; line-height:1.6; font-size:1.1rem; color:#444; background:#f9f9f9; padding:10px; border-radius:8px;">${content}</div>
+                <button class="btn" style="width:100%; margin-top:15px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
             </div>`;
     }
 
@@ -265,7 +292,10 @@
 
     function playVoice(idx) {
         window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(currentData[idx][mapping['Câu gốc']]);
+        const div = document.createElement('div');
+        div.innerHTML = currentData[idx][mapping['Furigana']];
+        const plainText = div.innerText; 
+        const utter = new SpeechSynthesisUtterance(plainText);
         utter.lang = 'ja-JP';
         window.speechSynthesis.speak(utter);
     }
