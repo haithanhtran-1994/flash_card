@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Seamless Text</title>
+    <title>JP Active Reading Pro - iPhone Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--primary); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--primary); overscroll-behavior: none; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .hidden { display: none; }
         
-        /* CẤU TRÚC ĐOẠN VĂN LIỀN MẠCH */
         #reader-view { 
             background: white; 
             padding: 20px; 
             border-radius: 12px; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            line-height: 2.8; /* Khoảng cách dòng rộng để dễ đọc Furigana */
+            line-height: 2.8;
         }
         
         .sentence-item { 
-            display: inline; /* Giúp các câu nối tiếp nhau */
+            display: inline; 
             cursor: pointer;
             transition: background 0.2s;
             border-radius: 4px;
@@ -32,7 +31,7 @@
             display: inline; 
             font-size: 1.5rem; 
             word-break: break-all;
-            margin-right: 8px; /* Khoảng cách nhỏ giữa các câu */
+            margin-right: 8px;
         }
         
         .hide-furi rt { visibility: hidden; }
@@ -45,21 +44,21 @@
         .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
         
+        /* POPUP FIX CHO SAFARI */
         .popup { 
             position: fixed; top: 10px; left: 50%; transform: translateX(-50%); 
-            width: 95%; max-height: 45vh; background: white; border-radius: 15px; 
+            width: 95%; max-height: 50vh; background: white; border-radius: 15px; 
             box-shadow: 0 5px 30px rgba(0,0,0,0.4); z-index: 1000; 
             padding: 10px 15px 15px 15px; border: 2px solid var(--accent);
-            touch-action: none; cursor: grab;
+            touch-action: none; /* Ngăn trình duyệt can thiệp thao tác vuốt */
         }
-        .popup:active { cursor: grabbing; }
-        .drag-handle { width: 50px; height: 6px; background: #ddd; border-radius: 10px; margin: 0 auto 15px auto; }
-        .popup-content-scroll { max-height: 30vh; overflow-y: auto; cursor: auto; }
+        .drag-handle { width: 60px; height: 8px; background: #ddd; border-radius: 10px; margin: 0 auto 15px auto; cursor: grab; }
+        .popup-content-scroll { max-height: 35vh; overflow-y: auto; cursor: auto; touch-action: auto; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
         
         ruby { ruby-align: center; }
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
-        .size-selector { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; cursor: pointer; }
+        .size-selector { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; }
     </style>
 </head>
 <body>
@@ -98,7 +97,7 @@
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
     
     <div id="sentence-menu" class="popup hidden">
-        <div class="drag-handle"></div>
+        <div class="drag-handle" id="drag-zone"></div>
         <div id="sentence-menu-content" class="popup-content-scroll"></div>
         <button class="btn" id="close-btn-global" style="background:#95a5a6; width:100%; margin-top:10px; height:35px;" onclick="closePopup()">Đóng</button>
     </div>
@@ -110,47 +109,57 @@
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
 
-    // --- LOGIC KÉO THẢ POPUP ---
+    // --- LOGIC KÉO THẢ TỐI ƯU IPHONE/SAFARI ---
     const popup = document.getElementById('sentence-menu');
     let isDragging = false;
-    let initialY, yOffset = 0;
+    let startY, initialYOffset = 0;
 
-    const savedTop = localStorage.getItem('popup-top-position');
+    const savedTop = localStorage.getItem('popup-top-v3');
     if (savedTop) {
-        yOffset = parseInt(savedTop);
-        popup.style.top = (10 + yOffset) + "px";
+        initialYOffset = parseInt(savedTop);
+        popup.style.top = (10 + initialYOffset) + "px";
     }
 
     function dragStart(e) {
+        // Không cho kéo nếu bấm trúng nút bấm hoặc vùng cuộn nội dung
         if (e.target.closest('button') || e.target.closest('.popup-content-scroll')) return;
-        initialY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - yOffset;
+        
         isDragging = true;
-    }
-
-    function dragEnd() {
-        isDragging = false;
-        localStorage.setItem('popup-top-position', yOffset);
+        const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+        startY = clientY - initialYOffset;
+        popup.style.cursor = "grabbing";
     }
 
     function drag(e) {
-        if (isDragging) {
-            e.preventDefault();
-            let currentY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - initialY;
-            yOffset = currentY;
-            popup.style.top = (10 + yOffset) + "px";
-        }
+        if (!isDragging) return;
+        
+        // Cực kỳ quan trọng: Ngăn Safari cuộn trang khi đang kéo popup
+        if (e.cancelable) e.preventDefault();
+
+        const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+        initialYOffset = clientY - startY;
+        popup.style.top = (10 + initialYOffset) + "px";
     }
 
-    popup.addEventListener("touchstart", dragStart, false);
-    document.addEventListener("touchend", dragEnd, false);
-    document.addEventListener("touchmove", drag, false);
-    popup.addEventListener("mousedown", dragStart, false);
-    document.addEventListener("mouseup", dragEnd, false);
-    document.addEventListener("mousemove", drag, false);
+    function dragEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        popup.style.cursor = "grab";
+        localStorage.setItem('popup-top-v3', initialYOffset);
+    }
 
-    // --- CÁC HÀM CƠ BẢN ---
+    // Gán sự kiện với passive: false để fix lỗi chặn preventDefault trên Safari
+    popup.addEventListener("touchstart", dragStart, { passive: false });
+    document.addEventListener("touchmove", drag, { passive: false });
+    document.addEventListener("touchend", dragEnd);
+    popup.addEventListener("mousedown", dragStart);
+    document.addEventListener("mousemove", drag);
+    document.addEventListener("mouseup", dragEnd);
+
+    // --- CÁC HÀM TÍNH NĂNG ---
     function changeFontSize(size) {
-        document.getElementById('reader-view').style.lineHeight = (size * 1.8); 
+        const reader = document.getElementById('reader-view');
+        if(reader) reader.style.lineHeight = (size * 1.8); 
         document.querySelectorAll('.original-text').forEach(el => {
             el.style.fontSize = size + 'rem';
         });
@@ -172,6 +181,7 @@
 
     document.getElementById('sheet-selector').addEventListener('change', function() {
         currentSheetName = this.value;
+        if(!currentSheetName) return;
         currentData = XLSX.utils.sheet_to_json(workbook.Sheets[currentSheetName]);
         showMappingUI(Object.keys(currentData[0]));
     });
@@ -208,11 +218,41 @@
             
             const span = document.createElement('span');
             span.className = 'sentence-item';
-            span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
-                     onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">${savedContent}</span>`;
+            span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}">${savedContent}</span>`;
+            
+            // Xử lý click/touch để mở menu hoặc tô màu
+            span.onmouseup = span.ontouchend = (e) => {
+                const sel = window.getSelection();
+                if (sel.isCollapsed) {
+                    if (!isPenMode) openSentenceMenu(rowId, index);
+                } else if (isPenMode) {
+                    handleHighlight(rowId, sel);
+                }
+            };
+
             container.appendChild(span);
             rebindHighlights(rowId);
         });
+    }
+
+    function handleHighlight(rowId, sel) {
+        const range = sel.getRangeAt(0);
+        const color = document.getElementById('hl-color').value;
+        const note = prompt("Nhập ghi chú:");
+        const span = document.createElement('span');
+        span.className = 'hl-span';
+        span.style.backgroundColor = color;
+        span.appendChild(range.extractContents());
+        if (note) {
+            const noteEl = document.createElement('small');
+            noteEl.className = 'note-text';
+            noteEl.innerText = note;
+            span.appendChild(noteEl);
+        }
+        range.insertNode(span);
+        saveState(rowId);
+        rebindHighlights(rowId);
+        sel.removeAllRanges();
     }
 
     function togglePenMode() {
@@ -220,57 +260,19 @@
         document.getElementById('pen-btn').classList.toggle('btn-active', isPenMode);
     }
 
-    function handleMouseUp(rowId) {
-        const sel = window.getSelection();
-        if (sel.isCollapsed) {
-            if (!isPenMode) {
-                const idx = rowId.split('-').pop();
-                openSentenceMenu(rowId, parseInt(idx));
-            }
-            return;
-        }
-
-        if (isPenMode) {
-            const range = sel.getRangeAt(0);
-            const color = document.getElementById('hl-color').value;
-            const note = prompt("Nhập ghi chú:");
-            const span = document.createElement('span');
-            span.className = 'hl-span';
-            span.style.backgroundColor = color;
-            span.appendChild(range.extractContents());
-            if (note) {
-                const noteEl = document.createElement('small');
-                noteEl.className = 'note-text';
-                noteEl.innerText = note;
-                span.appendChild(noteEl);
-            }
-            range.insertNode(span);
-            saveState(rowId);
-            rebindHighlights(rowId);
-            sel.removeAllRanges();
-        }
-    }
-
     function openSentenceMenu(rowId, idx) {
         const menuContent = document.getElementById('sentence-menu-content');
-        const dichRaw = currentData[idx][mapping['Dịch']] || 'Chưa có bản dịch';
-        const cauTrucRaw = currentData[idx][mapping['Thành phần câu']] || 'Trống';
-        const nguPhapRaw = currentData[idx][mapping['Ngữ pháp']] || 'Trống';
-
+        const row = currentData[idx];
         document.getElementById('overlay').classList.remove('hidden');
         menuContent.innerHTML = `
             <div class="action-menu">
-                <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Bật/Tắt Furigana</button>
-                <button class="btn" id="btn-dich-${idx}" style="background:#2ecc71">Bản Dịch</button>
-                <button class="btn" id="btn-cautruc-${idx}">Cấu trúc</button>
-                <button class="btn" id="btn-nguphap-${idx}">Ngữ pháp</button>
+                <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Hiện Furi</button>
+                <button class="btn" style="background:#2ecc71" onclick="showPopupContent('Dịch', \`${row[mapping['Dịch']]}\`, '${rowId}', ${idx})">Dịch</button>
+                <button class="btn" onclick="showPopupContent('Cấu trúc', \`${row[mapping['Thành phần câu']]}\`, '${rowId}', ${idx})">Cấu trúc</button>
+                <button class="btn" onclick="showPopupContent('Ngữ pháp', \`${row[mapping['Ngữ pháp']]}\`, '${rowId}', ${idx})">Ngữ pháp</button>
                 <button class="btn" onclick="playVoice(${idx})">Loa</button>
             </div>
         `;
-
-        document.getElementById(`btn-dich-${idx}`).onclick = () => showPopupContent('Bản Dịch', dichRaw, rowId, idx);
-        document.getElementById(`btn-cautruc-${idx}`).onclick = () => showPopupContent('Cấu trúc', cauTrucRaw, rowId, idx);
-        document.getElementById(`btn-nguphap-${idx}`).onclick = () => showPopupContent('Ngữ pháp', nguPhapRaw, rowId, idx);
         document.getElementById('sentence-menu').classList.remove('hidden');
     }
 
@@ -279,8 +281,8 @@
         const menuContent = document.getElementById('sentence-menu-content');
         menuContent.innerHTML = `
             <h4 style="margin:0 0 10px 0; color:var(--accent); border-bottom: 2px solid #eee;">${title}</h4>
-            <div style="white-space:pre-wrap; line-height:1.4; font-size:1rem; color:#444; background:#f9f9f9; padding:8px; border-radius:8px;">${content}</div>
-            <button class="btn" style="width:100%; margin-top:10px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
+            <div style="white-space:pre-wrap; line-height:1.4; font-size:1rem; color:#444; background:#f9f9f9; padding:8px; border-radius:8px;">${content || 'Trống'}</div>
+            <button class="btn" style="width:100%; margin-top:10px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại</button>
         `;
     }
 
@@ -292,42 +294,32 @@
         closePopup();
     }
 
-    function handleSpanClick(e, span, rowId) {
-        e.stopPropagation();
-        const note = span.querySelector('.note-text')?.innerText || "Không có ghi chú";
-        const menuContent = document.getElementById('sentence-menu-content');
-        document.getElementById('overlay').classList.remove('hidden');
-        menuContent.innerHTML = `
-            <div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; font-size:1rem; border-left:4px solid #e67e22;">
-                <strong>Ghi chú:</strong><br>${note}
-            </div>
-            <button class="btn" style="background:#e74c3c; width:100%; height:40px;" onclick="removeHL('${rowId}')">Xóa Highlight này</button>
-        `;
-        window.currentSelectedSpan = span;
-        document.getElementById('sentence-menu').classList.remove('hidden');
-    }
-
-    function removeHL(rowId) {
-        if(window.currentSelectedSpan) {
-            const span = window.currentSelectedSpan;
-            const note = span.querySelector('.note-text');
-            if(note) note.remove();
-            span.outerHTML = span.innerHTML;
-            saveState(rowId);
-        }
-        closePopup();
+    function rebindHighlights(rowId) {
+        document.querySelectorAll(`#text-${rowId} .hl-span`).forEach(span => {
+            span.onclick = (e) => {
+                e.stopPropagation();
+                const note = span.querySelector('.note-text')?.innerText || "Không có ghi chú";
+                document.getElementById('overlay').classList.remove('hidden');
+                document.getElementById('sentence-menu-content').innerHTML = `
+                    <div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; border-left:4px solid #e67e22;">
+                        <strong>Ghi chú:</strong><br>${note}
+                    </div>
+                    <button class="btn" style="background:#e74c3c; width:100%; height:40px;" id="del-hl">Xóa Highlight</button>
+                `;
+                document.getElementById('del-hl').onclick = () => {
+                    span.outerHTML = span.innerHTML.replace(/<small class="note-text">.*?<\/small>/, "");
+                    saveState(rowId);
+                    closePopup();
+                };
+                document.getElementById('sentence-menu').classList.remove('hidden');
+            };
+        });
     }
 
     function saveState(rowId) {
         const el = document.getElementById(`text-${rowId}`);
         userStates[rowId + '-content'] = el.innerHTML;
         localStorage.setItem('userStates', JSON.stringify(userStates));
-    }
-
-    function rebindHighlights(rowId) {
-        document.querySelectorAll(`#text-${rowId} .hl-span`).forEach(span => {
-            span.onclick = (e) => handleSpanClick(e, span, rowId);
-        });
     }
 
     function closePopup() { 
