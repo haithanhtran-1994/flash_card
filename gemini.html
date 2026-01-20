@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Custom Font Size</title>
+    <title>JP Active Reading Pro - Floating Popup</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
@@ -12,7 +12,6 @@
         .hidden { display: none; }
         .sentence-item { margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px; }
         
-        /* Chỗ này quan trọng: dùng class để điều khiển size chữ tập trung */
         .original-text { 
             font-size: 1.5rem; 
             line-height: 2.5; 
@@ -31,23 +30,33 @@
         .pen-active { cursor: crosshair !important; }
         .btn-active { background: #e67e22 !important; transform: scale(1.05); }
 
-        .translation-text { color: #2ecc71; font-weight: 500; font-size: 1rem; margin-top: 8px; border-left: 3px solid #2ecc71; padding-left: 10px; }
         .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
-        .popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-height: 80%; background: white; border-radius: 15px; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 1000; padding: 20px; overflow-y: auto; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
+        
+        /* POPUP STYLE MỚI: Nằm phía trên, không che hết màn hình */
+        .popup { 
+            position: fixed; 
+            top: 10px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 95%; 
+            max-height: 35vh; /* Chỉ chiếm tối đa 35% chiều cao màn hình */
+            background: white; 
+            border-radius: 15px; 
+            box-shadow: 0 5px 25px rgba(0,0,0,0.3); 
+            z-index: 1000; 
+            padding: 15px; 
+            overflow-y: auto;
+            border: 2px solid var(--accent);
+        }
+
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
         
         ruby { ruby-align: center; }
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
 
-        /* Style cho ô chọn size chữ */
         .size-selector {
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            font-weight: bold;
-            background: white;
-            cursor: pointer;
+            padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; cursor: pointer;
         }
     </style>
 </head>
@@ -73,22 +82,22 @@
                 <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000; padding:8px 12px;">🖌️ Bút dạ</button>
                 
                 <select id="font-size-select" class="size-selector" onchange="changeFontSize(this.value)">
+                    <option value="0.8">Size Tiny</option>
+                    <option value="1.0">Size XS</option>
                     <option value="1.2">Size S</option>
                     <option value="1.5" selected>Size M</option>
                     <option value="1.8">Size L</option>
-                    <option value="2.2">Size XL</option>
-                    <option value="2.8">Size XXL</option>
                 </select>
             </div>
             <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
         </div>
-        <div id="reader-view"></div>
+        <div id="reader-view" style="margin-top: 20px;"></div>
     </div>
 
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
     <div id="sentence-menu" class="popup hidden">
-        <div id="sentence-menu-content" class="action-menu"></div>
-        <button class="btn" id="close-btn-global" style="background:#95a5a6; width:100%; margin-top:15px; height:40px;" onclick="closePopup()">Đóng</button>
+        <div id="sentence-menu-content"></div>
+        <button class="btn" id="close-btn-global" style="background:#95a5a6; width:100%; margin-top:10px; height:35px;" onclick="closePopup()">Đóng</button>
     </div>
 
 <script>
@@ -98,15 +107,12 @@
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
 
-    // Hàm đổi size chữ phát ăn ngay
     function changeFontSize(size) {
         const elements = document.querySelectorAll('.original-text');
         elements.forEach(el => {
             el.style.fontSize = size + 'rem';
-            // Tự động chỉnh line-height để Furigana không bị đè (thường gấp 1.7 lần size chữ)
-            el.style.lineHeight = (size * 1.7) ; 
+            el.style.lineHeight = (size * 1.8); 
         });
-        // Lưu lựa chọn vào localStorage để lần sau không phải chọn lại
         localStorage.setItem('preferred-font-size', size);
     }
 
@@ -146,8 +152,6 @@
         document.getElementById('step-mapping').classList.add('hidden');
         document.getElementById('app-content').classList.remove('hidden');
         renderReader();
-        
-        // Áp dụng size chữ đã lưu hoặc mặc định sau khi render
         const savedSize = localStorage.getItem('preferred-font-size') || '1.5';
         document.getElementById('font-size-select').value = savedSize;
         setTimeout(() => changeFontSize(savedSize), 100); 
@@ -163,13 +167,8 @@
             
             const div = document.createElement('div');
             div.className = 'sentence-item card';
-            div.innerHTML = `
-                <div class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
-                     onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">
-                    ${savedContent}
-                </div>
-                <div class="translation-text hidden" id="trans-${rowId}">${row[mapping['Dịch']]}</div>
-            `;
+            div.innerHTML = `<div class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
+                     onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">${savedContent}</div>`;
             container.appendChild(div);
             rebindHighlights(rowId);
         });
@@ -214,22 +213,41 @@
 
     function openSentenceMenu(rowId, idx) {
         const menuContent = document.getElementById('sentence-menu-content');
+        const dichRaw = currentData[idx][mapping['Dịch']] || 'Chưa có bản dịch';
         const cauTrucRaw = currentData[idx][mapping['Thành phần câu']] || 'Trống';
         const nguPhapRaw = currentData[idx][mapping['Ngữ pháp']] || 'Trống';
 
+        // Khi ở Menu chính, hiện overlay
+        document.getElementById('overlay').classList.remove('hidden');
+
         menuContent.innerHTML = `
-            <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Bật/Tắt Furigana</button>
-            <button class="btn" onclick="document.getElementById('trans-${rowId}').classList.toggle('hidden'); closePopup();">Dịch</button>
-            <button class="btn" id="btn-cautruc-${idx}">Cấu trúc</button>
-            <button class="btn" id="btn-nguphap-${idx}">Ngữ pháp</button>
-            <button class="btn" onclick="playVoice(${idx})">Loa</button>
+            <div class="action-menu">
+                <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Bật/Tắt Furigana</button>
+                <button class="btn" id="btn-dich-${idx}" style="background:#2ecc71">Bản Dịch</button>
+                <button class="btn" id="btn-cautruc-${idx}">Cấu trúc</button>
+                <button class="btn" id="btn-nguphap-${idx}">Ngữ pháp</button>
+                <button class="btn" onclick="playVoice(${idx})">Loa</button>
+            </div>
         `;
 
+        document.getElementById(`btn-dich-${idx}`).onclick = () => showPopupContent('Bản Dịch', dichRaw, rowId, idx);
         document.getElementById(`btn-cautruc-${idx}`).onclick = () => showPopupContent('Cấu trúc', cauTrucRaw, rowId, idx);
         document.getElementById(`btn-nguphap-${idx}`).onclick = () => showPopupContent('Ngữ pháp', nguPhapRaw, rowId, idx);
 
         document.getElementById('sentence-menu').classList.remove('hidden');
-        document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function showPopupContent(title, content, rowId, idx) {
+        // Khi xem nội dung chi tiết, ẩn overlay để người dùng có thể kéo lướt văn bản bên dưới
+        document.getElementById('overlay').classList.add('hidden');
+
+        const menuContent = document.getElementById('sentence-menu-content');
+        menuContent.innerHTML = `
+            <div style="max-height: 25vh; overflow-y: auto;">
+                <h4 style="margin:0 0 10px 0; color:var(--accent); border-bottom: 2px solid #eee;">${title}</h4>
+                <div style="white-space:pre-wrap; line-height:1.4; font-size:1rem; color:#444; background:#f9f9f9; padding:8px; border-radius:8px;">${content}</div>
+                <button class="btn" style="width:100%; margin-top:10px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
+            </div>`;
     }
 
     function toggleFuriganaDisplay(rowId) {
@@ -244,15 +262,15 @@
         e.stopPropagation();
         const note = span.querySelector('.note-text')?.innerText || "Không có ghi chú";
         const menuContent = document.getElementById('sentence-menu-content');
+        document.getElementById('overlay').classList.remove('hidden');
         menuContent.innerHTML = `
-            <div style="grid-column: span 3; background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; font-size:1rem; border-left:4px solid #e67e22;">
+            <div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; font-size:1rem; border-left:4px solid #e67e22;">
                 <strong>Ghi chú:</strong><br>${note}
             </div>
-            <button class="btn" style="background:#e74c3c; grid-column: span 3; height:40px;" onclick="removeHL('${rowId}')">Xóa Highlight này</button>
+            <button class="btn" style="background:#e74c3c; width:100%; height:40px;" onclick="removeHL('${rowId}')">Xóa Highlight này</button>
         `;
         window.currentSelectedSpan = span;
         document.getElementById('sentence-menu').classList.remove('hidden');
-        document.getElementById('overlay').classList.remove('hidden');
     }
 
     function removeHL(rowId) {
@@ -278,17 +296,10 @@
         });
     }
 
-    function showPopupContent(title, content, rowId, idx) {
-        const menuContent = document.getElementById('sentence-menu-content');
-        menuContent.innerHTML = `
-            <div style="grid-column: span 3; max-height: 400px; overflow-y: auto;">
-                <h3 style="margin-top:0; color:var(--accent); border-bottom: 2px solid #eee; padding-bottom:5px;">${title}</h3>
-                <div style="white-space:pre-wrap; line-height:1.6; font-size:1.1rem; color:#444; background:#f9f9f9; padding:10px; border-radius:8px;">${content}</div>
-                <button class="btn" style="width:100%; margin-top:15px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
-            </div>`;
+    function closePopup() { 
+        document.getElementById('sentence-menu').classList.add('hidden');
+        document.getElementById('overlay').classList.add('hidden');
     }
-
-    function closePopup() { document.querySelectorAll('.popup, .overlay').forEach(el => el.classList.add('hidden')); }
 
     function playVoice(idx) {
         window.speechSynthesis.cancel();
