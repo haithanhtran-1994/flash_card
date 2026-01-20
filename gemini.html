@@ -3,28 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Floating Popup</title>
+    <title>JP Active Reading Pro - Seamless Text</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--primary); }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .hidden { display: none; }
-        .sentence-item { margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px; }
         
+        /* CẤU TRÚC ĐOẠN VĂN LIỀN MẠCH */
+        #reader-view { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            line-height: 2.8; /* Khoảng cách dòng rộng để dễ đọc Furigana */
+        }
+        
+        .sentence-item { 
+            display: inline; /* Giúp các câu nối tiếp nhau */
+            cursor: pointer;
+            transition: background 0.2s;
+            border-radius: 4px;
+        }
+        .sentence-item:hover { background: rgba(52, 152, 219, 0.05); }
+
         .original-text { 
+            display: inline; 
             font-size: 1.5rem; 
-            line-height: 2.5; 
-            margin-bottom: 10px; 
-            display: block; 
-            min-height: 1.5em; 
-            user-select: text;
             word-break: break-all;
+            margin-right: 8px; /* Khoảng cách nhỏ giữa các câu */
         }
         
         .hide-furi rt { visibility: hidden; }
-        .hl-span { cursor: pointer; border-radius: 4px; padding: 2px 0; transition: background 0.2s; }
-        ruby .hl-span { display: inline; }
+        .hl-span { border-radius: 4px; padding: 2px 0; transition: background 0.2s; }
         .note-text { display: none; } 
 
         .pen-active { cursor: crosshair !important; }
@@ -33,31 +45,21 @@
         .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
         
-        /* POPUP STYLE MỚI: Nằm phía trên, không che hết màn hình */
         .popup { 
-            position: fixed; 
-            top: 10px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            width: 95%; 
-            max-height: 35vh; /* Chỉ chiếm tối đa 35% chiều cao màn hình */
-            background: white; 
-            border-radius: 15px; 
-            box-shadow: 0 5px 25px rgba(0,0,0,0.3); 
-            z-index: 1000; 
-            padding: 15px; 
-            overflow-y: auto;
-            border: 2px solid var(--accent);
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%); 
+            width: 95%; max-height: 45vh; background: white; border-radius: 15px; 
+            box-shadow: 0 5px 30px rgba(0,0,0,0.4); z-index: 1000; 
+            padding: 10px 15px 15px 15px; border: 2px solid var(--accent);
+            touch-action: none; cursor: grab;
         }
-
+        .popup:active { cursor: grabbing; }
+        .drag-handle { width: 50px; height: 6px; background: #ddd; border-radius: 10px; margin: 0 auto 15px auto; }
+        .popup-content-scroll { max-height: 30vh; overflow-y: auto; cursor: auto; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
         
         ruby { ruby-align: center; }
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
-
-        .size-selector {
-            padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; cursor: pointer;
-        }
+        .size-selector { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -80,23 +82,24 @@
             <div style="display:flex; align-items:center; gap:8px;">
                 <input type="color" id="hl-color" value="#ffff00" style="width:35px; height:35px; border:none; padding:0;">
                 <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000; padding:8px 12px;">🖌️ Bút dạ</button>
-                
                 <select id="font-size-select" class="size-selector" onchange="changeFontSize(this.value)">
-                    <option value="0.8">Size Tiny</option>
                     <option value="1.0">Size XS</option>
                     <option value="1.2">Size S</option>
                     <option value="1.5" selected>Size M</option>
                     <option value="1.8">Size L</option>
+                    <option value="2.2">Size XL</option>
                 </select>
             </div>
             <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
         </div>
-        <div id="reader-view" style="margin-top: 20px;"></div>
+        <div id="reader-view"></div>
     </div>
 
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
+    
     <div id="sentence-menu" class="popup hidden">
-        <div id="sentence-menu-content"></div>
+        <div class="drag-handle"></div>
+        <div id="sentence-menu-content" class="popup-content-scroll"></div>
         <button class="btn" id="close-btn-global" style="background:#95a5a6; width:100%; margin-top:10px; height:35px;" onclick="closePopup()">Đóng</button>
     </div>
 
@@ -107,11 +110,49 @@
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
 
+    // --- LOGIC KÉO THẢ POPUP ---
+    const popup = document.getElementById('sentence-menu');
+    let isDragging = false;
+    let initialY, yOffset = 0;
+
+    const savedTop = localStorage.getItem('popup-top-position');
+    if (savedTop) {
+        yOffset = parseInt(savedTop);
+        popup.style.top = (10 + yOffset) + "px";
+    }
+
+    function dragStart(e) {
+        if (e.target.closest('button') || e.target.closest('.popup-content-scroll')) return;
+        initialY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - yOffset;
+        isDragging = true;
+    }
+
+    function dragEnd() {
+        isDragging = false;
+        localStorage.setItem('popup-top-position', yOffset);
+    }
+
+    function drag(e) {
+        if (isDragging) {
+            e.preventDefault();
+            let currentY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - initialY;
+            yOffset = currentY;
+            popup.style.top = (10 + yOffset) + "px";
+        }
+    }
+
+    popup.addEventListener("touchstart", dragStart, false);
+    document.addEventListener("touchend", dragEnd, false);
+    document.addEventListener("touchmove", drag, false);
+    popup.addEventListener("mousedown", dragStart, false);
+    document.addEventListener("mouseup", dragEnd, false);
+    document.addEventListener("mousemove", drag, false);
+
+    // --- CÁC HÀM CƠ BẢN ---
     function changeFontSize(size) {
-        const elements = document.querySelectorAll('.original-text');
-        elements.forEach(el => {
+        document.getElementById('reader-view').style.lineHeight = (size * 1.8); 
+        document.querySelectorAll('.original-text').forEach(el => {
             el.style.fontSize = size + 'rem';
-            el.style.lineHeight = (size * 1.8); 
         });
         localStorage.setItem('preferred-font-size', size);
     }
@@ -165,11 +206,11 @@
             const savedContent = userStates[rowId + '-content'] || row[mapping['Furigana']];
             const isFuriVisible = userStates[rowId + '-furi-visible'] !== false;
             
-            const div = document.createElement('div');
-            div.className = 'sentence-item card';
-            div.innerHTML = `<div class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
-                     onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">${savedContent}</div>`;
-            container.appendChild(div);
+            const span = document.createElement('span');
+            span.className = 'sentence-item';
+            span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" 
+                     onmouseup="handleMouseUp('${rowId}')" ontouchend="handleMouseUp('${rowId}')">${savedContent}</span>`;
+            container.appendChild(span);
             rebindHighlights(rowId);
         });
     }
@@ -177,7 +218,6 @@
     function togglePenMode() {
         isPenMode = !isPenMode;
         document.getElementById('pen-btn').classList.toggle('btn-active', isPenMode);
-        document.getElementById('reader-view').classList.toggle('pen-active', isPenMode);
     }
 
     function handleMouseUp(rowId) {
@@ -193,7 +233,7 @@
         if (isPenMode) {
             const range = sel.getRangeAt(0);
             const color = document.getElementById('hl-color').value;
-            const note = prompt("Nhập ghi chú (nếu có):");
+            const note = prompt("Nhập ghi chú:");
             const span = document.createElement('span');
             span.className = 'hl-span';
             span.style.backgroundColor = color;
@@ -217,9 +257,7 @@
         const cauTrucRaw = currentData[idx][mapping['Thành phần câu']] || 'Trống';
         const nguPhapRaw = currentData[idx][mapping['Ngữ pháp']] || 'Trống';
 
-        // Khi ở Menu chính, hiện overlay
         document.getElementById('overlay').classList.remove('hidden');
-
         menuContent.innerHTML = `
             <div class="action-menu">
                 <button class="btn" onclick="toggleFuriganaDisplay('${rowId}')">Bật/Tắt Furigana</button>
@@ -233,21 +271,17 @@
         document.getElementById(`btn-dich-${idx}`).onclick = () => showPopupContent('Bản Dịch', dichRaw, rowId, idx);
         document.getElementById(`btn-cautruc-${idx}`).onclick = () => showPopupContent('Cấu trúc', cauTrucRaw, rowId, idx);
         document.getElementById(`btn-nguphap-${idx}`).onclick = () => showPopupContent('Ngữ pháp', nguPhapRaw, rowId, idx);
-
         document.getElementById('sentence-menu').classList.remove('hidden');
     }
 
     function showPopupContent(title, content, rowId, idx) {
-        // Khi xem nội dung chi tiết, ẩn overlay để người dùng có thể kéo lướt văn bản bên dưới
         document.getElementById('overlay').classList.add('hidden');
-
         const menuContent = document.getElementById('sentence-menu-content');
         menuContent.innerHTML = `
-            <div style="max-height: 25vh; overflow-y: auto;">
-                <h4 style="margin:0 0 10px 0; color:var(--accent); border-bottom: 2px solid #eee;">${title}</h4>
-                <div style="white-space:pre-wrap; line-height:1.4; font-size:1rem; color:#444; background:#f9f9f9; padding:8px; border-radius:8px;">${content}</div>
-                <button class="btn" style="width:100%; margin-top:10px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
-            </div>`;
+            <h4 style="margin:0 0 10px 0; color:var(--accent); border-bottom: 2px solid #eee;">${title}</h4>
+            <div style="white-space:pre-wrap; line-height:1.4; font-size:1rem; color:#444; background:#f9f9f9; padding:8px; border-radius:8px;">${content}</div>
+            <button class="btn" style="width:100%; margin-top:10px; background:#2c3e50;" onclick="openSentenceMenu('${rowId}', ${idx})">↩ Quay lại Menu</button>
+        `;
     }
 
     function toggleFuriganaDisplay(rowId) {
@@ -305,8 +339,7 @@
         window.speechSynthesis.cancel();
         const div = document.createElement('div');
         div.innerHTML = currentData[idx][mapping['Furigana']];
-        const plainText = div.innerText; 
-        const utter = new SpeechSynthesisUtterance(plainText);
+        const utter = new SpeechSynthesisUtterance(div.innerText);
         utter.lang = 'ja-JP';
         window.speechSynthesis.speak(utter);
     }
