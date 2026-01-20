@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Hybrid View</title>
+    <title>JP Active Reading Pro - Anti-Overlap Version</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
@@ -11,35 +11,39 @@
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .hidden { display: none; }
         
-        /* CONTAINER CHÍNH CHO READER */
+        /* CONTAINER CHÍNH */
         #reader-container {
             position: relative;
             background: white;
             border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            overflow: hidden; /* Quan trọng để cắt trang */
+            overflow: hidden; 
+            width: 100%;
         }
 
+        /* KHUNG CHỨA CÁC TRANG */
         #reader-view { 
+            display: flex; /* Chuyển sang Flexbox để các trang nằm ngang hàng */
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* ĐỊNH DẠNG TỪNG TRANG RIÊNG BIỆT */
+        .page-block {
+            min-width: 100%; /* Mỗi trang chiếm đúng 1 màn hình */
+            box-sizing: border-box;
             padding: 20px;
             line-height: 2.8;
-            transition: transform 0.3s ease-out;
+            overflow: hidden;
+            word-wrap: break-word;
         }
 
-        /* CHẾ ĐỘ TRANG SÁCH */
-        .book-mode {
-            display: block;
-            height: 70vh; /* Cố định chiều cao để ép chia cột */
-            column-width: calc(100vw - 70px); /* Mỗi cột rộng bằng 1 màn hình */
-            column-gap: 40px;
-            column-fill: auto;
-        }
-        
         /* CHẾ ĐỘ CUỘN */
         .scroll-mode {
-            height: auto !important;
-            column-count: auto !important;
-            display: block;
+            display: block !important;
+            transform: none !important;
+            padding: 20px;
         }
 
         .sentence-item { 
@@ -65,7 +69,7 @@
         .btn-active { background: #e67e22 !important; transform: scale(1.05); }
 
         .action-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-        .btn { padding: 10px 5px; border: none; border-radius: 6px; background: var(--accent); color: white; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+        .btn { padding: 12px 5px; border: none; border-radius: 8px; background: var(--accent); color: white; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
         
         .popup { 
             position: fixed; top: 10px; left: 50%; transform: translateX(-50%); 
@@ -82,15 +86,13 @@
         ruby rt { font-size: 0.55em; color: #7f8c8d; user-select: none; }
         .size-selector { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; }
 
-        /* ĐIỀU KHIỂN TRANG */
         .page-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
-            padding: 10px;
-            background: #eee;
-            border-radius: 8px;
+            margin-top: 15px;
+            padding: 5px;
+            gap: 10px;
         }
     </style>
 </head>
@@ -114,13 +116,13 @@
             <div style="display:flex; justify-content: space-between; align-items: center;">
                 <div style="display:flex; gap:5px;">
                     <input type="color" id="hl-color" value="#ffff00" style="width:30px; height:30px; border:none;">
-                    <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000;">🖌️ Bút</button>
+                    <button id="pen-btn" class="btn" onclick="togglePenMode()" style="background:#f1c40f; color:#000; padding: 5px 10px;">🖌️ Bút</button>
                 </div>
                 <select id="view-mode" class="size-selector" onchange="updateViewMode()">
-                    <option value="scroll">Chế độ Cuộn ↓</option>
-                    <option value="book">Chế độ Sách 📖</option>
+                    <option value="scroll">Cuộn ↓</option>
+                    <option value="book" selected>Sách 📖</option>
                 </select>
-                <button class="btn" onclick="location.reload()" style="background:#95a5a6">Đổi bài</button>
+                <button class="btn" onclick="location.reload()" style="background:#95a5a6; padding: 5px 10px;">Đổi bài</button>
             </div>
             
             <div style="display:flex; justify-content: space-between; align-items: center;">
@@ -131,17 +133,17 @@
                     <option value="1.8">Size L</option>
                     <option value="2.2">Size XL</option>
                 </select>
-                <span id="page-info" style="font-weight: bold; font-size: 0.9rem;"></span>
+                <span id="page-info" style="font-weight: bold; font-size: 0.9rem; color: var(--accent);">Trang --/--</span>
             </div>
         </div>
 
         <div id="reader-container">
-            <div id="reader-view" class="scroll-mode"></div>
+            <div id="reader-view"></div>
         </div>
 
-        <div id="book-nav" class="page-controls hidden">
-            <button class="btn" style="width: 45%; background: #2c3e50;" onclick="prevPage()"> Trang trước</button>
-            <button class="btn" style="width: 45%; background: #2c3e50;" onclick="nextPage()">Trang sau </button>
+        <div id="book-nav" class="page-controls">
+            <button class="btn" style="flex:1; background: #34495e;" onclick="prevPage()">◀ TRƯỚC</button>
+            <button class="btn" style="flex:1; background: #34495e;" onclick="nextPage()">SAU ▶</button>
         </div>
     </div>
 
@@ -160,8 +162,9 @@
     let userStates = JSON.parse(localStorage.getItem('userStates')) || {};
     let isPenMode = false;
     let currentPage = 0;
+    let totalPages = 1;
 
-    // --- LOGIC KÉO THẢ TỐI ƯU IPHONE/SAFARI ---
+    // Kéo thả Popup
     const popup = document.getElementById('sentence-menu');
     let isDragging = false;
     let startY, initialYOffset = 0;
@@ -202,29 +205,18 @@
     document.addEventListener("mousemove", drag);
     document.addEventListener("mouseup", dragEnd);
 
-    // --- CHẾ ĐỘ HIỂN THỊ (MỚI) ---
+    // --- LOGIC CHIA TRANG VẬT LÝ (ANTI-OVERLAP) ---
+    
     function updateViewMode() {
+        renderReader(); // Gọi lại render để chia lại trang theo mode
         const mode = document.getElementById('view-mode').value;
-        const view = document.getElementById('reader-view');
         const nav = document.getElementById('book-nav');
-        currentPage = 0;
-        
-        if(mode === 'book') {
-            view.className = 'book-mode';
-            nav.classList.remove('hidden');
-            updateBookTransform();
-        } else {
-            view.className = 'scroll-mode';
-            nav.classList.add('hidden');
-            view.style.transform = `translateX(0)`;
-            document.getElementById('page-info').innerText = '';
-        }
+        if(mode === 'scroll') nav.classList.add('hidden');
+        else nav.classList.remove('hidden');
     }
 
     function nextPage() {
-        const view = document.getElementById('reader-view');
-        const maxScroll = view.scrollWidth - view.clientWidth;
-        if (Math.abs(currentPage * (view.clientWidth + 40)) < maxScroll) {
+        if (currentPage < totalPages - 1) {
             currentPage++;
             updateBookTransform();
         }
@@ -239,27 +231,16 @@
 
     function updateBookTransform() {
         const view = document.getElementById('reader-view');
-        const step = view.clientWidth + 40; // Rộng cột + Gap
-        view.style.transform = `translateX(-${currentPage * step}px)`;
-        
-        const totalPages = Math.ceil(view.scrollWidth / step);
+        view.style.transform = `translateX(-${currentPage * 100}%)`;
         document.getElementById('page-info').innerText = `Trang ${currentPage + 1}/${totalPages}`;
     }
 
-    // --- CÁC HÀM TÍNH NĂNG CŨ ---
     function changeFontSize(size) {
-        const reader = document.getElementById('reader-view');
-        if(reader) reader.style.lineHeight = (size * 1.8); 
-        document.querySelectorAll('.original-text').forEach(el => {
-            el.style.fontSize = size + 'rem';
-        });
         localStorage.setItem('preferred-font-size', size);
-        
-        // Nếu đang ở chế độ sách, phải tính toán lại số trang sau khi đổi font
-        if(document.getElementById('view-mode').value === 'book') {
-            setTimeout(updateBookTransform, 100);
-        }
+        renderReader(); // Render lại để tính lại số lượng chữ trên mỗi trang
     }
+
+    // --- CÁC HÀM XỬ LÝ DỮ LIỆU ---
 
     document.getElementById('upload-file').addEventListener('change', (e) => {
         const reader = new FileReader();
@@ -298,39 +279,75 @@
         document.getElementById('step-mapping').classList.add('hidden');
         document.getElementById('app-content').classList.remove('hidden');
         renderReader();
-        const savedSize = localStorage.getItem('preferred-font-size') || '1.5';
-        document.getElementById('font-size-select').value = savedSize;
-        setTimeout(() => {
-            changeFontSize(savedSize);
-            updateViewMode();
-        }, 200); 
     }
 
     function renderReader() {
         const container = document.getElementById('reader-view');
+        const mode = document.getElementById('view-mode').value;
+        const fontSize = localStorage.getItem('preferred-font-size') || '1.5';
+        
         container.innerHTML = '';
-        currentData.forEach((row, index) => {
-            const rowId = `row-${currentSheetName}-${index}`;
-            const savedContent = userStates[rowId + '-content'] || row[mapping['Furigana']];
-            const isFuriVisible = userStates[rowId + '-furi-visible'] !== false;
-            
-            const span = document.createElement('span');
-            span.className = 'sentence-item';
-            span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}">${savedContent}</span>`;
-            
-            span.onmouseup = span.ontouchend = (e) => {
-                const sel = window.getSelection();
-                if (sel.isCollapsed) {
-                    if (!isPenMode) openSentenceMenu(rowId, index);
-                } else if (isPenMode) {
-                    handleHighlight(rowId, sel);
-                }
-            };
+        currentPage = 0;
 
-            container.appendChild(span);
-            rebindHighlights(rowId);
-        });
+        if (mode === 'scroll') {
+            container.className = 'scroll-mode';
+            currentData.forEach((row, index) => {
+                container.appendChild(createSentenceElement(row, index, fontSize));
+            });
+            document.getElementById('page-info').innerText = 'Chế độ cuộn';
+        } else {
+            container.className = ''; 
+            container.style.transform = 'translateX(0)';
+            
+            // Tạo trang đầu tiên
+            let pageBlock = document.createElement('div');
+            pageBlock.className = 'page-block';
+            pageBlock.style.lineHeight = (fontSize * 1.8);
+            container.appendChild(pageBlock);
+
+            currentData.forEach((row, index) => {
+                const span = createSentenceElement(row, index, fontSize);
+                pageBlock.appendChild(span);
+
+                // Nếu thêm câu mới làm trang vượt quá 65% chiều cao màn hình -> Ngắt trang
+                if (pageBlock.scrollHeight > window.innerHeight * 0.65) {
+                    pageBlock.removeChild(span);
+                    pageBlock = document.createElement('div');
+                    pageBlock.className = 'page-block';
+                    pageBlock.style.lineHeight = (fontSize * 1.8);
+                    container.appendChild(pageBlock);
+                    pageBlock.appendChild(span);
+                }
+            });
+            totalPages = document.querySelectorAll('.page-block').length;
+            updateBookTransform();
+        }
     }
+
+    function createSentenceElement(row, index, fontSize) {
+        const rowId = `row-${currentSheetName}-${index}`;
+        const savedContent = userStates[rowId + '-content'] || row[mapping['Furigana']];
+        const isFuriVisible = userStates[rowId + '-furi-visible'] !== false;
+        
+        const span = document.createElement('span');
+        span.className = 'sentence-item';
+        span.innerHTML = `<span class="original-text ${isFuriVisible ? '' : 'hide-furi'}" id="text-${rowId}" style="font-size:${fontSize}rem">${savedContent}</span>`;
+        
+        span.onmouseup = span.ontouchend = (e) => {
+            const sel = window.getSelection();
+            if (sel.isCollapsed) {
+                if (!isPenMode) openSentenceMenu(rowId, index);
+            } else if (isPenMode) {
+                handleHighlight(rowId, sel);
+            }
+        };
+        
+        // Gán lại sự kiện cho các highlight cũ
+        setTimeout(() => rebindHighlights(rowId), 10);
+        return span;
+    }
+
+    // --- CÁC TÍNH NĂNG TƯƠNG TÁC ---
 
     function handleHighlight(rowId, sel) {
         const range = sel.getRangeAt(0);
@@ -392,7 +409,9 @@
     }
 
     function rebindHighlights(rowId) {
-        document.querySelectorAll(`#text-${rowId} .hl-span`).forEach(span => {
+        const textEl = document.getElementById(`text-${rowId}`);
+        if(!textEl) return;
+        textEl.querySelectorAll('.hl-span').forEach(span => {
             span.onclick = (e) => {
                 e.stopPropagation();
                 const note = span.querySelector('.note-text')?.innerText || "Không có ghi chú";
