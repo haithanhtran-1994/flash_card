@@ -188,7 +188,7 @@
                     <option value="scroll">Cuộn ↓</option>
                     <option value="book" selected>Sách 📖</option>
                 </select>
-                <button class="btn" onclick="location.reload()" style="background:#95a5a6; padding: 5px 10px;">Đổi bài</button>
+                <button class="btn" onclick="changeLesson()" style="background:#95a5a6; padding: 5px 10px;">Đổi bài</button>
             </div>
             
             <div style="display:flex; justify-content: space-between; align-items: center;">
@@ -402,6 +402,15 @@
     }
 
     function updateMap(std, ex) { mapping[std] = ex; localStorage.setItem('mapping', JSON.stringify(mapping)); }
+
+    // HÀM MỚI: QUAY LẠI CHỌN SHEET MÀ KHÔNG LOAD LẠI FILE
+    function changeLesson() {
+        document.getElementById('app-content').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+        // Reset lựa chọn sheet để người dùng chọn lại
+        document.getElementById('sheet-selector').value = "";
+        document.getElementById('step-mapping').classList.add('hidden');
+    }
 
     function startApp() {
         const silentUtter = new SpeechSynthesisUtterance("");
@@ -630,21 +639,17 @@
         document.getElementById('overlay').classList.add('hidden');
     }
 
-    // --- HÀM FIX LỖI ĐỌC LẶP CHỮ ---
     function playVoice(idx, langCode, type = 'kanji') {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = currentData[idx][mapping['Furigana']];
         
-        // Tìm tất cả các thẻ ruby
         const rubies = tempDiv.querySelectorAll('ruby');
         rubies.forEach(ruby => {
             const rt = ruby.querySelector('rt');
             if(rt) {
                 if(type === 'kanji') {
-                    // Nếu chỉ muốn đọc Kanji: Xóa nội dung thẻ rt
                     rt.textContent = ''; 
                 } else {
-                    // Nếu chỉ muốn đọc Furigana: Thay thế cả cụm ruby bằng nội dung rt
                     const furiText = rt.textContent;
                     ruby.parentNode.replaceChild(document.createTextNode(furiText), ruby);
                 }
