@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Active Reading Pro - Safari Fixed Full</title>
+    <title>JP Active Reading Pro - Swipe Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; }
@@ -19,13 +19,14 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             overflow: hidden; 
             width: 100%;
+            touch-action: pan-y; /* Cho phép cuộn dọc nhưng chặn mặc định để xử lý swipe ngang */
         }
 
-        /* KHUNG CHỨA CÁC TRANG - Dùng Float để Safari ổn định hơn Flex */
+        /* KHUNG CHỨA CÁC TRANG */
         #reader-view { 
             display: block; 
             transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            width: 100000px; /* Độ rộng giả định cực lớn */
+            width: 100000px; 
             box-sizing: border-box;
         }
 
@@ -34,7 +35,7 @@
             float: left;
             box-sizing: border-box;
             padding: 20px;
-            line-height: 3.2; /* Tăng line-height để không bị đè Furigana khi gạch chân */
+            line-height: 3.5; 
             overflow: hidden;
             word-wrap: break-word;
         }
@@ -45,7 +46,7 @@
             transform: none !important;
             width: 100% !important;
             padding: 20px;
-            line-height: 3.2;
+            line-height: 3.5;
         }
 
         .sentence-item { 
@@ -63,17 +64,22 @@
             margin-right: 8px;
         }
         
-        /* Lớp ẩn Furigana cho từng câu hoặc toàn cục */
         .hide-furi rt { visibility: hidden; }
         
-        /* FIX LỖI SAFARI: Dùng text-decoration thay vì border-bottom để giữ nguyên dòng chữ */
-        .hl-span { border-radius: 4px; padding: 2px 0; transition: background 0.2s; }
+        .hl-span { 
+            border-radius: 4px; 
+            padding: 0; 
+            transition: background 0.2s;
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
+        }
+        
         .ul-mode { 
             background-color: transparent !important; 
-            text-decoration: underline !important;
-            text-decoration-thickness: 3px !important;
-            text-underline-offset: 8px !important; /* Đẩy đường gạch xuống dưới chân chữ */
-            border-bottom: none !important;
+            text-decoration: none !important;
+            box-shadow: inset 0 -4px 0 0 var(--ul-color, #3498db) !important;
+            padding-bottom: 2px;
+            display: inline;
         }
         
         .note-text { display: none; } 
@@ -127,7 +133,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        /* CSS cho nút Furi mới */
         .furi-toggle-btn {
             background: #9b59b6;
             color: white;
@@ -139,6 +144,14 @@
             cursor: pointer;
         }
         .furi-off { background: #7f8c8d !important; }
+
+        /* Hướng dẫn vuốt */
+        .swipe-hint {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -193,11 +206,7 @@
         <div id="reader-container">
             <div id="reader-view"></div>
         </div>
-
-        <div id="book-nav" class="page-controls">
-            <button class="btn" style="flex:1; background: #34495e;" onclick="prevPage()">◀ TRƯỚC</button>
-            <button class="btn" style="flex:1; background: #34495e;" onclick="nextPage()">SAU ▶</button>
-        </div>
+        <div id="swipe-hint-area" class="swipe-hint">Vuốt sang trái/phải để chuyển trang</div>
     </div>
 
     <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
@@ -209,6 +218,9 @@
     </div>
 
 <script>
+    // --- SETUP BIẾN CẤU HÌNH ---
+    let MAX_SENTENCES_PER_PAGE = 10; // Bạn có thể thay đổi số lượng câu ở đây
+
     let workbook, currentData, currentSheetName;
     const standardColumns = ['STT', 'Furigana', 'Dịch', 'Ngữ pháp', 'Thành phần câu'];
     let mapping = JSON.parse(localStorage.getItem('mapping')) || {};
@@ -219,12 +231,14 @@
     let totalPages = 1;
     let isGlobalFuriVisible = true; 
 
-    // Biến quản lý vuốt màn hình
+    // Biến cho xử lý Swipe
+    let swipeStartX = 0;
+    let swipeEndX = 0;
+
     let touchStartX = 0;
     let touchStartY = 0;
     let touchStartTime = 0;
 
-    // --- QUẢN LÝ GIỌNG NÓI (VOICE) ---
     let voices = [];
     function loadVoices() {
         voices = window.speechSynthesis.getVoices();
@@ -246,7 +260,6 @@
         return allVoices.find(v => v.lang.startsWith(langCode.split('-')[0]));
     }
 
-    // Kéo thả Popup
     const popup = document.getElementById('sentence-menu');
     let isDragging = false;
     let startY, initialYOffset = 0;
@@ -287,7 +300,30 @@
     document.addEventListener("mousemove", drag);
     document.addEventListener("mouseup", dragEnd);
 
-    // --- LOGIC CÔNG CỤ MỚI ---
+    // --- XỬ LÝ SWIPE CHO READER ---
+    const readerContainer = document.getElementById('reader-container');
+    readerContainer.addEventListener('touchstart', e => {
+        swipeStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+
+    readerContainer.addEventListener('touchend', e => {
+        swipeEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    }, {passive: true});
+
+    function handleSwipe() {
+        const mode = document.getElementById('view-mode').value;
+        if (mode !== 'book') return;
+
+        const threshold = 50; // Độ dài vuốt tối thiểu
+        if (swipeEndX < swipeStartX - threshold) {
+            nextPage(); // Vuốt sang trái -> Trang sau
+        }
+        if (swipeEndX > swipeStartX + threshold) {
+            prevPage(); // Vuốt sang phải -> Trang trước
+        }
+    }
+
     function setTool(tool) {
         activeTool = tool;
         document.querySelectorAll('.tool-option').forEach(el => el.classList.remove('active'));
@@ -301,13 +337,12 @@
         }
     }
 
-    // --- LOGIC CHIA TRANG ---
     function updateViewMode() {
         renderReader();
         const mode = document.getElementById('view-mode').value;
-        const nav = document.getElementById('book-nav');
-        if(mode === 'scroll') nav.classList.add('hidden');
-        else nav.classList.remove('hidden');
+        const hint = document.getElementById('swipe-hint-area');
+        if(mode === 'scroll') hint.classList.add('hidden');
+        else hint.classList.remove('hidden');
     }
 
     function nextPage() {
@@ -336,7 +371,6 @@
         renderReader();
     }
 
-    // --- XỬ LÝ DỮ LIỆU ---
     document.getElementById('upload-file').addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -415,16 +449,22 @@
             container.className = ''; 
             container.style.transform = 'translateX(0)';
             
-            let pageBlock = document.createElement('div');
-            pageBlock.className = 'page-block';
-            pageBlock.style.width = containerWidth + 'px';
-            container.appendChild(pageBlock);
+            let pageBlock = null;
 
             currentData.forEach((row, index) => {
+                // Tạo block mới nếu bắt đầu hoặc đủ số câu
+                if (index % MAX_SENTENCES_PER_PAGE === 0) {
+                    pageBlock = document.createElement('div');
+                    pageBlock.className = 'page-block';
+                    pageBlock.style.width = containerWidth + 'px';
+                    container.appendChild(pageBlock);
+                }
+
                 const span = createSentenceElement(row, index, fontSize);
                 pageBlock.appendChild(span);
 
-                if (pageBlock.offsetHeight > window.innerHeight * 0.65) {
+                // Giữ lại logic fix tràn khung nếu câu quá dài dù chưa tới 10 câu
+                if (pageBlock.offsetHeight > window.innerHeight * 0.75) {
                     pageBlock.removeChild(span);
                     pageBlock = document.createElement('div');
                     pageBlock.className = 'page-block';
@@ -447,7 +487,6 @@
         span.className = 'sentence-item';
         span.innerHTML = `<span class="original-text ${furiClass}" id="text-${rowId}" style="font-size:${fontSize}rem">${savedContent}</span>`;
         
-        // CẢI TIẾN: PHÂN BIỆT TAP VÀ SWIPE
         span.onmousedown = span.ontouchstart = (e) => {
             const touch = e.type === "touchstart" ? e.touches[0] : e;
             touchStartX = touch.clientX;
@@ -457,21 +496,19 @@
 
         span.onmouseup = span.ontouchend = (e) => {
             const touch = e.type === "touchend" ? e.changedTouches[0] : e;
+            if (!touch) return;
             const deltaX = Math.abs(touch.clientX - touchStartX);
             const deltaY = Math.abs(touch.clientY - touchStartY);
             const deltaTime = Date.now() - touchStartTime;
 
-            // Nếu di chuyển quá 10px hoặc nhấn giữ quá 500ms thì coi như là Swipe hoặc Long Press (để bôi đen)
-            const isSwipe = deltaX > 10 || deltaY > 10;
+            const isSwipe = deltaX > 20 || deltaY > 20; // Tăng lên chút để tránh nhận nhầm khi click
             const sel = window.getSelection();
 
             if (!isSwipe && sel.isCollapsed) {
-                // Đây là một cú chạm (Tap) thực sự
                 if (activeTool === 'none') {
                     openSentenceMenu(rowId, index);
                 }
             } else {
-                // Đây là bôi đen văn bản để dùng tool HL/UL
                 if (!sel.isCollapsed && activeTool !== 'none') {
                     handleMarking(rowId, sel);
                 }
@@ -482,7 +519,6 @@
         return span;
     }
 
-    // --- XỬ LÝ ĐÁNH DẤU (HL & UL) ---
     function handleMarking(rowId, sel) {
         const range = sel.getRangeAt(0);
         const color = document.getElementById('hl-color').value;
@@ -497,12 +533,17 @@
         
         if(activeTool === 'underline') {
             span.classList.add('ul-mode');
-            span.style.textDecorationColor = color;
+            span.style.setProperty('--ul-color', color);
         } else {
             span.style.backgroundColor = color;
         }
 
-        span.appendChild(range.extractContents());
+        try {
+            span.appendChild(range.extractContents());
+            range.insertNode(span);
+        } catch (e) {
+            console.error("Lỗi khi bọc thẻ highlight:", e);
+        }
         
         if (note) {
             const noteEl = document.createElement('small');
@@ -511,7 +552,6 @@
             span.appendChild(noteEl);
         }
 
-        range.insertNode(span);
         saveState(rowId);
         rebindHighlights(rowId);
         sel.removeAllRanges();
@@ -559,10 +599,8 @@
             span.onclick = (e) => {
                 e.stopPropagation();
                 if(activeTool !== 'none') return;
-
                 const isUL = span.classList.contains('ul-mode');
                 const note = span.querySelector('.note-text')?.innerText || (isUL ? "Ghi chú: Đánh dấu ngữ pháp" : "Không có ghi chú");
-                
                 document.getElementById('overlay').classList.remove('hidden');
                 document.getElementById('sentence-menu-content').innerHTML = `
                     <div style="background:#fff3e0; padding:12px; border-radius:8px; margin-bottom:10px; border-left:4px solid #e67e22;">
