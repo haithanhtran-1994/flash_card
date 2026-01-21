@@ -217,7 +217,12 @@
     let activeTool = 'none';
     let currentPage = 0;
     let totalPages = 1;
-    let isGlobalFuriVisible = true; // Biến trạng thái Furigana toàn cục
+    let isGlobalFuriVisible = true; 
+
+    // Biến quản lý vuốt màn hình
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
 
     // --- QUẢN LÝ GIỌNG NÓI (VOICE) ---
     let voices = [];
@@ -365,7 +370,6 @@
     function updateMap(std, ex) { mapping[std] = ex; localStorage.setItem('mapping', JSON.stringify(mapping)); }
 
     function startApp() {
-        // Kích hoạt âm thanh giả cho Safari - Bắt buộc tương tác người dùng
         const silentUtter = new SpeechSynthesisUtterance("");
         window.speechSynthesis.speak(silentUtter);
 
@@ -375,7 +379,6 @@
         renderReader();
     }
 
-    // Hàm bật tắt Furigana toàn bộ
     function toggleGlobalFurigana() {
         isGlobalFuriVisible = !isGlobalFuriVisible;
         const btn = document.getElementById('global-furi-btn');
@@ -438,20 +441,40 @@
     function createSentenceElement(row, index, fontSize) {
         const rowId = `row-${currentSheetName}-${index}`;
         const savedContent = userStates[rowId + '-content'] || row[mapping['Furigana']];
-        
-        // Luôn ưu tiên trạng thái nút Global trước, sau đó mới đến trạng thái từng câu (nếu cần mở rộng)
         const furiClass = isGlobalFuriVisible ? '' : 'hide-furi';
         
         const span = document.createElement('span');
         span.className = 'sentence-item';
         span.innerHTML = `<span class="original-text ${furiClass}" id="text-${rowId}" style="font-size:${fontSize}rem">${savedContent}</span>`;
         
+        // CẢI TIẾN: PHÂN BIỆT TAP VÀ SWIPE
+        span.onmousedown = span.ontouchstart = (e) => {
+            const touch = e.type === "touchstart" ? e.touches[0] : e;
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchStartTime = Date.now();
+        };
+
         span.onmouseup = span.ontouchend = (e) => {
+            const touch = e.type === "touchend" ? e.changedTouches[0] : e;
+            const deltaX = Math.abs(touch.clientX - touchStartX);
+            const deltaY = Math.abs(touch.clientY - touchStartY);
+            const deltaTime = Date.now() - touchStartTime;
+
+            // Nếu di chuyển quá 10px hoặc nhấn giữ quá 500ms thì coi như là Swipe hoặc Long Press (để bôi đen)
+            const isSwipe = deltaX > 10 || deltaY > 10;
             const sel = window.getSelection();
-            if (sel.isCollapsed) {
-                if (activeTool === 'none') openSentenceMenu(rowId, index);
+
+            if (!isSwipe && sel.isCollapsed) {
+                // Đây là một cú chạm (Tap) thực sự
+                if (activeTool === 'none') {
+                    openSentenceMenu(rowId, index);
+                }
             } else {
-                if (activeTool !== 'none') handleMarking(rowId, sel);
+                // Đây là bôi đen văn bản để dùng tool HL/UL
+                if (!sel.isCollapsed && activeTool !== 'none') {
+                    handleMarking(rowId, sel);
+                }
             }
         };
         
@@ -570,7 +593,6 @@
         document.getElementById('overlay').classList.add('hidden');
     }
 
-    // --- PHÁT ÂM (FIXED FOR SAFARI) ---
     function playVoice(idx, langCode) {
         const div = document.createElement('div');
         div.innerHTML = currentData[idx][mapping['Furigana']];
@@ -579,17 +601,11 @@
 
     function playRawText(text, langCode) {
         window.speechSynthesis.cancel();
-        
         const utter = new SpeechSynthesisUtterance(text);
         const selectedVoice = getBestVoice(langCode);
-        
-        if (selectedVoice) {
-            utter.voice = selectedVoice;
-        }
+        if (selectedVoice) { utter.voice = selectedVoice; }
         utter.lang = langCode;
-        utter.rate = 0.9; // Hơi chậm lại cho dễ học
-        
-        // Safari cần gán lại giọng mỗi lần phát
+        utter.rate = 0.9; 
         window.speechSynthesis.speak(utter);
     }
 </script>
