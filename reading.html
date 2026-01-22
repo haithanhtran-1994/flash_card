@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Dynamic Linker v2</title>
+    <title>JP Dynamic Linker v2 - Editor Mode</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #e67e22; --bg: #fdfaf6; }
@@ -20,10 +20,15 @@
         .id-exists { border-color: #27ae60; color: #27ae60; background: #ebf7ee; }
         .id-none { border-color: #e74c3c; color: #e74c3c; background: #fdf2f2; }
         
-        .tag-desc { color: #555; font-size: 0.95rem; line-height: 1.4; }
+        .tag-desc { color: #555; font-size: 0.95rem; line-height: 1.4; padding: 5px; border: 1px solid transparent; border-radius: 4px; }
+        .tag-desc:hover { border-color: #ddd; background: #fff; cursor: edit; }
+        
         .master-box { margin-top: 8px; padding: 10px; background: #fffde7; border-radius: 8px; border-left: 4px solid #fbc02d; font-size: 0.85rem; }
         .master-entry { margin-bottom: 4px; }
         .master-key { font-weight: bold; color: #7f8c8d; text-transform: capitalize; }
+
+        /* Edit Input */
+        .inline-edit { width: 100%; font-size: 0.95rem; padding: 5px; border: 2px solid var(--accent); border-radius: 4px; box-sizing: border-box; }
 
         /* Nút Menu trong Popup */
         .action-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
@@ -124,13 +129,15 @@
         `;
 
         if (mode === 'all' || mode === 'grammar') {
-            html += renderSection(grammars, 'grammar', idx);
+            html += `<h4>🔸 Ngữ pháp:</h4>` + renderSection(grammars, 'GRAMMAR', idx, mode);
         }
         if (mode === 'all' || mode === 'comp') {
-            html += renderSection(components, 'component', idx);
+            html += `<h4>🔹 Thành phần:</h4>` + renderSection(components, 'COMPONENTS', idx, mode);
         }
         if (mode === 'all' || mode === 'trans') {
-            html += `<h4>📜 Bản dịch:</h4><div class="card" style="background:#f9f9f9;">${row.TRANSLATION || 'Chưa có bản dịch'}</div>`;
+            html += `<h4>📜 Bản dịch:</h4>
+                     <div class="card tag-desc" style="background:#f9f9f9;" 
+                          onclick="editField(this, ${idx}, 'TRANSLATION')">${row.TRANSLATION || 'Chưa có bản dịch'}</div>`;
         }
 
         html += `<button class="btn" onclick="closePopup()" style="width:100%; margin-top:20px; background:#eee">Đóng</button>`;
@@ -140,10 +147,11 @@
         document.getElementById('popup').classList.remove('hidden');
     }
 
-    function renderSection(items, type, rowIdx) {
-        let h = `<h4>${type === 'grammar' ? '🔸 Ngữ pháp' : '🔹 Thành phần'}:</h4><ul class="smart-list">`;
+    function renderSection(items, fieldKey, rowIdx, mode) {
+        let h = `<ul class="smart-list">`;
         if (items.length === 0) h += `<li style="color:#999; font-size:0.8rem;">(Trống)</li>`;
         items.forEach((item, iIdx) => {
+            const type = fieldKey === 'GRAMMAR' ? 'grammar' : 'component';
             const patchKey = `${rowIdx}-${type}-${iIdx}`;
             const currentId = sessionPatches[patchKey] || item.id;
             const mInfo = masterDB.find(m => m.master_id === currentId);
@@ -156,7 +164,7 @@
                         ID: ${currentId || 'Chưa gán'} ${currentId ? (isCollapsed ? '▼' : '▲') : ''}
                     </span>
                 </div>
-                <div class="tag-desc">${item.desc}</div>
+                <div class="tag-desc" onclick="editArrayField(this, ${rowIdx}, '${fieldKey}', ${iIdx})">${item.desc}</div>
                 ${mInfo ? `
                     <div id="box-${patchKey}" class="master-box ${isCollapsed ? 'hidden' : ''}">
                         <b>Master Details:</b>
@@ -166,6 +174,49 @@
         });
         return h + `</ul>`;
     }
+
+    // Sửa trường đơn giản (như TRANSLATION)
+    window.editField = (el, idx, key) => {
+        if (el.querySelector('textarea')) return;
+        const oldVal = excelRows[idx][key] || "";
+        const input = document.createElement('textarea');
+        input.className = "inline-edit";
+        input.value = oldVal;
+        el.innerHTML = "";
+        el.appendChild(input);
+        input.focus();
+        input.onblur = () => {
+            excelRows[idx][key] = input.value;
+            el.innerText = input.value || "Chưa có nội dung";
+        };
+    };
+
+    // Sửa trường phức tạp (Grammar/Components trong ngoặc nhọn)
+    window.editArrayField = (el, rowIdx, fieldKey, itemIdx) => {
+        if (el.querySelector('textarea')) return;
+        const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
+        const oldDesc = items[itemIdx].desc;
+        
+        const input = document.createElement('textarea');
+        input.className = "inline-edit";
+        input.value = oldDesc;
+        el.innerHTML = "";
+        el.appendChild(input);
+        input.focus();
+
+        input.onblur = () => {
+            items[itemIdx].desc = input.value;
+            // Build lại chuỗi chuẩn: {name}:{desc}:{id}
+            const newString = items.map(it => {
+                const patchKey = `${rowIdx}-${fieldKey === 'GRAMMAR' ? 'grammar' : 'component'}-${items.indexOf(it)}`;
+                const finalId = sessionPatches[patchKey] || it.id;
+                return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
+            }).join('; ');
+            
+            excelRows[rowIdx][fieldKey] = newString;
+            el.innerText = input.value;
+        };
+    };
 
     function renderMasterContent(info) {
         let content = "";
@@ -194,30 +245,26 @@
     };
 
     window.speakText = (htmlStr) => {
-        // Xử lý loại bỏ ruby để đọc không bị lặp
         const div = document.createElement('div');
         div.innerHTML = htmlStr;
-        
-        // Cách xử lý ruby: giữ lại văn bản chính, bỏ văn bản furigana (rt)
         const rubies = div.querySelectorAll('ruby');
         rubies.forEach(ruby => {
             const rt = ruby.querySelector('rt');
             if (rt) rt.remove(); 
         });
-
         const cleanText = div.textContent || div.innerText;
         const msg = new SpeechSynthesisUtterance(cleanText);
         msg.lang = 'ja-JP';
         msg.rate = 0.9;
-        window.speechSynthesis.cancel(); // Dừng các lượt đọc cũ
+        window.speechSynthesis.cancel();
         window.speechSynthesis.speak(msg);
     };
 
     window.openSearch = (type, rowIdx, iIdx, name) => {
         activeTarget = { type, rowIdx, iIdx };
         const html = `
-            <h3>Tìm & Gán ID cho: ${name}</h3>
-            <input type="text" id="master-search" placeholder="Gõ để tìm pattern hoặc ID..." oninput="runSearch(this.value)">
+            <h3>Gán ID: ${name}</h3>
+            <input type="text" id="master-search" placeholder="Tìm pattern hoặc ID..." oninput="runSearch(this.value)">
             <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>
             <button class="btn" onclick="showDetail(${rowIdx}, 'all')" style="width:100%; margin-top:10px;">Quay lại</button>
         `;
@@ -244,28 +291,32 @@
         sessionPatches[key] = id;
         collapsedState[key] = false;
         localStorage.setItem('jp_patches_v3', JSON.stringify(sessionPatches));
+        
+        // Cập nhật lại chuỗi trong excelRows ngay khi gán ID để đồng bộ
+        const fieldKey = activeTarget.type === 'grammar' ? 'GRAMMAR' : 'COMPONENTS';
+        const items = parseCurlyBrackets(excelRows[activeTarget.rowIdx][fieldKey]);
+        const newString = items.map((it, idx) => {
+            const pKey = `${activeTarget.rowIdx}-${activeTarget.type}-${idx}`;
+            const finalId = sessionPatches[pKey] || it.id;
+            return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
+        }).join('; ');
+        excelRows[activeTarget.rowIdx][fieldKey] = newString;
+
         showDetail(activeTarget.rowIdx, 'all');
     };
 
     window.exportNewData = () => {
-        let out = "DỮ LIỆU ĐÃ CHUẨN HÓA (Dán vào Excel):\n\n";
+        let out = "DỮ LIỆU ĐÃ CHỈNH SỬA (Dán vào Excel):\n\n";
         excelRows.forEach((row, rIdx) => {
-            ['GRAMMAR', 'COMPONENTS'].forEach(col => {
-                const type = col === 'GRAMMAR' ? 'grammar' : 'component';
-                const items = parseCurlyBrackets(row[col]);
-                if (items.length > 0) {
-                    const line = items.map((item, iIdx) => {
-                        const finalId = sessionPatches[`${rIdx}-${type}-${iIdx}`] || item.id;
-                        return `{${item.name}}:{${item.desc}}${finalId ? `:{${finalId}}` : ''}`;
-                    }).join('; ');
-                    out += `Dòng ${rIdx + 1} [${col}]: ${line}\n`;
-                }
-            });
+            out += `--- DÒNG ${rIdx + 1} ---\n`;
+            out += `NGỮ PHÁP: ${row.GRAMMAR || ''}\n`;
+            out += `THÀNH PHẦN: ${row.COMPONENTS || ''}\n`;
+            out += `BẢN DỊCH: ${row.TRANSLATION || ''}\n\n`;
         });
         const blob = new Blob([out], {type: "text/plain"});
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "chuan_hoa_data.txt";
+        link.download = "data_updated.txt";
         link.click();
     };
 
