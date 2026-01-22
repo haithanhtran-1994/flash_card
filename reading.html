@@ -11,7 +11,26 @@
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 10px; border: 1px solid #eee; }
         .hidden { display: none; }
         
-        /* Cấu trúc List */
+        #content-list { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+            line-height: 2.2; 
+            white-space: pre-wrap;
+            text-align: justify;
+        }
+        .source-sentence { 
+            display: inline; 
+            font-size: 1.15rem; 
+            color: #2c3e50; 
+            cursor: pointer; 
+            padding: 0 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .source-sentence:hover { background: #fff8e1; color: var(--accent); }
+
         .smart-list { list-style: none; padding: 0; margin: 10px 0; }
         .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
         .tag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 5px; }
@@ -27,15 +46,17 @@
         .master-entry { margin-bottom: 4px; }
         .master-key { font-weight: bold; color: #7f8c8d; text-transform: capitalize; }
 
-        /* Edit Input */
-        .inline-edit { width: 100%; font-size: 0.95rem; padding: 5px; border: 2px solid var(--accent); border-radius: 4px; box-sizing: border-box; }
+        /* Style cho khung sửa có nút */
+        .edit-container { display: flex; flex-direction: column; gap: 5px; margin: 5px 0; }
+        .inline-edit { width: 100%; font-size: 0.95rem; padding: 8px; border: 2px solid var(--accent); border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        .edit-buttons { display: flex; gap: 5px; justify-content: flex-end; }
+        .btn-save { background: #27ae60; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .btn-cancel { background: #e74c3c; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 
-        /* Nút Menu trong Popup */
         .action-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
         .btn-sm { padding: 8px 12px; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; background: #ecf0f1; color: #2c3e50; }
         .btn-sm.active { background: var(--accent); color: white; }
 
-        /* Search Popup */
         .popup { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; padding: 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.2); z-index: 1000; max-height: 80vh; overflow-y: auto; }
         #master-search { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 10px; }
         .result-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
@@ -106,11 +127,10 @@
 
     function renderList() {
         const container = document.getElementById('content-list');
-        container.innerHTML = excelRows.map((row, idx) => `
-            <div class="card" onclick="showDetail(${idx}, 'all')">
-                <div style="font-size:1.2rem; color:#2c3e50;">${row.SOURCE || ''}</div>
-            </div>
-        `).join('');
+        container.innerHTML = excelRows.map((row, idx) => {
+            const text = (row.SOURCE || '').replace(/\\n/g, '\n');
+            return `<span class="source-sentence" onclick="showDetail(${idx}, 'all')">${text}</span>`;
+        }).join(' ');
     }
 
     function showDetail(idx, mode) {
@@ -141,7 +161,6 @@
         }
 
         html += `<button class="btn" onclick="closePopup()" style="width:100%; margin-top:20px; background:#eee">Đóng</button>`;
-
         document.getElementById('popup-inner').innerHTML = html;
         document.getElementById('overlay').classList.remove('hidden');
         document.getElementById('popup').classList.remove('hidden');
@@ -175,47 +194,58 @@
         return h + `</ul>`;
     }
 
-    // Sửa trường đơn giản (như TRANSLATION)
+    // Sửa Bản dịch với Nút bấm
     window.editField = (el, idx, key) => {
         if (el.querySelector('textarea')) return;
         const oldVal = excelRows[idx][key] || "";
-        const input = document.createElement('textarea');
-        input.className = "inline-edit";
-        input.value = oldVal;
-        el.innerHTML = "";
-        el.appendChild(input);
-        input.focus();
-        input.onblur = () => {
-            excelRows[idx][key] = input.value;
-            el.innerText = input.value || "Chưa có nội dung";
-        };
+        el.innerHTML = `
+            <div class="edit-container">
+                <textarea class="inline-edit">${oldVal}</textarea>
+                <div class="edit-buttons">
+                    <button class="btn-cancel" onclick="event.stopPropagation(); renderAfterEdit(${idx})">Hủy</button>
+                    <button class="btn-save" onclick="event.stopPropagation(); saveField(${idx}, '${key}', this)">Lưu</button>
+                </div>
+            </div>`;
+        el.querySelector('textarea').focus();
     };
 
-    // Sửa trường phức tạp (Grammar/Components trong ngoặc nhọn)
+    window.saveField = (idx, key, btn) => {
+        const newVal = btn.closest('.edit-container').querySelector('textarea').value;
+        excelRows[idx][key] = newVal;
+        renderAfterEdit(idx);
+    };
+
+    // Sửa Ngữ pháp/Thành phần với Nút bấm
     window.editArrayField = (el, rowIdx, fieldKey, itemIdx) => {
         if (el.querySelector('textarea')) return;
         const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
         const oldDesc = items[itemIdx].desc;
-        
-        const input = document.createElement('textarea');
-        input.className = "inline-edit";
-        input.value = oldDesc;
-        el.innerHTML = "";
-        el.appendChild(input);
-        input.focus();
+        el.innerHTML = `
+            <div class="edit-container">
+                <textarea class="inline-edit">${oldDesc}</textarea>
+                <div class="edit-buttons">
+                    <button class="btn-cancel" onclick="event.stopPropagation(); renderAfterEdit(${rowIdx})">Hủy</button>
+                    <button class="btn-save" onclick="event.stopPropagation(); saveArrayField(${rowIdx}, '${fieldKey}', ${itemIdx}, this)">Lưu</button>
+                </div>
+            </div>`;
+        el.querySelector('textarea').focus();
+    };
 
-        input.onblur = () => {
-            items[itemIdx].desc = input.value;
-            // Build lại chuỗi chuẩn: {name}:{desc}:{id}
-            const newString = items.map(it => {
-                const patchKey = `${rowIdx}-${fieldKey === 'GRAMMAR' ? 'grammar' : 'component'}-${items.indexOf(it)}`;
-                const finalId = sessionPatches[patchKey] || it.id;
-                return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
-            }).join('; ');
-            
-            excelRows[rowIdx][fieldKey] = newString;
-            el.innerText = input.value;
-        };
+    window.saveArrayField = (rowIdx, fieldKey, itemIdx, btn) => {
+        const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
+        items[itemIdx].desc = btn.closest('.edit-container').querySelector('textarea').value;
+        const newString = items.map((it, idx) => {
+            const pKey = `${rowIdx}-${fieldKey === 'GRAMMAR' ? 'grammar' : 'component'}-${idx}`;
+            const finalId = sessionPatches[pKey] || it.id;
+            return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
+        }).join('; ');
+        excelRows[rowIdx][fieldKey] = newString;
+        renderAfterEdit(rowIdx);
+    };
+
+    // Hàm phụ để load lại giao diện sau khi Lưu/Hủy
+    window.renderAfterEdit = (idx) => {
+        showDetail(idx, 'all');
     };
 
     function renderMasterContent(info) {
@@ -239,21 +269,17 @@
         if (box) box.classList.toggle('hidden');
         const badge = box.parentElement.querySelector('.tag-id-badge');
         if (badge) {
-            const idVal = badge.innerText.split(' ')[1];
-            badge.innerHTML = `ID: ${idVal} ${collapsedState[key] ? '▼' : '▲'}`;
+            const currentText = badge.innerText;
+            const idPart = currentText.split(' ')[1];
+            badge.innerHTML = `ID: ${idPart} ${collapsedState[key] ? '▼' : '▲'}`;
         }
     };
 
     window.speakText = (htmlStr) => {
         const div = document.createElement('div');
         div.innerHTML = htmlStr;
-        const rubies = div.querySelectorAll('ruby');
-        rubies.forEach(ruby => {
-            const rt = ruby.querySelector('rt');
-            if (rt) rt.remove(); 
-        });
-        const cleanText = div.textContent || div.innerText;
-        const msg = new SpeechSynthesisUtterance(cleanText);
+        div.querySelectorAll('rt').forEach(rt => rt.remove());
+        const msg = new SpeechSynthesisUtterance(div.textContent || div.innerText);
         msg.lang = 'ja-JP';
         msg.rate = 0.9;
         window.speechSynthesis.cancel();
@@ -289,10 +315,7 @@
     window.saveID = id => {
         const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
         sessionPatches[key] = id;
-        collapsedState[key] = false;
         localStorage.setItem('jp_patches_v3', JSON.stringify(sessionPatches));
-        
-        // Cập nhật lại chuỗi trong excelRows ngay khi gán ID để đồng bộ
         const fieldKey = activeTarget.type === 'grammar' ? 'GRAMMAR' : 'COMPONENTS';
         const items = parseCurlyBrackets(excelRows[activeTarget.rowIdx][fieldKey]);
         const newString = items.map((it, idx) => {
@@ -301,7 +324,6 @@
             return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
         }).join('; ');
         excelRows[activeTarget.rowIdx][fieldKey] = newString;
-
         showDetail(activeTarget.rowIdx, 'all');
     };
 
