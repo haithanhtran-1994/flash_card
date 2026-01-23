@@ -20,6 +20,9 @@
             white-space: pre-wrap;
             text-align: justify;
         }
+        /* CSS ẩn Furigana */
+        #content-list.hide-furi rt { display: none; }
+
         .source-sentence { 
             display: inline; 
             font-size: 1.15rem; 
@@ -43,10 +46,9 @@
         .tag-desc:hover { border-color: #ddd; background: #fff; cursor: edit; }
         
         .master-box { margin-top: 8px; padding: 10px; background: #fffde7; border-radius: 8px; border-left: 4px solid #fbc02d; font-size: 0.85rem; }
-        .master-entry { margin-bottom: 4px; }
+        .master-entry { margin-bottom: 4px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
         .master-key { font-weight: bold; color: #7f8c8d; text-transform: capitalize; }
 
-        /* Style cho khung sửa có nút */
         .edit-container { display: flex; flex-direction: column; gap: 5px; margin: 5px 0; }
         .inline-edit { width: 100%; font-size: 0.95rem; padding: 8px; border: 2px solid var(--accent); border-radius: 4px; box-sizing: border-box; font-family: inherit; }
         .edit-buttons { display: flex; gap: 5px; justify-content: flex-end; }
@@ -58,11 +60,16 @@
         .btn-sm.active { background: var(--accent); color: white; }
 
         .popup { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; padding: 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.2); z-index: 1000; max-height: 80vh; overflow-y: auto; }
-        #master-search { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 10px; }
+        #master-search { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 10px; box-sizing: border-box;}
         .result-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
         .result-item:hover { background: #fff8e1; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+        /* Style cho các tag ID trong popup để xóa lẻ */
+        .mini-id-tag { display: inline-flex; align-items: center; background: #eee; padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 5px; font-size: 0.8rem; border: 1px solid #ccc; }
+        .mini-id-del { color: #e74c3c; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0 4px; }
+        .mini-id-del:hover { background: #fdd; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -78,6 +85,7 @@
     <div id="main-app" class="hidden">
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
             <button class="btn" style="background: #27ae60; color: white; flex: 1;" onclick="exportNewData()">📥 Xuất Excel Data Mới</button>
+            <button id="furi-toggle" class="btn" style="background: #f39c12; color: white;" onclick="toggleFurigana()">FURI</button>
             <button class="btn" style="background: #95a5a6; color: white;" onclick="location.reload()">🔄 Đổi File</button>
         </div>
         <div id="content-list"></div>
@@ -94,6 +102,7 @@
     let sessionPatches = JSON.parse(localStorage.getItem('jp_patches_v3') || '{}');
     let collapsedState = {}; 
     let activeTarget = null;
+    let isFuriHidden = false;
 
     document.getElementById('master-input').onchange = e => {
         const r = new FileReader();
@@ -112,6 +121,20 @@
         };
         r.readAsArrayBuffer(e.target.files[0]);
     };
+
+    // Hàm bật tắt Furigana
+    function toggleFurigana() {
+        isFuriHidden = !isFuriHidden;
+        const container = document.getElementById('content-list');
+        const btn = document.getElementById('furi-toggle');
+        if (isFuriHidden) {
+            container.classList.add('hide-furi');
+            btn.style.opacity = "0.6";
+        } else {
+            container.classList.remove('hide-furi');
+            btn.style.opacity = "1";
+        }
+    }
 
     function parseCurlyBrackets(str) {
         if (!str) return [];
@@ -173,8 +196,10 @@
             const type = fieldKey === 'GRAMMAR' ? 'grammar' : 'component';
             const patchKey = `${rowIdx}-${type}-${iIdx}`;
             const currentId = sessionPatches[patchKey] || item.id;
-            const mInfo = masterDB.find(m => m.master_id === currentId);
             const isCollapsed = collapsedState[patchKey] === true;
+
+            const ids = currentId ? currentId.split(',').map(s => s.trim()) : [];
+            const masterInfos = ids.map(id => masterDB.find(m => m.master_id === id)).filter(x => x);
 
             h += `<li class="smart-item">
                 <div class="tag-row">
@@ -184,17 +209,19 @@
                     </span>
                 </div>
                 <div class="tag-desc" onclick="editArrayField(this, ${rowIdx}, '${fieldKey}', ${iIdx})">${item.desc}</div>
-                ${mInfo ? `
-                    <div id="box-${patchKey}" class="master-box ${isCollapsed ? 'hidden' : ''}">
-                        <b>Master Details:</b>
-                        ${renderMasterContent(mInfo)}
-                    </div>` : ''}
+                <div id="box-${patchKey}" class="master-box ${isCollapsed || !currentId ? 'hidden' : ''}">
+                    ${masterInfos.length > 0 ? masterInfos.map(mInfo => `
+                        <div style="margin-bottom:10px; border-bottom:1px dashed #ccc; padding-bottom:5px;">
+                            <b>Master [${mInfo.master_id}]:</b>
+                            ${renderMasterContent(mInfo)}
+                        </div>
+                    `).join('') : '<i>Không tìm thấy thông tin trong Master DB</i>'}
+                </div>
             </li>`;
         });
         return h + `</ul>`;
     }
 
-    // Sửa Bản dịch với Nút bấm
     window.editField = (el, idx, key) => {
         if (el.querySelector('textarea')) return;
         const oldVal = excelRows[idx][key] || "";
@@ -215,7 +242,6 @@
         renderAfterEdit(idx);
     };
 
-    // Sửa Ngữ pháp/Thành phần với Nút bấm
     window.editArrayField = (el, rowIdx, fieldKey, itemIdx) => {
         if (el.querySelector('textarea')) return;
         const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
@@ -234,16 +260,20 @@
     window.saveArrayField = (rowIdx, fieldKey, itemIdx, btn) => {
         const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
         items[itemIdx].desc = btn.closest('.edit-container').querySelector('textarea').value;
+        updateRowString(rowIdx, fieldKey, items);
+        renderAfterEdit(rowIdx);
+    };
+
+    function updateRowString(rowIdx, fieldKey, items) {
         const newString = items.map((it, idx) => {
-            const pKey = `${rowIdx}-${fieldKey === 'GRAMMAR' ? 'grammar' : 'component'}-${idx}`;
+            const type = fieldKey === 'GRAMMAR' ? 'grammar' : 'component';
+            const pKey = `${rowIdx}-${type}-${idx}`;
             const finalId = sessionPatches[pKey] || it.id;
             return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
         }).join('; ');
         excelRows[rowIdx][fieldKey] = newString;
-        renderAfterEdit(rowIdx);
-    };
+    }
 
-    // Hàm phụ để load lại giao diện sau khi Lưu/Hủy
     window.renderAfterEdit = (idx) => {
         showDetail(idx, 'all');
     };
@@ -270,7 +300,7 @@
         const badge = box.parentElement.querySelector('.tag-id-badge');
         if (badge) {
             const currentText = badge.innerText;
-            const idPart = currentText.split(' ')[1];
+            const idPart = currentText.replace('ID: ', '').split(' ')[0];
             badge.innerHTML = `ID: ${idPart} ${collapsedState[key] ? '▼' : '▲'}`;
         }
     };
@@ -288,10 +318,22 @@
 
     window.openSearch = (type, rowIdx, iIdx, name) => {
         activeTarget = { type, rowIdx, iIdx };
+        const patchKey = `${rowIdx}-${type}-${iIdx}`;
+        const currentId = sessionPatches[patchKey] || "";
+        const ids = currentId ? currentId.split(',').filter(x => x) : [];
+
         const html = `
-            <h3>Gán ID: ${name}</h3>
-            <input type="text" id="master-search" placeholder="Tìm pattern hoặc ID..." oninput="runSearch(this.value)">
-            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto;"></div>
+            <h3>Gán ID cho: ${name}</h3>
+            <div id="current-tags" style="margin-bottom:10px;">
+                ${ids.length > 0 ? ids.map(id => `
+                    <span class="mini-id-tag">${id}<span class="mini-id-del" onclick="removeSingleID('${id}')">×</span></span>
+                `).join('') : '<span style="color:#999; font-size:0.8rem;">(Chưa có ID nào được gán)</span>'}
+            </div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="master-search" placeholder="Tìm pattern hoặc ID..." oninput="runSearch(this.value)">
+                <button class="btn" onclick="clearAllIDs()" style="margin-top:10px; background:#e74c3c; color:white; padding: 0 15px; font-size:0.8rem; white-space:nowrap;">Xóa hết</button>
+            </div>
+            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
             <button class="btn" onclick="showDetail(${rowIdx}, 'all')" style="width:100%; margin-top:10px;">Quay lại</button>
         `;
         document.getElementById('popup-inner').innerHTML = html;
@@ -299,7 +341,7 @@
     };
 
     window.runSearch = val => {
-        if (!val) return;
+        if (!val) { document.getElementById('search-results').innerHTML = ""; return; }
         const res = masterDB.filter(m => 
             (m.pattern && m.pattern.includes(val)) || 
             (m.master_id && m.master_id.includes(val))
@@ -314,18 +356,38 @@
 
     window.saveID = id => {
         const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
-        sessionPatches[key] = id;
+        let currentIds = sessionPatches[key] ? sessionPatches[key].split(',') : [];
+        if (!currentIds.includes(id)) {
+            currentIds.push(id);
+        }
+        sessionPatches[key] = currentIds.filter(x => x).join(',');
+        applyPatchToData();
+        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, ""); 
+    };
+
+    window.removeSingleID = (idToRemove) => {
+        const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
+        let currentIds = sessionPatches[key] ? sessionPatches[key].split(',') : [];
+        currentIds = currentIds.filter(id => id !== idToRemove);
+        sessionPatches[key] = currentIds.join(',');
+        applyPatchToData();
+        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, ""); 
+    };
+
+    window.clearAllIDs = () => {
+        if(!confirm("Xóa tất cả ID đã gán cho mục này?")) return;
+        const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
+        sessionPatches[key] = "";
+        applyPatchToData();
+        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, "");
+    };
+
+    function applyPatchToData() {
         localStorage.setItem('jp_patches_v3', JSON.stringify(sessionPatches));
         const fieldKey = activeTarget.type === 'grammar' ? 'GRAMMAR' : 'COMPONENTS';
         const items = parseCurlyBrackets(excelRows[activeTarget.rowIdx][fieldKey]);
-        const newString = items.map((it, idx) => {
-            const pKey = `${activeTarget.rowIdx}-${activeTarget.type}-${idx}`;
-            const finalId = sessionPatches[pKey] || it.id;
-            return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
-        }).join('; ');
-        excelRows[activeTarget.rowIdx][fieldKey] = newString;
-        showDetail(activeTarget.rowIdx, 'all');
-    };
+        updateRowString(activeTarget.rowIdx, fieldKey, items);
+    }
 
     window.exportNewData = () => {
         let out = "DỮ LIỆU ĐÃ CHỈNH SỬA (Dán vào Excel):\n\n";
@@ -346,6 +408,7 @@
         window.speechSynthesis.cancel();
         document.getElementById('overlay').classList.add('hidden');
         document.getElementById('popup').classList.add('hidden');
+        renderList(); 
     };
 </script>
 </body>
