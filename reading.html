@@ -20,7 +20,6 @@
             white-space: pre-wrap;
             text-align: justify;
         }
-        /* CSS ẩn Furigana */
         #content-list.hide-furi rt { display: none; }
 
         .source-sentence { 
@@ -33,6 +32,42 @@
             transition: background 0.2s;
         }
         .source-sentence:hover { background: #fff8e1; color: var(--accent); }
+
+        /* Style Đọc nhanh - Đã sửa để chống vỡ cấu trúc */
+        .fast-read-item {
+            position: relative;
+            display: inline;
+            border-bottom: 2px solid var(--accent);
+            cursor: pointer;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+        }
+        .fast-read-item:hover {
+            background: rgba(230, 126, 34, 0.1);
+        }
+
+        .screentip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            z-index: 9999;
+            width: max-content;
+            max-width: 250px;
+            display: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: auto;
+            line-height: 1.4;
+        }
+        .fast-read-item:hover .screentip { display: block; }
+
+        .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
+        .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
 
         .smart-list { list-style: none; padding: 0; margin: 10px 0; }
         .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
@@ -66,10 +101,12 @@
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
 
-        /* Style cho các tag ID trong popup để xóa lẻ */
         .mini-id-tag { display: inline-flex; align-items: center; background: #eee; padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 5px; font-size: 0.8rem; border: 1px solid #ccc; }
         .mini-id-del { color: #e74c3c; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0 4px; }
         .mini-id-del:hover { background: #fdd; border-radius: 50%; }
+
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; align-items: center; }
+        .read-mode-switch { background: #fff; padding: 8px 15px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; display: flex; align-items: center; gap: 8px; }
     </style>
 </head>
 <body>
@@ -83,8 +120,12 @@
     </div>
 
     <div id="main-app" class="hidden">
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button class="btn" style="background: #27ae60; color: white; flex: 1;" onclick="exportNewData()">📥 Xuất Excel Data Mới</button>
+        <div class="toolbar">
+            <button class="btn" style="background: #27ae60; color: white; flex: 1; min-width: 150px;" onclick="exportNewData()">📥 Xuất Excel Data Mới</button>
+            <div class="read-mode-switch">
+                <input type="checkbox" id="chk-fast-read" onchange="renderList()"> <span>Đọc nhanh</span>
+            </div>
+            <button id="btn-field-config" class="btn hidden" style="background: #9b59b6; color: white;" onclick="openFieldConfig()">Trường hiển thị</button>
             <button id="furi-toggle" class="btn" style="background: #f39c12; color: white;" onclick="toggleFurigana()">FURI</button>
             <button class="btn" style="background: #95a5a6; color: white;" onclick="location.reload()">🔄 Đổi File</button>
         </div>
@@ -100,9 +141,14 @@
     let masterDB = [];
     let excelRows = [];
     let sessionPatches = JSON.parse(localStorage.getItem('jp_patches_v3') || '{}');
+    let displayFields = JSON.parse(localStorage.getItem('jp_tip_fields_v1') || '[]');
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
+
+    // Lưu trữ cấu trúc DOM đã gán ID của từng câu
+    // { rowIdx: "innerHTML_đã_bọc_span" }
+    let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
 
     document.getElementById('master-input').onchange = e => {
         const r = new FileReader();
@@ -122,7 +168,6 @@
         r.readAsArrayBuffer(e.target.files[0]);
     };
 
-    // Hàm bật tắt Furigana
     function toggleFurigana() {
         isFuriHidden = !isFuriHidden;
         const container = document.getElementById('content-list');
@@ -148,13 +193,212 @@
         }).filter(x => x.name !== "");
     }
 
-    function renderList() {
-        const container = document.getElementById('content-list');
-        container.innerHTML = excelRows.map((row, idx) => {
-            const text = (row.SOURCE || '').replace(/\\n/g, '\n');
-            return `<span class="source-sentence" onclick="showDetail(${idx}, 'all')">${text}</span>`;
-        }).join(' ');
+function renderList() {
+    const isFastRead = document.getElementById('chk-fast-read').checked;
+    document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
+    
+    const container = document.getElementById('content-list');
+    container.innerHTML = ''; 
+
+    excelRows.forEach((row, idx) => {
+        const sentenceSpan = document.createElement('span');
+        sentenceSpan.className = 'source-sentence';
+        sentenceSpan.setAttribute('data-idx', idx);
+        
+        if (domPatches[idx]) {
+            sentenceSpan.innerHTML = domPatches[idx];
+        } else {
+            sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
+        }
+
+        // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
+        if (isFastRead) {
+            sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
+                const id = item.getAttribute('data-id');
+                const mInfo = masterDB.find(m => m.master_id === id);
+                
+                let tipContent = `ID: ${id}`;
+                if(mInfo && displayFields.length > 0) {
+                    displayFields.forEach(f => {
+                        if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
+                    });
+                }
+
+                // Luôn xóa cái cũ (nếu có) trước khi thêm cái mới để tránh trùng lặp
+                const oldTip = item.querySelector('.screentip');
+                if(oldTip) oldTip.remove();
+
+                const tipDiv = document.createElement('div');
+                tipDiv.className = 'screentip';
+                tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
+                    <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
+                </div>`;
+                
+                item.appendChild(tipDiv);
+            });
+        }
+
+        if (!isFastRead) {
+            sentenceSpan.onclick = () => showDetail(idx, 'all');
+        }
+        container.appendChild(sentenceSpan);
+        container.appendChild(document.createTextNode(' '));
+    });
+
+    if (isFastRead) {
+        container.onmouseup = handleSelection;
+    } else {
+        container.onmouseup = null;
     }
+}
+
+function handleSelection(e) {
+    const sel = window.getSelection();
+    const selectedText = sel.toString().trim();
+    if (!selectedText || sel.rangeCount === 0) return;
+
+    let range = sel.getRangeAt(0);
+    
+    // Tìm thẻ RUBY chứa điểm bắt đầu và kết thúc
+    const getRubyParent = (node) => {
+        let curr = node.nodeType === 3 ? node.parentElement : node;
+        while (curr && curr.tagName !== 'RUBY') {
+            if (curr.classList && curr.classList.contains('source-sentence')) return null;
+            curr = curr.parentElement;
+        }
+        return curr;
+    };
+
+    const startRuby = getRubyParent(range.startContainer);
+    const endRuby = getRubyParent(range.endContainer);
+
+    // Chỉ mở rộng Range nếu thực sự đang nằm trong thẻ Ruby
+    if (startRuby || endRuby) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(startRuby || range.startContainer);
+        // Nếu kết thúc ở một text node sau ruby, phải dùng range.endContainer
+        if (endRuby) {
+            newRange.setEndAfter(endRuby);
+        } else {
+            newRange.setEnd(range.endContainer, range.endOffset);
+        }
+        
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        range = newRange;
+    }
+
+    // Tìm node gốc .source-sentence để xác định dòng (rowIdx)
+    let containerNode = range.commonAncestorContainer;
+    if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+    
+    const sourceSentence = containerNode.closest('.source-sentence');
+
+    if (!sourceSentence) return;
+    
+    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+    // Gọi popup search
+    openFastSearch(rowIdx, range, range.toString());
+}
+
+    function openFastSearch(rowIdx, range, text) {
+        // Lưu range để tí nữa chèn node
+        activeTarget = { rowIdx, range, text };
+        
+        const html = `
+            <h3>Gán ID cho: "${text}"</h3>
+            <input type="text" id="master-search" placeholder="Tìm ID hoặc Pattern..." oninput="runSearch(this.value, 'fast')">
+            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
+            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
+        `;
+        document.getElementById('popup-inner').innerHTML = html;
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('popup').classList.remove('hidden');
+        document.getElementById('master-search').focus();
+    }
+
+function saveFastID(id) {
+    const { range, rowIdx } = activeTarget;
+    
+    const span = document.createElement('span');
+    span.className = 'fast-read-item';
+    span.setAttribute('data-id', id);
+
+    try {
+        const content = range.extractContents();
+        span.appendChild(content);
+        
+        range.insertNode(span);
+        
+        const parent = span.closest('.source-sentence');
+        parent.normalize(); 
+        
+        // Lưu HTML sạch (chỉ có thẻ span và data-id, không chứa div screentip bên trong)
+        domPatches[rowIdx] = parent.innerHTML;
+        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+    } catch (err) {
+        console.error("Lỗi:", err);
+        alert("Không thể gán ID cho vùng chọn này.");
+    }
+
+    closePopup();
+    renderList(); // Gọi render để nó tự lắp Screentip động vào
+}
+
+    window.deleteFastID = (btn, rowIdx) => {
+        if(!confirm("Xóa gán ID này?")) return;
+        const item = btn.closest('.fast-read-item');
+        const parent = item.parentElement;
+        
+        // Giải nén nội dung bên trong trả lại cho cha
+        while(item.firstChild) {
+            if(item.firstChild.className === 'screentip') {
+                item.removeChild(item.firstChild);
+            } else {
+                parent.insertBefore(item.firstChild, item);
+            }
+        }
+        parent.removeChild(item);
+        parent.normalize(); // Hợp nhất các TextNode rời rạc
+
+        // Cập nhật lại bộ nhớ
+        domPatches[rowIdx] = parent.innerHTML;
+        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+        renderList();
+    };
+
+    // --- CÁC HÀM CŨ GIỮ NGUYÊN ---
+
+    window.openFieldConfig = () => {
+        if(masterDB.length === 0) return alert("Cần nạp Master JSON trước!");
+        const fields = Object.keys(masterDB[0]).filter(k => k !== 'master_id');
+        const html = `
+            <h3>Chọn trường hiển thị Screentip</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:left;">
+                ${fields.map(f => `
+                    <label style="display:flex; gap:8px; cursor:pointer; font-size:0.9rem;">
+                        <input type="checkbox" ${displayFields.includes(f) ? 'checked' : ''} onchange="toggleTipField('${f}')"> ${f}
+                    </label>
+                `).join('')}
+            </div>
+            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:20px; background:#27ae60; color:white;">Lưu & Đóng</button>
+        `;
+        document.getElementById('popup-inner').innerHTML = html;
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('popup').classList.remove('hidden');
+    };
+
+window.toggleTipField = (field) => {
+    if(displayFields.includes(field)) {
+        displayFields = displayFields.filter(f => f !== field);
+    } else {
+        displayFields.push(field);
+    }
+    localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
+    
+    // Cập nhật lại toàn bộ Screentip trên màn hình mà không cần F5
+    renderList(); 
+};
 
     function showDetail(idx, mode) {
         const row = excelRows[idx];
@@ -167,7 +411,7 @@
                 <button class="btn-sm ${mode==='grammar'?'active':''}" onclick="showDetail(${idx}, 'grammar')">Ngữ pháp</button>
                 <button class="btn-sm ${mode==='comp'?'active':''}" onclick="showDetail(${idx}, 'comp')">Thành phần</button>
                 <button class="btn-sm ${mode==='all'?'active':''}" onclick="showDetail(${idx}, 'all')">Tất cả</button>
-                <button class="btn-sm" style="background:#3498db; color:white;" onclick="speakText(\`${row.SOURCE}\`)">🔊 Đọc</button>
+                <button class="btn-sm" style="background:#3498db; color:white;" onclick="speakText(${idx})">🔊 Đọc</button>
             </div>
         `;
 
@@ -305,9 +549,10 @@
         }
     };
 
-    window.speakText = (htmlStr) => {
+    window.speakText = (idx) => {
+        const text = excelRows[idx].SOURCE.replace(/\\n/g, '\n');
         const div = document.createElement('div');
-        div.innerHTML = htmlStr;
+        div.innerHTML = text;
         div.querySelectorAll('rt').forEach(rt => rt.remove());
         const msg = new SpeechSynthesisUtterance(div.textContent || div.innerText);
         msg.lang = 'ja-JP';
@@ -340,14 +585,14 @@
         document.getElementById('master-search').focus();
     };
 
-    window.runSearch = val => {
+    window.runSearch = (val, mode = 'normal') => {
         if (!val) { document.getElementById('search-results').innerHTML = ""; return; }
         const res = masterDB.filter(m => 
             (m.pattern && m.pattern.includes(val)) || 
             (m.master_id && m.master_id.includes(val))
         );
         document.getElementById('search-results').innerHTML = res.map(r => `
-            <div class="result-item" onclick="saveID('${r.master_id}')">
+            <div class="result-item" onclick="${mode === 'fast' ? `saveFastID('${r.master_id}')` : `saveID('${r.master_id}')`}">
                 <strong>${r.pattern || 'No Pattern'}</strong> (${r.master_id})<br>
                 <small>${r.core_meaning || ''}</small>
             </div>
@@ -408,7 +653,7 @@
         window.speechSynthesis.cancel();
         document.getElementById('overlay').classList.add('hidden');
         document.getElementById('popup').classList.add('hidden');
-        renderList(); 
+        window.getSelection()?.removeAllRanges();
     };
 </script>
 </body>
