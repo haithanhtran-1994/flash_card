@@ -30,6 +30,8 @@
             padding: 0 4px;
             border-radius: 4px;
             transition: background 0.2s;
+			-webkit-user-select: text !important;
+    user-select: text !important;
         }
         .source-sentence:hover { background: #fff8e1; color: var(--accent); }
 
@@ -107,6 +109,16 @@
 
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; align-items: center; }
         .read-mode-switch { background: #fff; padding: 8px 15px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+		/* Cho phép chọn text trên mọi trình duyệt, đặc biệt là Safari */
+.source-sentence, .source-sentence * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+
+/* Ngăn chặn việc hiện menu context mặc định của hệ thống khi đang chọn để tránh rối */
+.source-sentence {
+    -webkit-touch-callout: default;
+}
     </style>
 </head>
 <body>
@@ -145,7 +157,7 @@
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
-let isSelecting = false;
+
     // Lưu trữ cấu trúc DOM đã gán ID của từng câu
     // { rowIdx: "innerHTML_đã_bọc_span" }
     let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
@@ -205,6 +217,10 @@ function renderList() {
         sentenceSpan.className = 'source-sentence';
         sentenceSpan.setAttribute('data-idx', idx);
         
+		if (isFastRead) {
+            sentenceSpan.style.cursor = 'text'; 
+        }
+		
         if (domPatches[idx]) {
             sentenceSpan.innerHTML = domPatches[idx];
         } else {
@@ -245,102 +261,86 @@ function renderList() {
         container.appendChild(document.createTextNode(' '));
     });
 
-// Tìm đoạn cuối hàm renderList() và thay thế:
+// Sửa trong hàm renderList()
 if (isFastRead) {
-    // Không dùng onmouseup nữa mà dùng sự kiện của toàn hệ thống
-    document.onselectionchange = handleSelectionChange; 
-    document.ontouchend = handleTouchEnd; // Đảm bảo bắt được khi buông tay trên mobile
+    // Sử dụng pointerup để nhạy hơn trên Safari/Mobile
+    container.onpointerup = handleSelection; 
 } else {
-    document.onselectionchange = null;
-    document.ontouchend = null;
+    container.onpointerup = null;
 }
 }
 
-function handleSelectionChange() {
-    isSelecting = true;
-}
-
-function handleTouchEnd() {
-    // Đợi một chút để Safari cập nhật Selection cuối cùng
+function handleSelection(e) {
+    // Đợi một nhịp rất ngắn để trình duyệt cập nhật Selection
     setTimeout(() => {
-        isSelecting = false;
-        processFinalSelection();
-    }, 100);
-}
+        const sel = window.getSelection();
+        const selectedText = sel.toString().trim();
 
-// Nếu dùng chuột trên máy tính thì vẫn cần cái này
-// Bắt sự kiện chuột cho máy tính
-document.onmouseup = (e) => {
-    // Nếu click vào nút Xóa hoặc các nút trong popup thì không chạy chọn text
-    if (e.target.closest('.tip-btn') || e.target.closest('.popup')) return;
-    
-    if (document.getElementById('chk-fast-read')?.checked) {
-        processFinalSelection();
-    }
-};
+        // Nếu không có text được chọn, không làm gì cả (để Safari tự hiện con trỏ chọn)
+        if (!selectedText || sel.rangeCount === 0) return;
 
-function processFinalSelection() {
-    const sel = window.getSelection();
-    const selectedText = sel.toString().trim();
-    
-    // Nếu đang search (popup đang mở) thì không nhảy popup mới đè lên
-    if (!selectedText || sel.rangeCount === 0 || activeTarget?.isSearching) return;
+        let range = sel.getRangeAt(0);
+        
+        // Tìm node gốc .source-sentence
+        let containerNode = range.commonAncestorContainer;
+        if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+        const sourceSentence = containerNode.closest('.source-sentence');
+        if (!sourceSentence) return;
 
-    let range = sel.getRangeAt(0);
-    
-    const getRubyParent = (node) => {
-        let curr = node.nodeType === 3 ? node.parentElement : node;
-        while (curr && curr.tagName !== 'RUBY') {
-            if (curr.classList && curr.classList.contains('source-sentence')) return null;
-            curr = curr.parentElement;
+        // Logic mở rộng Range để bao trọn thẻ RUBY (giữ nguyên logic cũ của bạn)
+        const getRubyParent = (node) => {
+            let curr = node.nodeType === 3 ? node.parentElement : node;
+            while (curr && curr.tagName !== 'RUBY') {
+                if (curr.classList && curr.classList.contains('source-sentence')) return null;
+                curr = curr.parentElement;
+            }
+            return curr;
+        };
+
+        const startRuby = getRubyParent(range.startContainer);
+        const endRuby = getRubyParent(range.endContainer);
+
+        if (startRuby || endRuby) {
+            const newRange = document.createRange();
+            newRange.setStartBefore(startRuby || range.startContainer);
+            if (endRuby) {
+                newRange.setEndAfter(endRuby);
+            } else {
+                newRange.setEnd(range.endContainer, range.endOffset);
+            }
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            range = newRange;
         }
-        return curr;
-    };
 
-    const startRuby = getRubyParent(range.startContainer);
-    const endRuby = getRubyParent(range.endContainer);
-
-    if (startRuby || endRuby) {
-        const newRange = document.createRange();
-        newRange.setStartBefore(startRuby || range.startContainer);
-        if (endRuby) {
-            newRange.setEndAfter(endRuby);
-        } else {
-            newRange.setEnd(range.endContainer, range.endOffset);
-        }
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        range = newRange;
-    }
-
-    let containerNode = range.commonAncestorContainer;
-    if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
-    
-    const sourceSentence = containerNode.closest('.source-sentence');
-    if (sourceSentence) {
         const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+        
+        // Hiện popup gán ID
         openFastSearch(rowIdx, range, range.toString());
-    }
+    }, 10);
 }
 
-    // Gọi popup search
 function openFastSearch(rowIdx, range, text) {
-    // Lưu trạng thái đang search để chặn việc chọn text nhảy popup liên tục
-    activeTarget = { rowIdx, range, text, isSearching: true };
+    activeTarget = { rowIdx, range, text };
     
     const html = `
-        <h3>Gán ID cho: "${text}"</h3>
-        <input type="text" id="master-search" placeholder="Tìm ID..." 
-               oninput="runSearch(this.value, 'fast')">
-        <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
-        <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; font-size:1rem;">Gán ID cho: "${text}"</h3>
+            <button onclick="closePopup()" style="border:none; background:none; font-size:1.5rem;">×</button>
+        </div>
+        <input type="text" id="master-search" placeholder="Tìm ID hoặc Pattern..." oninput="runSearch(this.value, 'fast')">
+        <div id="search-results" style="margin-top:10px; max-height:40vh; overflow-y:auto; border:1px solid #eee;"></div>
     `;
     document.getElementById('popup-inner').innerHTML = html;
     document.getElementById('overlay').classList.remove('hidden');
     document.getElementById('popup').classList.remove('hidden');
     
-    // Autofocus cho mobile
-    setTimeout(() => document.getElementById('master-search').focus(), 300);
+    // Tự động focus và cuộn vào tầm nhìn
+    const input = document.getElementById('master-search');
+    setTimeout(() => {
+        input.focus();
+        input.scrollIntoView({behavior: 'smooth'});
+    }, 300);
 }
 
 function saveFastID(id) {
@@ -675,14 +675,12 @@ window.toggleTipField = (field) => {
         link.click();
     };
 
-window.closePopup = () => {
-    // Reset trạng thái search để có thể chọn text tiếp theo
-    if (activeTarget) activeTarget.isSearching = false; 
-    
-    document.getElementById('overlay').classList.add('hidden');
-    document.getElementById('popup').classList.add('hidden');
-    window.getSelection()?.removeAllRanges();
-};
+    window.closePopup = () => {
+        window.speechSynthesis.cancel();
+        document.getElementById('overlay').classList.add('hidden');
+        document.getElementById('popup').classList.add('hidden');
+        window.getSelection()?.removeAllRanges();
+    };
 </script>
 </body>
 </html>
