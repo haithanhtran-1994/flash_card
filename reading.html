@@ -145,7 +145,7 @@
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
-
+let isSelecting = false;
     // Lưu trữ cấu trúc DOM đã gán ID của từng câu
     // { rowIdx: "innerHTML_đã_bọc_span" }
     let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
@@ -245,21 +245,49 @@ function renderList() {
         container.appendChild(document.createTextNode(' '));
     });
 
-    if (isFastRead) {
-        container.onmouseup = handleSelection;
-    } else {
-        container.onmouseup = null;
-    }
+// Tìm đoạn cuối hàm renderList() và thay thế:
+if (isFastRead) {
+    // Không dùng onmouseup nữa mà dùng sự kiện của toàn hệ thống
+    document.onselectionchange = handleSelectionChange; 
+    document.ontouchend = handleTouchEnd; // Đảm bảo bắt được khi buông tay trên mobile
+} else {
+    document.onselectionchange = null;
+    document.ontouchend = null;
+}
 }
 
-function handleSelection(e) {
+function handleSelectionChange() {
+    isSelecting = true;
+}
+
+function handleTouchEnd() {
+    // Đợi một chút để Safari cập nhật Selection cuối cùng
+    setTimeout(() => {
+        isSelecting = false;
+        processFinalSelection();
+    }, 100);
+}
+
+// Nếu dùng chuột trên máy tính thì vẫn cần cái này
+// Bắt sự kiện chuột cho máy tính
+document.onmouseup = (e) => {
+    // Nếu click vào nút Xóa hoặc các nút trong popup thì không chạy chọn text
+    if (e.target.closest('.tip-btn') || e.target.closest('.popup')) return;
+    
+    if (document.getElementById('chk-fast-read')?.checked) {
+        processFinalSelection();
+    }
+};
+
+function processFinalSelection() {
     const sel = window.getSelection();
     const selectedText = sel.toString().trim();
-    if (!selectedText || sel.rangeCount === 0) return;
+    
+    // Nếu đang search (popup đang mở) thì không nhảy popup mới đè lên
+    if (!selectedText || sel.rangeCount === 0 || activeTarget?.isSearching) return;
 
     let range = sel.getRangeAt(0);
     
-    // Tìm thẻ RUBY chứa điểm bắt đầu và kết thúc
     const getRubyParent = (node) => {
         let curr = node.nodeType === 3 ? node.parentElement : node;
         while (curr && curr.tagName !== 'RUBY') {
@@ -272,50 +300,48 @@ function handleSelection(e) {
     const startRuby = getRubyParent(range.startContainer);
     const endRuby = getRubyParent(range.endContainer);
 
-    // Chỉ mở rộng Range nếu thực sự đang nằm trong thẻ Ruby
     if (startRuby || endRuby) {
         const newRange = document.createRange();
         newRange.setStartBefore(startRuby || range.startContainer);
-        // Nếu kết thúc ở một text node sau ruby, phải dùng range.endContainer
         if (endRuby) {
             newRange.setEndAfter(endRuby);
         } else {
             newRange.setEnd(range.endContainer, range.endOffset);
         }
-        
         sel.removeAllRanges();
         sel.addRange(newRange);
         range = newRange;
     }
 
-    // Tìm node gốc .source-sentence để xác định dòng (rowIdx)
     let containerNode = range.commonAncestorContainer;
     if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
     
     const sourceSentence = containerNode.closest('.source-sentence');
-
-    if (!sourceSentence) return;
-    
-    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-    // Gọi popup search
-    openFastSearch(rowIdx, range, range.toString());
+    if (sourceSentence) {
+        const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+        openFastSearch(rowIdx, range, range.toString());
+    }
 }
 
-    function openFastSearch(rowIdx, range, text) {
-        // Lưu range để tí nữa chèn node
-        activeTarget = { rowIdx, range, text };
-        
-        const html = `
-            <h3>Gán ID cho: "${text}"</h3>
-            <input type="text" id="master-search" placeholder="Tìm ID hoặc Pattern..." oninput="runSearch(this.value, 'fast')">
-            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
-            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
-        `;
-        document.getElementById('popup-inner').innerHTML = html;
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById('popup').classList.remove('hidden');
-        document.getElementById('master-search').focus();
-    }
+    // Gọi popup search
+function openFastSearch(rowIdx, range, text) {
+    // Lưu trạng thái đang search để chặn việc chọn text nhảy popup liên tục
+    activeTarget = { rowIdx, range, text, isSearching: true };
+    
+    const html = `
+        <h3>Gán ID cho: "${text}"</h3>
+        <input type="text" id="master-search" placeholder="Tìm ID..." 
+               oninput="runSearch(this.value, 'fast')">
+        <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
+        <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
+    `;
+    document.getElementById('popup-inner').innerHTML = html;
+    document.getElementById('overlay').classList.remove('hidden');
+    document.getElementById('popup').classList.remove('hidden');
+    
+    // Autofocus cho mobile
+    setTimeout(() => document.getElementById('master-search').focus(), 300);
+}
 
 function saveFastID(id) {
     const { range, rowIdx } = activeTarget;
@@ -649,12 +675,14 @@ window.toggleTipField = (field) => {
         link.click();
     };
 
-    window.closePopup = () => {
-        window.speechSynthesis.cancel();
-        document.getElementById('overlay').classList.add('hidden');
-        document.getElementById('popup').classList.add('hidden');
-        window.getSelection()?.removeAllRanges();
-    };
+window.closePopup = () => {
+    // Reset trạng thái search để có thể chọn text tiếp theo
+    if (activeTarget) activeTarget.isSearching = false; 
+    
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('popup').classList.add('hidden');
+    window.getSelection()?.removeAllRanges();
+};
 </script>
 </body>
 </html>
