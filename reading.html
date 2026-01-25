@@ -30,12 +30,9 @@
             padding: 0 4px;
             border-radius: 4px;
             transition: background 0.2s;
-			-webkit-user-select: text !important;
-    user-select: text !important;
         }
         .source-sentence:hover { background: #fff8e1; color: var(--accent); }
 
-        /* Style Đọc nhanh - Đã sửa để chống vỡ cấu trúc */
         .fast-read-item {
             position: relative;
             display: inline;
@@ -48,28 +45,44 @@
             background: rgba(230, 126, 34, 0.1);
         }
 
-.screentip {
-    position: fixed; /* Chuyển sang fixed để tính toán tọa độ màn hình chính xác hơn */
-    background: #333;
-    color: white;
-    padding: 8px;
-    border-radius: 5px;
-    font-size: 0.85rem;
-    z-index: 9999;
-    width: max-content;
-    max-width: 250px;
-    max-height: 200px; /* Giới hạn chiều cao */
-    overflow-y: auto;  /* Cho phép cuộn bên trong */
-    display: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    pointer-events: auto;
-    line-height: 1.4;
-    white-space: normal; /* Tránh text bị văng ra ngoài */
-}
+        .screentip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            z-index: 9999;
+            width: max-content;
+            max-width: 250px;
+            display: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: auto;
+            line-height: 1.4;
+        }
         .fast-read-item:hover .screentip { display: block; }
 
         .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
         .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
+
+        /* Floating Action Button for ID assignment */
+        #floating-assign-btn {
+            position: absolute;
+            z-index: 10001;
+            background: #e67e22;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            border: 2px solid white;
+            display: none;
+        }
 
         .smart-list { list-style: none; padding: 0; margin: 10px 0; }
         .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
@@ -109,20 +122,6 @@
 
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; align-items: center; }
         .read-mode-switch { background: #fff; padding: 8px 15px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; display: flex; align-items: center; gap: 8px; }
-		/* Cho phép chọn text trên mọi trình duyệt, đặc biệt là Safari */
-.source-sentence, .source-sentence * {
-    -webkit-user-select: text !important;
-    user-select: text !important;
-	caret-color: transparent;
-}
-
-/* Ngăn chặn việc hiện menu context mặc định của hệ thống khi đang chọn để tránh rối */
-.source-sentence {
-    -webkit-touch-callout: default;
-}
-.source-sentence * {
-    user-select: text;
-}
     </style>
 </head>
 <body>
@@ -153,6 +152,8 @@
         <div id="popup-inner"></div>
     </div>
 
+    <div id="floating-assign-btn" onclick="triggerFastSearch()">Gán ID</div>
+
 <script>
     let masterDB = [];
     let excelRows = [];
@@ -161,10 +162,11 @@
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
-
-    // Lưu trữ cấu trúc DOM đã gán ID của từng câu
-    // { rowIdx: "innerHTML_đã_bọc_span" }
     let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
+
+    // Các biến phục vụ logic chọn mới
+    let currentSelectionRange = null;
+    let currentSelectionIdx = null;
 
     document.getElementById('master-input').onchange = e => {
         const r = new FileReader();
@@ -209,231 +211,178 @@
         }).filter(x => x.name !== "");
     }
 
-function renderList() {
-    const isFastRead = document.getElementById('chk-fast-read').checked;
-    document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
-    
-    const container = document.getElementById('content-list');
-    container.innerHTML = ''; 
-
-    excelRows.forEach((row, idx) => {
-        const sentenceSpan = document.createElement('span');
-        sentenceSpan.className = 'source-sentence';
-        sentenceSpan.setAttribute('data-idx', idx);
+    function renderList() {
+        const isFastRead = document.getElementById('chk-fast-read').checked;
+        document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
         
-		if (isFastRead) {
-            sentenceSpan.style.cursor = 'text'; 
-        }
-		
-        if (domPatches[idx]) {
-            sentenceSpan.innerHTML = domPatches[idx];
-        } else {
-            sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
-        }
+        const container = document.getElementById('content-list');
+        container.innerHTML = ''; 
 
-        // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
+        excelRows.forEach((row, idx) => {
+            const sentenceSpan = document.createElement('span');
+            sentenceSpan.className = 'source-sentence';
+            sentenceSpan.setAttribute('data-idx', idx);
+            
+            if (domPatches[idx]) {
+                sentenceSpan.innerHTML = domPatches[idx];
+            } else {
+                sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
+            }
+
+            if (isFastRead) {
+                sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    const mInfo = masterDB.find(m => m.master_id === id);
+                    
+                    let tipContent = `ID: ${id}`;
+                    if(mInfo && displayFields.length > 0) {
+                        displayFields.forEach(f => {
+                            if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
+                        });
+                    }
+
+                    const oldTip = item.querySelector('.screentip');
+                    if(oldTip) oldTip.remove();
+
+                    const tipDiv = document.createElement('div');
+                    tipDiv.className = 'screentip';
+                    tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
+                        <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
+                    </div>`;
+                    
+                    item.appendChild(tipDiv);
+                });
+            }
+
+            if (!isFastRead) {
+                sentenceSpan.onclick = () => showDetail(idx, 'all');
+            }
+            container.appendChild(sentenceSpan);
+            container.appendChild(document.createTextNode(' '));
+        });
+
         if (isFastRead) {
-			// Tìm đoạn code: sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => { ...
-			// Và thay bằng đoạn này:
-			
-			sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
-				const id = item.getAttribute('data-id');
-				const mInfo = masterDB.find(m => m.master_id === id);
-				
-				let tipContent = `ID: ${id}`;
-				if(mInfo && displayFields.length > 0) {
-					displayFields.forEach(f => {
-						if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
-					});
-				}
-			
-				const oldTip = item.querySelector('.screentip');
-				if(oldTip) oldTip.remove();
-			
-				const tipDiv = document.createElement('div');
-				tipDiv.className = 'screentip';
-				tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
-					<span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
-				</div>`;
-				
-				item.appendChild(tipDiv);
-			
-				// Xử lý chống mất góc khi hover
-				item.onmouseenter = () => {
-					tipDiv.style.display = 'block';
-					const rect = item.getBoundingClientRect();
-					const tipRect = tipDiv.getBoundingClientRect();
-					
-					// Tính toán vị trí Y (luôn nằm trên chữ)
-					let top = rect.top - tipRect.height - 10;
-					
-					// Tính toán vị trí X (giữ ở giữa và đẩy nếu chạm lề)
-					let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
-					
-					if (left < 10) left = 10; // Cách lề trái 10px
-					if (left + tipRect.width > window.innerWidth - 10) {
-						left = window.innerWidth - tipRect.width - 10; // Cách lề phải 10px
-					}
-					
-					tipDiv.style.top = top + 'px';
-					tipDiv.style.left = left + 'px';
-				};
-				
-				item.onmouseleave = () => {
-					tipDiv.style.display = 'none';
-				};
-			});
-        }
-
-        if (!isFastRead) {
-            sentenceSpan.onclick = () => showDetail(idx, 'all');
-        }
-        container.appendChild(sentenceSpan);
-        container.appendChild(document.createTextNode(' '));
-    });
-
-// Sửa trong hàm renderList()
-// Thay đoạn gắn sự kiện trong renderList()
-if (isFastRead) {
-    container.onmouseup = (e) => {
-        // Chờ 10ms để trình duyệt hoàn tất việc "Smart Select" rồi ta mới vào "sửa sai" cho nó
-        setTimeout(() => handleSelection(e), 10);
-    };
-} else {
-    container.onmouseup = null;
-}
-}
-
-function handleSelection(e) {
-    // 1. Lấy Selection ngay lập tức
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-
-    // 2. Lấy Range hiện tại
-    let range = sel.getRangeAt(0);
-    
-    // --- CƠ CHẾ "THIẾT QUÂN LUẬT": CO VÙNG CHỌN ---
-    // Kiểm tra xem ký tự đầu và cuối có phải là khoảng trắng/dấu câu không
-    let text = range.toString();
-    
-    // Co từ phía sau (End)
-    while (text.length > 0 && /[\s,、。！？]/.test(text.slice(-1))) {
-        try {
-            range.setEnd(range.endContainer, range.endOffset - 1);
-            text = range.toString();
-        } catch (e) { break; }
-    }
-    
-    // Co từ phía trước (Start)
-    while (text.length > 0 && /[\s,、。！？]/.test(text.slice(0, 1))) {
-        try {
-            range.setStart(range.startContainer, range.startOffset + 1);
-            text = range.toString();
-        } catch (e) { break; }
-    }
-
-    // Nếu sau khi co mà text rỗng thì bỏ qua
-    if (!text.trim()) return;
-
-    // 3. Xác định câu gốc
-    let containerNode = range.commonAncestorContainer;
-    if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
-    const sourceSentence = containerNode.closest('.source-sentence');
-    if (!sourceSentence) return;
-
-    // 4. Xử lý Ruby (Furigana) - Đảm bảo không chọn nửa chừng thẻ Ruby
-    const getRubyParent = (node) => {
-        let curr = node.nodeType === 3 ? node.parentElement : node;
-        while (curr && curr.tagName !== 'RUBY') {
-            if (curr.classList && curr.classList.contains('source-sentence')) return null;
-            curr = curr.parentElement;
-        }
-        return curr;
-    };
-
-    const startRuby = getRubyParent(range.startContainer);
-    const endRuby = getRubyParent(range.endContainer);
-
-    if (startRuby || endRuby) {
-        const newRange = document.createRange();
-        newRange.setStartBefore(startRuby || range.startContainer);
-        if (endRuby) {
-            newRange.setEndAfter(endRuby);
+            document.onselectionchange = handleSelectionChange;
         } else {
-            newRange.setEnd(range.endContainer, range.endOffset);
+            document.onselectionchange = null;
+            hideFloatingBtn();
         }
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        range = newRange;
     }
 
-    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-    const finalSelectionText = range.toString().trim();
-    
-    if (finalSelectionText) {
-        // Xóa selection của hệ thống ngay để tránh việc nó tự nhảy lại
-        // sel.removeAllRanges(); 
-        openFastSearch(rowIdx, range, finalSelectionText);
-    }
-}
+    // Logic xử lý vùng chọn mới
+    function handleSelectionChange() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || sel.isCollapsed) {
+            // Đừng ẩn nút ngay lập tức để người dùng kịp nhấn
+            return;
+        }
 
-function openFastSearch(rowIdx, range, text) {
-    activeTarget = { rowIdx, range, text };
-    
-    const html = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin:0; font-size:1rem;">Gán ID cho: "${text}"</h3>
-            <button onclick="closePopup()" style="border:none; background:none; font-size:1.5rem;">×</button>
-        </div>
-        <input type="text" id="master-search" placeholder="Tìm ID hoặc Pattern..." oninput="runSearch(this.value, 'fast')">
-        <div id="search-results" style="margin-top:10px; max-height:40vh; overflow-y:auto; border:1px solid #eee;"></div>
-    `;
-    document.getElementById('popup-inner').innerHTML = html;
-    document.getElementById('overlay').classList.remove('hidden');
-    document.getElementById('popup').classList.remove('hidden');
-    
-    // Tự động focus và cuộn vào tầm nhìn
-    const input = document.getElementById('master-search');
-    setTimeout(() => {
-        input.focus();
-        input.scrollIntoView({behavior: 'smooth'});
-    }, 300);
-}
+        const range = sel.getRangeAt(0);
+        const text = sel.toString().trim();
+        if (!text) return;
 
-function saveFastID(id) {
-    const { range, rowIdx } = activeTarget;
-    
-    const span = document.createElement('span');
-    span.className = 'fast-read-item';
-    span.setAttribute('data-id', id);
-
-    try {
-        const content = range.extractContents();
-        span.appendChild(content);
+        let containerNode = range.commonAncestorContainer;
+        if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
         
-        range.insertNode(span);
-        
-        const parent = span.closest('.source-sentence');
-        parent.normalize(); 
-        
-        // Lưu HTML sạch (chỉ có thẻ span và data-id, không chứa div screentip bên trong)
-        domPatches[rowIdx] = parent.innerHTML;
-        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
-    } catch (err) {
-        console.error("Lỗi:", err);
-        alert("Không thể gán ID cho vùng chọn này.");
+        const sourceSentence = containerNode.closest('.source-sentence');
+        if (sourceSentence) {
+            currentSelectionRange = range.cloneRange();
+            currentSelectionIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+            showFloatingBtn(range);
+        }
     }
 
-    closePopup();
-    renderList(); // Gọi render để nó tự lắp Screentip động vào
-}
+    function showFloatingBtn(range) {
+        const rect = range.getBoundingClientRect();
+        const btn = document.getElementById('floating-assign-btn');
+        btn.style.display = 'block';
+        btn.style.top = (window.scrollY + rect.top - 40) + 'px';
+        btn.style.left = (window.scrollX + rect.left + rect.width / 2 - 40) + 'px';
+    }
+
+    function hideFloatingBtn() {
+        document.getElementById('floating-assign-btn').style.display = 'none';
+    }
+
+    function triggerFastSearch() {
+        if (!currentSelectionRange) return;
+        const text = currentSelectionRange.toString();
+        
+        // Tự động bao quanh RUBY nếu vùng chọn nằm lơ lửng bên trong
+        const getRubyParent = (node) => {
+            let curr = node.nodeType === 3 ? node.parentElement : node;
+            while (curr && curr.tagName !== 'RUBY') {
+                if (curr.classList && curr.classList.contains('source-sentence')) return null;
+                curr = curr.parentElement;
+            }
+            return curr;
+        };
+
+        const startRuby = getRubyParent(currentSelectionRange.startContainer);
+        const endRuby = getRubyParent(currentSelectionRange.endContainer);
+
+        if (startRuby || endRuby) {
+            const newRange = document.createRange();
+            newRange.setStartBefore(startRuby || currentSelectionRange.startContainer);
+            if (endRuby) {
+                newRange.setEndAfter(endRuby);
+            } else {
+                newRange.setEnd(currentSelectionRange.endContainer, currentSelectionRange.endOffset);
+            }
+            currentSelectionRange = newRange;
+        }
+
+        openFastSearch(currentSelectionIdx, currentSelectionRange, currentSelectionRange.toString());
+        hideFloatingBtn();
+    }
+
+    function openFastSearch(rowIdx, range, text) {
+        activeTarget = { rowIdx, range, text, isSearching: true };
+        
+        const html = `
+            <h3>Gán ID cho: "${text}"</h3>
+            <input type="text" id="master-search" placeholder="Tìm ID..." 
+                   oninput="runSearch(this.value, 'fast')">
+            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
+            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
+        `;
+        document.getElementById('popup-inner').innerHTML = html;
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('popup').classList.remove('hidden');
+        
+        setTimeout(() => document.getElementById('master-search').focus(), 300);
+    }
+
+    function saveFastID(id) {
+        const { range, rowIdx } = activeTarget;
+        const span = document.createElement('span');
+        span.className = 'fast-read-item';
+        span.setAttribute('data-id', id);
+
+        try {
+            const content = range.extractContents();
+            span.appendChild(content);
+            range.insertNode(span);
+            
+            const parent = span.closest('.source-sentence');
+            parent.normalize(); 
+            
+            domPatches[rowIdx] = parent.innerHTML;
+            localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+        } catch (err) {
+            console.error("Lỗi:", err);
+            alert("Không thể gán ID cho vùng chọn này.");
+        }
+
+        closePopup();
+        renderList();
+    }
 
     window.deleteFastID = (btn, rowIdx) => {
         if(!confirm("Xóa gán ID này?")) return;
         const item = btn.closest('.fast-read-item');
         const parent = item.parentElement;
         
-        // Giải nén nội dung bên trong trả lại cho cha
         while(item.firstChild) {
             if(item.firstChild.className === 'screentip') {
                 item.removeChild(item.firstChild);
@@ -442,15 +391,12 @@ function saveFastID(id) {
             }
         }
         parent.removeChild(item);
-        parent.normalize(); // Hợp nhất các TextNode rời rạc
+        parent.normalize();
 
-        // Cập nhật lại bộ nhớ
         domPatches[rowIdx] = parent.innerHTML;
         localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
         renderList();
     };
-
-    // --- CÁC HÀM CŨ GIỮ NGUYÊN ---
 
     window.openFieldConfig = () => {
         if(masterDB.length === 0) return alert("Cần nạp Master JSON trước!");
@@ -471,17 +417,15 @@ function saveFastID(id) {
         document.getElementById('popup').classList.remove('hidden');
     };
 
-window.toggleTipField = (field) => {
-    if(displayFields.includes(field)) {
-        displayFields = displayFields.filter(f => f !== field);
-    } else {
-        displayFields.push(field);
-    }
-    localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
-    
-    // Cập nhật lại toàn bộ Screentip trên màn hình mà không cần F5
-    renderList(); 
-};
+    window.toggleTipField = (field) => {
+        if(displayFields.includes(field)) {
+            displayFields = displayFields.filter(f => f !== field);
+        } else {
+            displayFields.push(field);
+        }
+        localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
+        renderList(); 
+    };
 
     function showDetail(idx, mode) {
         const row = excelRows[idx];
@@ -733,11 +677,19 @@ window.toggleTipField = (field) => {
     };
 
     window.closePopup = () => {
-        window.speechSynthesis.cancel();
+        if (activeTarget) activeTarget.isSearching = false; 
         document.getElementById('overlay').classList.add('hidden');
         document.getElementById('popup').classList.add('hidden');
         window.getSelection()?.removeAllRanges();
+        hideFloatingBtn();
     };
+
+    // Đóng nút nổi khi chạm ra ngoài
+    document.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('#floating-assign-btn') && !window.getSelection().toString()) {
+            hideFloatingBtn();
+        }
+    });
 </script>
 </body>
 </html>
