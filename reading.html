@@ -300,23 +300,33 @@ if (isFastRead) {
 function handleSelection(e) {
     setTimeout(() => {
         const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
-        
-        let selectedText = sel.toString().trim();
-        if (!selectedText) return;
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
+        let selectedText = sel.toString();
+        if (!selectedText.trim()) return;
+
+        // --- BƯỚC FIX: Ép trình duyệt không được tự ý lấy dư ký tự ---
         let range = sel.getRangeAt(0);
         
-        // Chống lỗi "hít" chữ trên Safari: Ép vùng chọn về đúng Range hiện tại
-        if (sel.setBaseAndExtent && range.startContainer) {
-            sel.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+        // Nếu ký tự cuối là dấu cách hoặc dấu câu, co lại
+        let content = range.toString();
+        while (content.length > 0 && /[\s,、。！？]/.test(content.charAt(content.length - 1))) {
+            range.setEnd(range.endContainer, range.endOffset - 1);
+            content = range.toString();
         }
+        // Tương tự cho phía đầu
+        while (content.length > 0 && /[\s,、。！？]/.test(content.charAt(0))) {
+            range.setStart(range.startContainer, range.startOffset + 1);
+            content = range.toString();
+        }
+        // -------------------------------------------------------
 
         let containerNode = range.commonAncestorContainer;
         if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
         const sourceSentence = containerNode.closest('.source-sentence');
         if (!sourceSentence) return;
 
+        // Logic xử lý Ruby (Furigana) giữ nguyên để không lỗi hiển thị
         const getRubyParent = (node) => {
             let curr = node.nodeType === 3 ? node.parentElement : node;
             while (curr && curr.tagName !== 'RUBY') {
@@ -343,8 +353,10 @@ function handleSelection(e) {
         }
 
         const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-        openFastSearch(rowIdx, range, range.toString());
-    }, 50); // Tăng delay lên 50ms để Safari ổn định Selection
+        if (range.toString().trim()) {
+            openFastSearch(rowIdx, range, range.toString());
+        }
+    }, 100); // Tăng lên 100ms để đảm bảo trình duyệt đã kết thúc việc "tự động chọn"
 }
 
 function openFastSearch(rowIdx, range, text) {
