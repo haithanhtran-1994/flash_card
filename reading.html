@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -33,6 +34,7 @@
         }
         .source-sentence:hover { background: #fff8e1; color: var(--accent); }
 
+        /* Style Đọc nhanh - Đã sửa để chống vỡ cấu trúc */
         .fast-read-item {
             position: relative;
             display: inline;
@@ -67,22 +69,6 @@
 
         .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
         .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
-
-        /* Floating Action Button for ID assignment */
-        #floating-assign-btn {
-            position: absolute;
-            z-index: 10001;
-            background: #e67e22;
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            cursor: pointer;
-            border: 2px solid white;
-            display: none;
-        }
 
         .smart-list { list-style: none; padding: 0; margin: 10px 0; }
         .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
@@ -152,8 +138,6 @@
         <div id="popup-inner"></div>
     </div>
 
-    <div id="floating-assign-btn" onclick="triggerFastSearch()">Gán ID</div>
-
 <script>
     let masterDB = [];
     let excelRows = [];
@@ -162,11 +146,10 @@
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
+let isSelecting = false;
+    // Lưu trữ cấu trúc DOM đã gán ID của từng câu
+    // { rowIdx: "innerHTML_đã_bọc_span" }
     let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
-
-    // Các biến phục vụ logic chọn mới
-    let currentSelectionRange = null;
-    let currentSelectionIdx = null;
 
     document.getElementById('master-input').onchange = e => {
         const r = new FileReader();
@@ -211,104 +194,121 @@
         }).filter(x => x.name !== "");
     }
 
-    function renderList() {
-        const isFastRead = document.getElementById('chk-fast-read').checked;
-        document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
+function renderList() {
+    const isFastRead = document.getElementById('chk-fast-read').checked;
+    document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
+    
+    const container = document.getElementById('content-list');
+    container.innerHTML = ''; 
+
+    excelRows.forEach((row, idx) => {
+        const sentenceSpan = document.createElement('span');
+        sentenceSpan.className = 'source-sentence';
+        sentenceSpan.setAttribute('data-idx', idx);
         
-        const container = document.getElementById('content-list');
-        container.innerHTML = ''; 
-
-        excelRows.forEach((row, idx) => {
-            const sentenceSpan = document.createElement('span');
-            sentenceSpan.className = 'source-sentence';
-            sentenceSpan.setAttribute('data-idx', idx);
-            
-            if (domPatches[idx]) {
-                sentenceSpan.innerHTML = domPatches[idx];
-            } else {
-                sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
-            }
-
-            if (isFastRead) {
-                sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
-                    const id = item.getAttribute('data-id');
-                    const mInfo = masterDB.find(m => m.master_id === id);
-                    
-                    let tipContent = `ID: ${id}`;
-                    if(mInfo && displayFields.length > 0) {
-                        displayFields.forEach(f => {
-                            if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
-                        });
-                    }
-
-                    const oldTip = item.querySelector('.screentip');
-                    if(oldTip) oldTip.remove();
-
-                    const tipDiv = document.createElement('div');
-                    tipDiv.className = 'screentip';
-                    tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
-                        <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
-                    </div>`;
-                    
-                    item.appendChild(tipDiv);
-                });
-            }
-
-            if (!isFastRead) {
-                sentenceSpan.onclick = () => showDetail(idx, 'all');
-            }
-            container.appendChild(sentenceSpan);
-            container.appendChild(document.createTextNode(' '));
-        });
-
-        if (isFastRead) {
-            document.onselectionchange = handleSelectionChange;
+        if (domPatches[idx]) {
+            sentenceSpan.innerHTML = domPatches[idx];
         } else {
-            document.onselectionchange = null;
-            hideFloatingBtn();
+            sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
         }
-    }
 
-    // Logic xử lý vùng chọn mới
-    function handleSelectionChange() {
+        // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
+        if (isFastRead) {
+            sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
+                const id = item.getAttribute('data-id');
+                const mInfo = masterDB.find(m => m.master_id === id);
+                
+                let tipContent = `ID: ${id}`;
+                if(mInfo && displayFields.length > 0) {
+                    displayFields.forEach(f => {
+                        if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
+                    });
+                }
+
+                // Luôn xóa cái cũ (nếu có) trước khi thêm cái mới để tránh trùng lặp
+                const oldTip = item.querySelector('.screentip');
+                if(oldTip) oldTip.remove();
+
+                const tipDiv = document.createElement('div');
+                tipDiv.className = 'screentip';
+                tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
+                    <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
+                </div>`;
+                
+                item.appendChild(tipDiv);
+            });
+			// QUAN TRỌNG: Gỡ bỏ onclick ở chế độ đọc nhanh để cho phép double click/bôi đen tự do
+			sentenceSpan.onclick = null;
+        } else {
+			// Chế độ thường: Click là mở detail
+            sentenceSpan.onclick = () => showDetail(idx, 'all');
+        }
+        container.appendChild(sentenceSpan);
+        container.appendChild(document.createTextNode(' '));
+    });
+
+// Tìm đoạn cuối hàm renderList() và thay thế:
+if (isFastRead) {
+    // Không dùng onmouseup nữa mà dùng sự kiện của toàn hệ thống
+    document.onselectionchange = handleSelectionChange; 
+    document.ontouchend = handleTouchEnd; // Đảm bảo bắt được khi buông tay trên mobile
+} else {
+    document.onselectionchange = null;
+    document.ontouchend = null;
+}
+}
+
+function handleSelectionChange() {
+    isSelecting = true;
+}
+
+function handleTouchEnd() {
+    // Đợi một chút để Safari cập nhật Selection cuối cùng
+    setTimeout(() => {
+        isSelecting = false;
+        processFinalSelection();
+    }, 100);
+}
+
+// Nếu dùng chuột trên máy tính thì vẫn cần cái này
+// Bắt sự kiện chuột cho máy tính
+// Thay thế đoạn document.onmouseup hiện tại của bạn bằng đoạn này:
+document.onmouseup = (e) => {
+    // 1. Nếu click vào các thành phần điều hướng/popup thì bỏ qua
+    if (e.target.closest('.tip-btn') || e.target.closest('.popup') || e.target.closest('.overlay')) return;
+    
+    // 2. Chỉ chạy nếu đang bật "Đọc nhanh"
+    if (document.getElementById('chk-fast-read')?.checked) {
         const sel = window.getSelection();
-        if (!sel.rangeCount || sel.isCollapsed) {
-            // Đừng ẩn nút ngay lập tức để người dùng kịp nhấn
-            return;
-        }
-
-        const range = sel.getRangeAt(0);
-        const text = sel.toString().trim();
-        if (!text) return;
-
-        let containerNode = range.commonAncestorContainer;
-        if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+        const selectedText = sel.toString().trim();
         
-        const sourceSentence = containerNode.closest('.source-sentence');
-        if (sourceSentence) {
-            currentSelectionRange = range.cloneRange();
-            currentSelectionIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-            showFloatingBtn(range);
+        // 3. Điều kiện: Phải có text được chọn (double click hoặc bôi đen)
+        // Và không phải đang trong quá trình search
+        if (selectedText && sel.rangeCount > 0 && (!activeTarget || !activeTarget.isSearching)) {
+            processFinalSelection();
         }
     }
+};
 
-    function showFloatingBtn(range) {
-        const rect = range.getBoundingClientRect();
-        const btn = document.getElementById('floating-assign-btn');
-        btn.style.display = 'block';
-        btn.style.top = (window.scrollY + rect.top - 40) + 'px';
-        btn.style.left = (window.scrollX + rect.left + rect.width / 2 - 40) + 'px';
-    }
+// Vô hiệu hóa các hàm này vì onmouseup là đủ cho cả desktop và mobile (touchend)
+document.onselectionchange = null;
 
-    function hideFloatingBtn() {
-        document.getElementById('floating-assign-btn').style.display = 'none';
-    }
+function processFinalSelection() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    
+    let range = sel.getRangeAt(0);
+    let containerNode = range.commonAncestorContainer;
+    if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+    
+    const sourceSentence = containerNode.closest('.source-sentence');
+    if (!sourceSentence) return; // Nếu bôi đen bên ngoài vùng nội dung thì bỏ qua
 
-    function triggerFastSearch() {
-        if (!currentSelectionRange) return;
-        const text = currentSelectionRange.toString();
-        
-        // Tự động bao quanh RUBY nếu vùng chọn nằm lơ lửng bên trong
+    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+    const text = sel.toString().trim();
+
+    // Logic xử lý RUBY (giữ nguyên như cũ của bạn nhưng bọc trong try-catch)
+    try {
         const getRubyParent = (node) => {
             let curr = node.nodeType === 3 ? node.parentElement : node;
             while (curr && curr.tagName !== 'RUBY') {
@@ -318,71 +318,82 @@
             return curr;
         };
 
-        const startRuby = getRubyParent(currentSelectionRange.startContainer);
-        const endRuby = getRubyParent(currentSelectionRange.endContainer);
+        const startRuby = getRubyParent(range.startContainer);
+        const endRuby = getRubyParent(range.endContainer);
 
         if (startRuby || endRuby) {
             const newRange = document.createRange();
-            newRange.setStartBefore(startRuby || currentSelectionRange.startContainer);
+            newRange.setStartBefore(startRuby || range.startContainer);
             if (endRuby) {
                 newRange.setEndAfter(endRuby);
             } else {
-                newRange.setEnd(currentSelectionRange.endContainer, currentSelectionRange.endOffset);
+                newRange.setEnd(range.endContainer, range.endOffset);
             }
-            currentSelectionRange = newRange;
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            range = newRange;
         }
-
-        openFastSearch(currentSelectionIdx, currentSelectionRange, currentSelectionRange.toString());
-        hideFloatingBtn();
-    }
-
-    function openFastSearch(rowIdx, range, text) {
-        activeTarget = { rowIdx, range, text, isSearching: true };
         
-        const html = `
-            <h3>Gán ID cho: "${text}"</h3>
-            <input type="text" id="master-search" placeholder="Tìm ID..." 
-                   oninput="runSearch(this.value, 'fast')">
-            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
-            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
-        `;
-        document.getElementById('popup-inner').innerHTML = html;
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById('popup').classList.remove('hidden');
+        openFastSearch(rowIdx, range, range.toString());
+    } catch (e) {
+        console.warn("Selection error:", e);
+    }
+}
+
+    // Gọi popup search
+function openFastSearch(rowIdx, range, text) {
+    // Lưu trạng thái đang search để chặn việc chọn text nhảy popup liên tục
+    activeTarget = { rowIdx, range, text, isSearching: true };
+    
+    const html = `
+        <h3>Gán ID cho: "${text}"</h3>
+        <input type="text" id="master-search" placeholder="Tìm ID..." 
+               oninput="runSearch(this.value, 'fast')">
+        <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
+        <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
+    `;
+    document.getElementById('popup-inner').innerHTML = html;
+    document.getElementById('overlay').classList.remove('hidden');
+    document.getElementById('popup').classList.remove('hidden');
+    
+    // Autofocus cho mobile
+    setTimeout(() => document.getElementById('master-search').focus(), 300);
+}
+
+function saveFastID(id) {
+    const { range, rowIdx } = activeTarget;
+    
+    const span = document.createElement('span');
+    span.className = 'fast-read-item';
+    span.setAttribute('data-id', id);
+
+    try {
+        const content = range.extractContents();
+        span.appendChild(content);
         
-        setTimeout(() => document.getElementById('master-search').focus(), 300);
+        range.insertNode(span);
+        
+        const parent = span.closest('.source-sentence');
+        parent.normalize(); 
+        
+        // Lưu HTML sạch (chỉ có thẻ span và data-id, không chứa div screentip bên trong)
+        domPatches[rowIdx] = parent.innerHTML;
+        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+    } catch (err) {
+        console.error("Lỗi:", err);
+        alert("Không thể gán ID cho vùng chọn này.");
     }
 
-    function saveFastID(id) {
-        const { range, rowIdx } = activeTarget;
-        const span = document.createElement('span');
-        span.className = 'fast-read-item';
-        span.setAttribute('data-id', id);
-
-        try {
-            const content = range.extractContents();
-            span.appendChild(content);
-            range.insertNode(span);
-            
-            const parent = span.closest('.source-sentence');
-            parent.normalize(); 
-            
-            domPatches[rowIdx] = parent.innerHTML;
-            localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
-        } catch (err) {
-            console.error("Lỗi:", err);
-            alert("Không thể gán ID cho vùng chọn này.");
-        }
-
-        closePopup();
-        renderList();
-    }
+    closePopup();
+    renderList(); // Gọi render để nó tự lắp Screentip động vào
+}
 
     window.deleteFastID = (btn, rowIdx) => {
         if(!confirm("Xóa gán ID này?")) return;
         const item = btn.closest('.fast-read-item');
         const parent = item.parentElement;
         
+        // Giải nén nội dung bên trong trả lại cho cha
         while(item.firstChild) {
             if(item.firstChild.className === 'screentip') {
                 item.removeChild(item.firstChild);
@@ -391,12 +402,15 @@
             }
         }
         parent.removeChild(item);
-        parent.normalize();
+        parent.normalize(); // Hợp nhất các TextNode rời rạc
 
+        // Cập nhật lại bộ nhớ
         domPatches[rowIdx] = parent.innerHTML;
         localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
         renderList();
     };
+
+    // --- CÁC HÀM CŨ GIỮ NGUYÊN ---
 
     window.openFieldConfig = () => {
         if(masterDB.length === 0) return alert("Cần nạp Master JSON trước!");
@@ -417,15 +431,17 @@
         document.getElementById('popup').classList.remove('hidden');
     };
 
-    window.toggleTipField = (field) => {
-        if(displayFields.includes(field)) {
-            displayFields = displayFields.filter(f => f !== field);
-        } else {
-            displayFields.push(field);
-        }
-        localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
-        renderList(); 
-    };
+window.toggleTipField = (field) => {
+    if(displayFields.includes(field)) {
+        displayFields = displayFields.filter(f => f !== field);
+    } else {
+        displayFields.push(field);
+    }
+    localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
+    
+    // Cập nhật lại toàn bộ Screentip trên màn hình mà không cần F5
+    renderList(); 
+};
 
     function showDetail(idx, mode) {
         const row = excelRows[idx];
@@ -676,20 +692,14 @@
         link.click();
     };
 
-    window.closePopup = () => {
-        if (activeTarget) activeTarget.isSearching = false; 
-        document.getElementById('overlay').classList.add('hidden');
-        document.getElementById('popup').classList.add('hidden');
-        window.getSelection()?.removeAllRanges();
-        hideFloatingBtn();
-    };
-
-    // Đóng nút nổi khi chạm ra ngoài
-    document.addEventListener('mousedown', (e) => {
-        if (!e.target.closest('#floating-assign-btn') && !window.getSelection().toString()) {
-            hideFloatingBtn();
-        }
-    });
+window.closePopup = () => {
+    // Reset trạng thái search để có thể chọn text tiếp theo
+    if (activeTarget) activeTarget.isSearching = false; 
+    
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('popup').classList.add('hidden');
+    window.getSelection()?.removeAllRanges();
+};
 </script>
 </body>
 </html>
