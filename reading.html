@@ -48,24 +48,24 @@
             background: rgba(230, 126, 34, 0.1);
         }
 
-        .screentip {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 0.85rem;
-            z-index: 9999;
-            width: max-content;
-            max-width: 250px;
-            display: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            pointer-events: auto;
-            line-height: 1.4;
-        }
+.screentip {
+    position: fixed; /* Chuyển sang fixed để tính toán tọa độ màn hình chính xác hơn */
+    background: #333;
+    color: white;
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    z-index: 9999;
+    width: max-content;
+    max-width: 250px;
+    max-height: 200px; /* Giới hạn chiều cao */
+    overflow-y: auto;  /* Cho phép cuộn bên trong */
+    display: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    pointer-events: auto;
+    line-height: 1.4;
+    white-space: normal; /* Tránh text bị văng ra ngoài */
+}
         .fast-read-item:hover .screentip { display: block; }
 
         .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
@@ -229,29 +229,56 @@ function renderList() {
 
         // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
         if (isFastRead) {
-            sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
-                const id = item.getAttribute('data-id');
-                const mInfo = masterDB.find(m => m.master_id === id);
-                
-                let tipContent = `ID: ${id}`;
-                if(mInfo && displayFields.length > 0) {
-                    displayFields.forEach(f => {
-                        if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
-                    });
-                }
-
-                // Luôn xóa cái cũ (nếu có) trước khi thêm cái mới để tránh trùng lặp
-                const oldTip = item.querySelector('.screentip');
-                if(oldTip) oldTip.remove();
-
-                const tipDiv = document.createElement('div');
-                tipDiv.className = 'screentip';
-                tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
-                    <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
-                </div>`;
-                
-                item.appendChild(tipDiv);
-            });
+			// Tìm đoạn code: sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => { ...
+			// Và thay bằng đoạn này:
+			
+			sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
+				const id = item.getAttribute('data-id');
+				const mInfo = masterDB.find(m => m.master_id === id);
+				
+				let tipContent = `ID: ${id}`;
+				if(mInfo && displayFields.length > 0) {
+					displayFields.forEach(f => {
+						if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
+					});
+				}
+			
+				const oldTip = item.querySelector('.screentip');
+				if(oldTip) oldTip.remove();
+			
+				const tipDiv = document.createElement('div');
+				tipDiv.className = 'screentip';
+				tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
+					<span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
+				</div>`;
+				
+				item.appendChild(tipDiv);
+			
+				// Xử lý chống mất góc khi hover
+				item.onmouseenter = () => {
+					tipDiv.style.display = 'block';
+					const rect = item.getBoundingClientRect();
+					const tipRect = tipDiv.getBoundingClientRect();
+					
+					// Tính toán vị trí Y (luôn nằm trên chữ)
+					let top = rect.top - tipRect.height - 10;
+					
+					// Tính toán vị trí X (giữ ở giữa và đẩy nếu chạm lề)
+					let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+					
+					if (left < 10) left = 10; // Cách lề trái 10px
+					if (left + tipRect.width > window.innerWidth - 10) {
+						left = window.innerWidth - tipRect.width - 10; // Cách lề phải 10px
+					}
+					
+					tipDiv.style.top = top + 'px';
+					tipDiv.style.left = left + 'px';
+				};
+				
+				item.onmouseleave = () => {
+					tipDiv.style.display = 'none';
+				};
+			});
         }
 
         if (!isFastRead) {
@@ -271,23 +298,25 @@ if (isFastRead) {
 }
 
 function handleSelection(e) {
-    // Đợi một nhịp rất ngắn để trình duyệt cập nhật Selection
     setTimeout(() => {
         const sel = window.getSelection();
-        const selectedText = sel.toString().trim();
-
-        // Nếu không có text được chọn, không làm gì cả (để Safari tự hiện con trỏ chọn)
-        if (!selectedText || sel.rangeCount === 0) return;
+        if (!sel || sel.rangeCount === 0) return;
+        
+        let selectedText = sel.toString().trim();
+        if (!selectedText) return;
 
         let range = sel.getRangeAt(0);
         
-        // Tìm node gốc .source-sentence
+        // Chống lỗi "hít" chữ trên Safari: Ép vùng chọn về đúng Range hiện tại
+        if (sel.setBaseAndExtent && range.startContainer) {
+            sel.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+        }
+
         let containerNode = range.commonAncestorContainer;
         if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
         const sourceSentence = containerNode.closest('.source-sentence');
         if (!sourceSentence) return;
 
-        // Logic mở rộng Range để bao trọn thẻ RUBY (giữ nguyên logic cũ của bạn)
         const getRubyParent = (node) => {
             let curr = node.nodeType === 3 ? node.parentElement : node;
             while (curr && curr.tagName !== 'RUBY') {
@@ -314,10 +343,8 @@ function handleSelection(e) {
         }
 
         const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-        
-        // Hiện popup gán ID
         openFastSearch(rowIdx, range, range.toString());
-    }, 10);
+    }, 50); // Tăng delay lên 50ms để Safari ổn định Selection
 }
 
 function openFastSearch(rowIdx, range, text) {
