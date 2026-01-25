@@ -113,11 +113,15 @@
 .source-sentence, .source-sentence * {
     -webkit-user-select: text !important;
     user-select: text !important;
+	caret-color: transparent;
 }
 
 /* Ngăn chặn việc hiện menu context mặc định của hệ thống khi đang chọn để tránh rối */
 .source-sentence {
     -webkit-touch-callout: default;
+}
+.source-sentence * {
+    user-select: text;
 }
     </style>
 </head>
@@ -289,74 +293,88 @@ function renderList() {
     });
 
 // Sửa trong hàm renderList()
+// Thay đoạn gắn sự kiện trong renderList()
 if (isFastRead) {
-    // Sử dụng pointerup để nhạy hơn trên Safari/Mobile
-    container.onpointerup = handleSelection; 
+    container.onmouseup = (e) => {
+        // Chờ 10ms để trình duyệt hoàn tất việc "Smart Select" rồi ta mới vào "sửa sai" cho nó
+        setTimeout(() => handleSelection(e), 10);
+    };
 } else {
-    container.onpointerup = null;
+    container.onmouseup = null;
 }
 }
 
 function handleSelection(e) {
-    setTimeout(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    // 1. Lấy Selection ngay lập tức
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
-        let selectedText = sel.toString();
-        if (!selectedText.trim()) return;
-
-        // --- BƯỚC FIX: Ép trình duyệt không được tự ý lấy dư ký tự ---
-        let range = sel.getRangeAt(0);
-        
-        // Nếu ký tự cuối là dấu cách hoặc dấu câu, co lại
-        let content = range.toString();
-        while (content.length > 0 && /[\s,、。！？]/.test(content.charAt(content.length - 1))) {
+    // 2. Lấy Range hiện tại
+    let range = sel.getRangeAt(0);
+    
+    // --- CƠ CHẾ "THIẾT QUÂN LUẬT": CO VÙNG CHỌN ---
+    // Kiểm tra xem ký tự đầu và cuối có phải là khoảng trắng/dấu câu không
+    let text = range.toString();
+    
+    // Co từ phía sau (End)
+    while (text.length > 0 && /[\s,、。！？]/.test(text.slice(-1))) {
+        try {
             range.setEnd(range.endContainer, range.endOffset - 1);
-            content = range.toString();
-        }
-        // Tương tự cho phía đầu
-        while (content.length > 0 && /[\s,、。！？]/.test(content.charAt(0))) {
+            text = range.toString();
+        } catch (e) { break; }
+    }
+    
+    // Co từ phía trước (Start)
+    while (text.length > 0 && /[\s,、。！？]/.test(text.slice(0, 1))) {
+        try {
             range.setStart(range.startContainer, range.startOffset + 1);
-            content = range.toString();
+            text = range.toString();
+        } catch (e) { break; }
+    }
+
+    // Nếu sau khi co mà text rỗng thì bỏ qua
+    if (!text.trim()) return;
+
+    // 3. Xác định câu gốc
+    let containerNode = range.commonAncestorContainer;
+    if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
+    const sourceSentence = containerNode.closest('.source-sentence');
+    if (!sourceSentence) return;
+
+    // 4. Xử lý Ruby (Furigana) - Đảm bảo không chọn nửa chừng thẻ Ruby
+    const getRubyParent = (node) => {
+        let curr = node.nodeType === 3 ? node.parentElement : node;
+        while (curr && curr.tagName !== 'RUBY') {
+            if (curr.classList && curr.classList.contains('source-sentence')) return null;
+            curr = curr.parentElement;
         }
-        // -------------------------------------------------------
+        return curr;
+    };
 
-        let containerNode = range.commonAncestorContainer;
-        if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
-        const sourceSentence = containerNode.closest('.source-sentence');
-        if (!sourceSentence) return;
+    const startRuby = getRubyParent(range.startContainer);
+    const endRuby = getRubyParent(range.endContainer);
 
-        // Logic xử lý Ruby (Furigana) giữ nguyên để không lỗi hiển thị
-        const getRubyParent = (node) => {
-            let curr = node.nodeType === 3 ? node.parentElement : node;
-            while (curr && curr.tagName !== 'RUBY') {
-                if (curr.classList && curr.classList.contains('source-sentence')) return null;
-                curr = curr.parentElement;
-            }
-            return curr;
-        };
-
-        const startRuby = getRubyParent(range.startContainer);
-        const endRuby = getRubyParent(range.endContainer);
-
-        if (startRuby || endRuby) {
-            const newRange = document.createRange();
-            newRange.setStartBefore(startRuby || range.startContainer);
-            if (endRuby) {
-                newRange.setEndAfter(endRuby);
-            } else {
-                newRange.setEnd(range.endContainer, range.endOffset);
-            }
-            sel.removeAllRanges();
-            sel.addRange(newRange);
-            range = newRange;
+    if (startRuby || endRuby) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(startRuby || range.startContainer);
+        if (endRuby) {
+            newRange.setEndAfter(endRuby);
+        } else {
+            newRange.setEnd(range.endContainer, range.endOffset);
         }
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        range = newRange;
+    }
 
-        const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-        if (range.toString().trim()) {
-            openFastSearch(rowIdx, range, range.toString());
-        }
-    }, 100); // Tăng lên 100ms để đảm bảo trình duyệt đã kết thúc việc "tự động chọn"
+    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
+    const finalSelectionText = range.toString().trim();
+    
+    if (finalSelectionText) {
+        // Xóa selection của hệ thống ngay để tránh việc nó tự nhảy lại
+        // sel.removeAllRanges(); 
+        openFastSearch(rowIdx, range, finalSelectionText);
+    }
 }
 
 function openFastSearch(rowIdx, range, text) {
