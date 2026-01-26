@@ -239,6 +239,21 @@ if (isFastRead) {
 }
 
 }
+document.addEventListener('mousedown', e => {
+    if (!document.getElementById('chk-fast-read')?.checked) return;
+
+    // Safari sentence selection happens HERE
+    e.preventDefault();
+    window.getSelection()?.removeAllRanges();
+}, true); // ⚠️ CAPTURE PHASE
+
+document.addEventListener('touchstart', e => {
+    if (!document.getElementById('chk-fast-read')?.checked) return;
+
+    e.preventDefault();
+    window.getSelection()?.removeAllRanges();
+}, { passive: false, capture: true });
+
 
 document.addEventListener('dblclick', e => {
     if (!document.getElementById('chk-fast-read')?.checked) return;
@@ -271,6 +286,8 @@ document.addEventListener('dblclick', e => {
 });
 document.addEventListener('mousemove', e => {
     if (!dragSelecting || !anchorRange) return;
+
+window.getSelection()?.removeAllRanges();
 
     const r = getWordAtPoint(e.clientX, e.clientY);
     if (!r) return;
