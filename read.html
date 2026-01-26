@@ -243,6 +243,8 @@ if (isFastRead) {
 document.addEventListener('dblclick', e => {
     if (!document.getElementById('chk-fast-read')?.checked) return;
 
+	window.getSelection()?.removeAllRanges();
+	
     const range = getWordAtPoint(e.clientX, e.clientY);
     if (!range) return;
 
