@@ -130,6 +130,19 @@ ruby rt {
             <button id="btn-field-config" class="btn hidden" style="background: #9b59b6; color: white;" onclick="openFieldConfig()">Trường hiển thị</button>
             <button id="furi-toggle" class="btn" style="background: #f39c12; color: white;" onclick="toggleFurigana()">FURI</button>
             <button class="btn" style="background: #95a5a6; color: white;" onclick="location.reload()">🔄 Đổi File</button>
+			<!-- Color picker -->
+			<input type="color" value="#e67e22"
+				onchange="currentColor=this.value"
+				title="Chọn màu highlight">
+			
+			<!-- Mode buttons -->
+			<button class="btn-sm active" id="mode-id"
+					onclick="setMarkMode('id')">ID</button>
+			<button class="btn-sm" id="mode-hl"
+					onclick="setMarkMode('highlight')">Highlight</button>
+			<button class="btn-sm" id="mode-ul"
+					onclick="setMarkMode('underline')">Underline</button>
+			
         </div>
         <div id="content-list"></div>
     </div>
@@ -145,6 +158,8 @@ ruby rt {
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
+let currentColor = '#e67e22';     // màu đang chọn
+let markMode = 'id';              // 'highlight' | 'underline' | 'id'
 
     // Lưu trữ cấu trúc DOM đã gán ID của từng câu
     // { rowIdx: "innerHTML_đã_bọc_span" }
@@ -165,6 +180,14 @@ ruby rt {
         };
         r.readAsArrayBuffer(e.target.files[0]);
     };
+	function setMarkMode(mode) {
+		markMode = mode;
+		['id','hl','ul'].forEach(m => {
+			const btn = document.getElementById(`mode-${m === 'hl' ? 'hl' : m}`);
+			if (btn) btn.classList.toggle('active', mode === (m === 'hl' ? 'highlight' : m === 'ul' ? 'underline' : 'id'));
+		});
+	}
+
     function toggleFurigana() {
         isFuriHidden = !isFuriHidden;
         const container = document.getElementById('content-list');
@@ -256,6 +279,8 @@ function handleTouchEnd(e) {
 // Nếu dùng chuột trên máy tính thì vẫn cần cái này
 // Bắt sự kiện chuột cho máy tính
 document.onmouseup = (e) => {
+    // ❌ Nếu click vào vùng đã gán ID / highlight → KHÔNG xử lý selection
+    if (e.target.closest('.fast-read-item')) return;
     // Nếu click vào nút Xóa hoặc các nút trong popup thì không chạy chọn text
     if (e.target.closest('.tip-btn') || e.target.closest('.popup')) return;
     if (document.getElementById('chk-fast-read')?.checked) {
@@ -291,12 +316,48 @@ range = safeRange;
 
     const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
     // Chỉ mở search khi văn bản chọn thực sự có nội dung
-    if (range.toString().trim().length > 0) {
-        openFastSearch(rowIdx, range, range.toString());
-    }
+	if (range.toString().trim().length === 0) return;
+	
+	// Lưu target chung
+	activeTarget = { rowIdx, range, text: range.toString() };
+	
+	if (markMode === 'id') {
+		openFastSearch(rowIdx, range, range.toString());
+	} else {
+		applyMark(range, rowIdx, markMode);
+	}
+
 }
+
+function applyMark(range, rowIdx, mode) {
+    const span = document.createElement('span');
+    span.className = 'fast-read-item ' + (mode === 'highlight' ? 'hl' : 'ul');
+    span.style.setProperty('--mark-color', currentColor);
+
+    try {
+        const content = range.extractContents();
+        span.appendChild(content);
+        range.insertNode(span);
+
+        const parent = span.closest('.source-sentence');
+        parent.normalize();
+
+        // Lưu DOM
+        domPatches[rowIdx] = parent.innerHTML;
+        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+    } catch (e) {
+        console.error(e);
+        alert("Không thể đánh dấu vùng này.");
+    }
+
+    window.getSelection()?.removeAllRanges();
+    renderList();
+}
+
     // Gọi popup search
 function openFastSearch(rowIdx, range, text) {
+    // 🔒 reset selection để click sau đó không bị hiểu nhầm
+    window.getSelection()?.removeAllRanges();
     // Lưu trạng thái đang search để chặn việc chọn text nhảy popup liên tục
     activeTarget = { rowIdx, range, text, isSearching: true };
     const html = `
