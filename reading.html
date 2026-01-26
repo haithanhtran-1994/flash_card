@@ -43,10 +43,24 @@
 }
 
 /* highlight / ID: dùng nền */
-.fast-read-item.hl,
-.fast-read-item.id {
-    background-color: var(--mark-color);
+.fast-read-item.hl {
+    background: linear-gradient(
+        to top,
+        var(--mark-color) 0.85em,
+        transparent 0.85em
+    );
 }
+
+
+.fast-read-item.id {
+    background: transparent !important;
+    color: var(--mark-color);
+    font-weight: 600;
+}
+.fast-read-item.id rt {
+    color: inherit; /* hoặc giữ mặc định nếu mày muốn */
+}
+
 
 /* underline: dùng box-shadow, KHÔNG dùng border */
 .fast-read-item.ul {
@@ -77,6 +91,17 @@ ruby rt {
             pointer-events: auto;
             line-height: 1.4;
         }
+		.screentip-id {
+    background: #333;
+    color: white;
+}
+
+.screentip-note {
+    background: #fff;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
         .fast-read-item:hover .screentip { display: block; }
         .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
         .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
@@ -130,18 +155,20 @@ ruby rt {
             <button id="btn-field-config" class="btn hidden" style="background: #9b59b6; color: white;" onclick="openFieldConfig()">Trường hiển thị</button>
             <button id="furi-toggle" class="btn" style="background: #f39c12; color: white;" onclick="toggleFurigana()">FURI</button>
             <button class="btn" style="background: #95a5a6; color: white;" onclick="location.reload()">🔄 Đổi File</button>
-			<!-- Color picker -->
-			<input type="color" value="#e67e22"
-				onchange="currentColor=this.value"
-				title="Chọn màu highlight">
-			
-			<!-- Mode buttons -->
-			<button class="btn-sm active" id="mode-id"
-					onclick="setMarkMode('id')">ID</button>
-			<button class="btn-sm" id="mode-hl"
-					onclick="setMarkMode('highlight')">Highlight</button>
-			<button class="btn-sm" id="mode-ul"
-					onclick="setMarkMode('underline')">Underline</button>
+			<div id="fast-tools" class="hidden">
+				<!-- Color picker -->
+				<input type="color" value="#e67e22"
+					onchange="currentColor=this.value"
+					title="Chọn màu highlight">
+				
+				<!-- Mode buttons -->
+				<button class="btn-sm active" id="mode-id"
+						onclick="setMarkMode('id')">ID</button>
+				<button class="btn-sm" id="mode-hl"
+						onclick="setMarkMode('highlight')">Highlight</button>
+				<button class="btn-sm" id="mode-ul"
+						onclick="setMarkMode('underline')">Underline</button>
+			</div>
 			
         </div>
         <div id="content-list"></div>
@@ -214,6 +241,9 @@ let markMode = 'id';              // 'highlight' | 'underline' | 'id'
 function renderList() {
     const isFastRead = document.getElementById('chk-fast-read').checked;
     document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
+	document.getElementById('fast-tools')
+		.classList.toggle('hidden', !isFastRead);
+
     const container = document.getElementById('content-list');
     container.innerHTML = ''; 
     excelRows.forEach((row, idx) => {
@@ -227,25 +257,45 @@ function renderList() {
         }
         // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
         if (isFastRead) {
-            sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
-                const id = item.getAttribute('data-id');
-                const mInfo = masterDB.find(m => m.master_id === id);
-                let tipContent = `ID: ${id}`;
-                if(mInfo && displayFields.length > 0) {
-                    displayFields.forEach(f => {
-                        if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
-                    });
-                }
-                // Luôn xóa cái cũ (nếu có) trước khi thêm cái mới để tránh trùng lặp
-                const oldTip = item.querySelector('.screentip');
-                if(oldTip) oldTip.remove();
-                const tipDiv = document.createElement('div');
-                tipDiv.className = 'screentip';
-                tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
-                    <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
-                </div>`;
-                item.appendChild(tipDiv);
+  sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
+    const type = item.getAttribute('data-type');
+
+    // Xóa screentip cũ nếu có
+    const oldTip = item.querySelector('.screentip');
+    if (oldTip) oldTip.remove();
+
+    let tipHTML = '';
+
+    if (type === 'id') {
+        const id = item.getAttribute('data-id');
+        const mInfo = masterDB.find(m => m.master_id === id);
+        tipHTML = `ID: ${id}`;
+        if (mInfo && displayFields.length > 0) {
+            displayFields.forEach(f => {
+                if (mInfo[f]) tipHTML += `<br><b>${f}:</b> ${mInfo[f]}`;
             });
+        }
+    } else {
+        const note = item.getAttribute('data-note');
+        if (!note) return; // KHÔNG có note thì không cần screentip
+        tipHTML = `<div class="tip-note">${note}</div>`;
+    }
+
+const tipDiv = document.createElement('div');
+tipDiv.className = 'screentip ' + (type === 'id' ? 'screentip-id' : 'screentip-note');
+
+    tipDiv.innerHTML = `
+        ${tipHTML}
+        <div class="tip-ctrl">
+            <span class="tip-btn" style="color:#ff6b6b"
+                onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">
+                Xóa
+            </span>
+        </div>
+    `;
+    item.appendChild(tipDiv);
+});
+
         }
 		if (!isFastRead) {
 			sentenceSpan.onclick = () => showDetail(idx, 'all');
@@ -328,11 +378,59 @@ range = safeRange;
 	}
 
 }
+function expandRangeToRuby(range) {
+    let sc = range.startContainer;
+    let ec = range.endContainer;
+
+    if (sc.nodeType === 3) sc = sc.parentNode;
+    if (ec.nodeType === 3) ec = ec.parentNode;
+
+    const startRuby = sc.closest && sc.closest('ruby');
+    const endRuby   = ec.closest && ec.closest('ruby');
+
+    // ===== CASE 1: selection nằm TRONG CÙNG 1 ruby =====
+    if (startRuby && startRuby === endRuby) {
+        const rb = startRuby.querySelector('rb');
+        if (!rb || !rb.firstChild) return;
+
+        range.setStart(rb.firstChild, 0);
+        range.setEnd(rb.firstChild, rb.firstChild.textContent.length);
+        return;
+    }
+
+    // ===== CASE 2: START trong ruby =====
+    if (startRuby) {
+        const rb = startRuby.querySelector('rb');
+        if (rb && rb.firstChild) {
+            range.setStart(rb.firstChild, 0);
+        }
+    }
+
+    // ===== CASE 3: END trong ruby =====
+    if (endRuby) {
+        const rbs = endRuby.querySelectorAll('rb');
+        const lastRB = rbs[rbs.length - 1];
+        if (lastRB && lastRB.firstChild) {
+            range.setEnd(
+                lastRB.firstChild,
+                lastRB.firstChild.textContent.length
+            );
+        }
+    }
+
+    // ❌ TUYỆT ĐỐI KHÔNG SNAP nếu end KHÔNG nằm trong ruby
+}
+
 
 function applyMark(range, rowIdx, mode) {
+   let note = prompt('Nhập note cho vùng này:') || '';
     const span = document.createElement('span');
     span.className = 'fast-read-item ' + (mode === 'highlight' ? 'hl' : 'ul');
     span.style.setProperty('--mark-color', currentColor);
+	span.setAttribute('data-type', mode); // highlight | underline
+	if (note) span.setAttribute('data-note', note);
+
+	expandRangeToRuby(range);
 
     try {
         const content = range.extractContents();
@@ -379,6 +477,8 @@ const span = document.createElement('span');
 span.className = 'fast-read-item id';
 span.style.setProperty('--mark-color', currentColor || '#e67e22');
 span.setAttribute('data-id', id);
+expandRangeToRuby(range);
+span.setAttribute('data-type', 'id');
 
     try {
         const content = range.extractContents();
@@ -396,25 +496,23 @@ span.setAttribute('data-id', id);
     closePopup();
     renderList(); // Gọi render để nó tự lắp Screentip động vào
 }
-    window.deleteFastID = (btn, rowIdx) => {
-        if(!confirm("Xóa gán ID này?")) return;
-        const item = btn.closest('.fast-read-item');
-        const parent = item.parentElement;
-        // Giải nén nội dung bên trong trả lại cho cha
-        while(item.firstChild) {
-            if(item.firstChild.className === 'screentip') {
-                item.removeChild(item.firstChild);
-            } else {
-                parent.insertBefore(item.firstChild, item);
-            }
-        }
-        parent.removeChild(item);
-        parent.normalize(); // Hợp nhất các TextNode rời rạc
-        // Cập nhật lại bộ nhớ
-        domPatches[rowIdx] = parent.innerHTML;
-        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
-        renderList();
-    };
+window.deleteFastMark = (btn, rowIdx) => {
+    if(!confirm("Xóa đánh dấu này?")) return;
+
+    const item = btn.closest('.fast-read-item');
+    const parent = item.parentElement;
+
+    while(item.firstChild) {
+        parent.insertBefore(item.firstChild, item);
+    }
+    parent.removeChild(item);
+    parent.normalize();
+
+    domPatches[rowIdx] = parent.innerHTML;
+    localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+    renderList();
+};
+
     // --- CÁC HÀM CŨ GIỮ NGUYÊN ---
     window.openFieldConfig = () => {
         if(masterDB.length === 0) return alert("Cần nạp Master JSON trước!");
