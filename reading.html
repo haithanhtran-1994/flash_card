@@ -30,18 +30,35 @@
             transition: background 0.2s;
         }
         .source-sentence:hover { background: #fff8e1; color: var(--accent); }
-        /* Style Đọc nhanh - Đã sửa để chống vỡ cấu trúc */
-        .fast-read-item {
-            position: relative;
-            display: inline;
-            border-bottom: 2px solid var(--accent);
-            cursor: pointer;
-            -webkit-box-decoration-break: clone;
-            box-decoration-break: clone;
-        }
-        .fast-read-item:hover {
-            background: rgba(230, 126, 34, 0.1);
-        }
+/* Style Đọc nhanh - controlled mark (KHÔNG phá selection) */
+.fast-read-item {
+    position: relative;
+    display: inline;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+/* highlight / ID: dùng nền */
+.fast-read-item.hl,
+.fast-read-item.id {
+    background-color: var(--mark-color);
+}
+
+/* underline: dùng box-shadow, KHÔNG dùng border */
+.fast-read-item.ul {
+    background: transparent !important;
+    box-shadow: inset 0 -4px 0 0 var(--mark-color);
+    padding-bottom: 2px;
+}
+ruby rt {
+    user-select: none;
+    pointer-events: none;
+}
+
         .screentip {
             position: absolute;
             bottom: 100%;
@@ -128,7 +145,7 @@
     let collapsedState = {}; 
     let activeTarget = null;
     let isFuriHidden = false;
-let isSelecting = false;
+
     // Lưu trữ cấu trúc DOM đã gán ID của từng câu
     // { rowIdx: "innerHTML_đã_bọc_span" }
     let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
@@ -224,24 +241,18 @@ function renderList() {
     });
 // Tìm đoạn cuối hàm renderList() và thay thế:
 if (isFastRead) {
-    // Không dùng onmouseup nữa mà dùng sự kiện của toàn hệ thống
-    document.onselectionchange = handleSelectionChange; 
-    document.ontouchend = handleTouchEnd; // Đảm bảo bắt được khi buông tay trên mobile
+    document.ontouchend = handleTouchEnd;
 } else {
-    document.onselectionchange = null;
     document.ontouchend = null;
 }
 }
-function handleSelectionChange() {
-    isSelecting = true;
+function handleTouchEnd(e) {
+    if (document.getElementById('chk-fast-read')?.checked) {
+        // delay nhỏ để iOS cập nhật selection
+        setTimeout(() => processFinalSelection(), 0);
+    }
 }
-function handleTouchEnd() {
-    // Đợi một chút để Safari cập nhật Selection cuối cùng
-    setTimeout(() => {
-        isSelecting = false;
-        processFinalSelection();
-    }, 100);
-}
+
 // Nếu dùng chuột trên máy tính thì vẫn cần cái này
 // Bắt sự kiện chuột cho máy tính
 document.onmouseup = (e) => {
@@ -259,7 +270,15 @@ function processFinalSelection() {
     if (!selectedText || sel.rangeCount === 0 || (activeTarget && activeTarget.isSearching)) return;
 
     let range = sel.getRangeAt(0);
-    
+    // CLONE range để Safari không tự ý mở rộng
+const safeRange = range.cloneRange();
+
+// Clear selection NGAY để browser không can thiệp
+sel.removeAllRanges();
+
+// Dùng range an toàn
+range = safeRange;
+
     // Kiểm tra xem vùng chọn có nằm trong một .source-sentence không
     let containerNode = range.commonAncestorContainer;
     if (containerNode.nodeType === 3) containerNode = containerNode.parentElement;
@@ -269,30 +288,6 @@ function processFinalSelection() {
     // Nếu không thuộc câu nào thì bỏ qua
     if (!sourceSentence) return;
 
-    const getRubyParent = (node) => {
-        let curr = node.nodeType === 3 ? node.parentElement : node;
-        while (curr && curr.tagName !== 'RUBY') {
-            if (curr.classList && curr.classList.contains('source-sentence')) return null;
-            curr = curr.parentElement;
-        }
-        return curr;
-    };
-
-    const startRuby = getRubyParent(range.startContainer);
-    const endRuby = getRubyParent(range.endContainer);
-
-    if (startRuby || endRuby) {
-        const newRange = document.createRange();
-        newRange.setStartBefore(startRuby || range.startContainer);
-        if (endRuby) {
-            newRange.setEndAfter(endRuby);
-        } else {
-            newRange.setEnd(range.endContainer, range.endOffset);
-        }
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        range = newRange;
-    }
 
     const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
     // Chỉ mở search khi văn bản chọn thực sự có nội dung
@@ -319,9 +314,11 @@ function openFastSearch(rowIdx, range, text) {
 }
 function saveFastID(id) {
     const { range, rowIdx } = activeTarget;
-    const span = document.createElement('span');
-    span.className = 'fast-read-item';
-    span.setAttribute('data-id', id);
+const span = document.createElement('span');
+span.className = 'fast-read-item id';
+span.style.setProperty('--mark-color', currentColor || '#e67e22');
+span.setAttribute('data-id', id);
+
     try {
         const content = range.extractContents();
         span.appendChild(content);
