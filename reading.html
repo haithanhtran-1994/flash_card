@@ -80,7 +80,7 @@ ruby rt {
             transform: translateX(-50%);
             background: #333;
             color: white;
-            padding: 8px;
+            padding: 0;
             border-radius: 5px;
             font-size: 0.85rem;
             z-index: 9999;
@@ -91,6 +91,39 @@ ruby rt {
             pointer-events: auto;
             line-height: 1.4;
         }
+		/* Nút X nhỏ */
+.tip-del {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 14px;
+    line-height: 14px;
+    width: 16px;
+    height: 16px;
+    text-align: center;
+    color: #ff6b6b;
+    cursor: pointer;
+    border-radius: 50%;
+    user-select: none;
+}
+
+.tip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.tip-body {
+    padding: 6px 8px;
+    font-weight: normal;
+}
+
+.tip-del:hover {
+    background: rgba(255, 107, 107, 0.2);
+}
 		.screentip-id {
     background: #333;
     color: white;
@@ -103,8 +136,6 @@ ruby rt {
 }
 
         .fast-read-item:hover .screentip { display: block; }
-        .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
-        .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
         .smart-list { list-style: none; padding: 0; margin: 10px 0; }
         .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
         .tag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 5px; }
@@ -284,15 +315,45 @@ function renderList() {
 const tipDiv = document.createElement('div');
 tipDiv.className = 'screentip ' + (type === 'id' ? 'screentip-id' : 'screentip-note');
 
+if (type === 'id') {
+    const id = item.getAttribute('data-id');
+    const mInfo = masterDB.find(m => m.master_id === id);
+
+    let bodyHTML = '';
+    if (mInfo && displayFields.length > 0) {
+        displayFields.forEach(f => {
+            if (mInfo[f]) {
+                bodyHTML += `<div><b>${f}:</b> ${mInfo[f]}</div>`;
+            }
+        });
+    }
+
     tipDiv.innerHTML = `
-        ${tipHTML}
-        <div class="tip-ctrl">
-            <span class="tip-btn" style="color:#ff6b6b"
-                onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">
-                Xóa
-            </span>
+        <div class="tip-header">
+            <div class="tip-title">ID: ${id}</div>
+            <span class="tip-del"
+                  onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">×</span>
+        </div>
+        <div class="tip-body">
+            ${bodyHTML}
         </div>
     `;
+} else {
+    const note = item.getAttribute('data-note');
+    if (!note) return;
+
+    tipDiv.innerHTML = `
+        <div class="tip-header">
+            <div class="tip-title">Note</div>
+            <span class="tip-del"
+                  onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">×</span>
+        </div>
+        <div class="tip-body">
+            ${note}
+        </div>
+    `;
+}
+
     item.appendChild(tipDiv);
 });
 
