@@ -46,7 +46,7 @@
 .fast-read-item.hl {
     background: linear-gradient(
         to top,
-        var(--mark-color) 0.85em,
+        var(--mark-color) 1.0em,
         transparent 0.85em
     );
 }
@@ -81,21 +81,24 @@ ruby rt {
             background: #333;
             color: white;
             padding: 0;
-            border-radius: 5px;
-            font-size: 0.85rem;
+            border-radius:0 0 5px 5px;
+			overflow: hidden;     
+            font-size: 0.75rem;
             z-index: 9999;
             width: max-content;
-            max-width: 250px;
+            max-width: 230px;
             display: none;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             pointer-events: auto;
-            line-height: 1.4;
+            line-height: 1.25;
+			padding-top: 0;
         }
 		/* Nút X nhỏ */
 .tip-del {
-    position: absolute;
-    top: 4px;
-    right: 6px;
+    position: relative;
+    top: 0;
+	margin: 0;
+
     font-size: 14px;
     line-height: 14px;
     width: 16px;
@@ -105,20 +108,35 @@ ruby rt {
     cursor: pointer;
     border-radius: 50%;
     user-select: none;
+	flex-shrink: 0;  
+}
+.tip-title {
+    line-height: 1;
+    padding: 0;
+    margin: 0;
 }
 
 .tip-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    padding: 6px 8px;
+    padding: 0 8px 4px 8px;
+	margin: 0;
+	
     font-weight: 600;
-    border-bottom: 1px solid rgba(255,255,255,0.15);
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+	border-bottom: 1px solid #ddd; 
+	cursor: pointer;
+}
+.tip-header:hover {
+    background: #333;
 }
 
 .tip-body {
-    padding: 6px 8px;
+    padding: 4px 6px;
     font-weight: normal;
+	text-align: center;
+	cursor: text;
 }
 
 .tip-del:hover {
@@ -127,12 +145,19 @@ ruby rt {
 		.screentip-id {
     background: #333;
     color: white;
+	cursor: pointer;
 }
 
 .screentip-note {
-    background: #fff;
+    background: #f6f6f6;
     color: #333;
-    border: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+	text-align: center;
+	cursor: text;
+}
+
+.screentip-note .tip-body div {
+    text-align: left;
 }
 
         .fast-read-item:hover .screentip { display: block; }
@@ -307,9 +332,7 @@ function renderList() {
             });
         }
     } else {
-        const note = item.getAttribute('data-note');
-        if (!note) return; // KHÔNG có note thì không cần screentip
-        tipHTML = `<div class="tip-note">${note}</div>`;
+        const note = item.getAttribute('data-note') || '';
     }
 
 const tipDiv = document.createElement('div');
@@ -328,8 +351,8 @@ if (type === 'id') {
         });
     }
 
-    tipDiv.innerHTML = `
-        <div class="tip-header">
+    tipDiv.innerHTML = `<div class="tip-header"
+	onclick="event.stopPropagation(); openFastSearch(${idx}, null, '${id}')">
             <div class="tip-title">ID: ${id}</div>
             <span class="tip-del"
                   onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">×</span>
@@ -339,17 +362,15 @@ if (type === 'id') {
         </div>
     `;
 } else {
-    const note = item.getAttribute('data-note');
-    if (!note) return;
+    const note = item.getAttribute('data-note') || '';
 
-    tipDiv.innerHTML = `
-        <div class="tip-header">
+    tipDiv.innerHTML = `<div class="tip-header">
             <div class="tip-title">Note</div>
             <span class="tip-del"
                   onclick="event.stopPropagation(); deleteFastMark(this, ${idx})">×</span>
         </div>
-        <div class="tip-body">
-            ${note}
+        <div class="tip-body"onclick="event.stopPropagation(); editNote(this, this.closest('.fast-read-item'), ${idx})">
+			${note || '<i style="opacity:.6">(Empty)</i>'}
         </div>
     `;
 }
@@ -534,6 +555,25 @@ function openFastSearch(rowIdx, range, text) {
 }
 function saveFastID(id) {
     const { range, rowIdx } = activeTarget;
+    // ===== CASE 1: ĐỔI ID CÓ SẴN (click vào screentip ID) =====
+	if (!range) {
+        const item = document.querySelector(
+            `.source-sentence[data-idx="${rowIdx}"] .fast-read-item.id`
+        );
+        if (!item) return;
+
+        item.setAttribute('data-id', id);
+
+        const parent = item.closest('.source-sentence');
+        domPatches[rowIdx] = parent.innerHTML;
+        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+
+        closePopup();
+        renderList();
+        return;
+    }
+	
+    // ===== CASE 2: GÁN ID MỚI TỪ SELECTION =====
 const span = document.createElement('span');
 span.className = 'fast-read-item id';
 span.style.setProperty('--mark-color', currentColor || '#e67e22');
@@ -835,6 +875,32 @@ window.closePopup = () => {
     document.getElementById('popup').classList.add('hidden');
     window.getSelection()?.removeAllRanges();
 };
+window.editNote = function(bodyDiv, item, rowIdx) {
+    const old = item.getAttribute('data-note') || '';
+    bodyDiv.innerHTML = `
+        <textarea class="inline-edit">${old}</textarea>
+        <div class="edit-buttons">
+            <button class="btn-cancel" onclick="event.stopPropagation(); renderList()">Hủy</button>
+            <button class="btn-save" onclick="event.stopPropagation(); saveNote(this, '${rowIdx}')">Lưu</button>
+        </div>
+    `;
+    bodyDiv.querySelector('textarea').focus();
+};
+
+window.saveNote = function(btn, rowIdx) {
+    const body = btn.closest('.tip-body');
+    const text = body.querySelector('textarea').value;
+    const item = body.closest('.fast-read-item');
+
+    if (text) item.setAttribute('data-note', text);
+    else item.removeAttribute('data-note');
+
+    const parent = item.closest('.source-sentence');
+    domPatches[rowIdx] = parent.innerHTML;
+    localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
+    renderList();
+};
+
 </script>
 </body>
 </html>
