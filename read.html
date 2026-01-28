@@ -2,675 +2,226 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JP Dynamic Linker v2 - Editor Mode</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Study Tool - JSON Storage</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
     <style>
-        :root { --primary: #2c3e50; --accent: #e67e22; --bg: #fdfaf6; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 10px; border: 1px solid #eee; }
-        .hidden { display: none; }
-        #content-list { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
-            line-height: 2.2; 
-            white-space: pre-wrap;
-            text-align: justify;
-        }
-        #content-list.hide-furi rt { display: none; }
-        .source-sentence { 
-            display: inline; 
-            font-size: 1.15rem; 
-            color: #2c3e50; 
-            cursor: pointer; 
-            padding: 0 4px;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-        .source-sentence:hover { background: #fff8e1; color: var(--accent); }
-        /* Style Đọc nhanh - Đã sửa để chống vỡ cấu trúc */
-        .fast-read-item {
-            position: relative;
-            display: inline;
-            border-bottom: 2px solid var(--accent);
-            cursor: pointer;
-            -webkit-box-decoration-break: clone;
-            box-decoration-break: clone;
-        }
-        .fast-read-item:hover {
-            background: rgba(230, 126, 34, 0.1);
-        }
-        .screentip {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 0.85rem;
-            z-index: 9999;
-            width: max-content;
-            max-width: 250px;
-            display: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            pointer-events: auto;
-            line-height: 1.4;
-        }
-        .fast-read-item:hover .screentip { display: block; }
-        .tip-ctrl { display: flex; gap: 10px; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
-        .tip-btn { color: #3498db; cursor: pointer; font-weight: bold; }
-        .smart-list { list-style: none; padding: 0; margin: 10px 0; }
-        .smart-item { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
-        .tag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 5px; }
-        .tag-label { background: #34495e; color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.9rem; cursor: pointer; }
-        .tag-id-badge { font-family: monospace; font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; border: 1px dashed; cursor: pointer; }
-        .id-exists { border-color: #27ae60; color: #27ae60; background: #ebf7ee; }
-        .id-none { border-color: #e74c3c; color: #e74c3c; background: #fdf2f2; }
-        .tag-desc { color: #555; font-size: 0.95rem; line-height: 1.4; padding: 5px; border: 1px solid transparent; border-radius: 4px; }
-        .tag-desc:hover { border-color: #ddd; background: #fff; cursor: edit; }
-        .master-box { margin-top: 8px; padding: 10px; background: #fffde7; border-radius: 8px; border-left: 4px solid #fbc02d; font-size: 0.85rem; }
-        .master-entry { margin-bottom: 4px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-        .master-key { font-weight: bold; color: #7f8c8d; text-transform: capitalize; }
-        .edit-container { display: flex; flex-direction: column; gap: 5px; margin: 5px 0; }
-        .inline-edit { width: 100%; font-size: 0.95rem; padding: 8px; border: 2px solid var(--accent); border-radius: 4px; box-sizing: border-box; font-family: inherit; }
-        .edit-buttons { display: flex; gap: 5px; justify-content: flex-end; }
-        .btn-save { background: #27ae60; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .btn-cancel { background: #e74c3c; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .action-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
-        .btn-sm { padding: 8px 12px; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; background: #ecf0f1; color: #2c3e50; }
-        .btn-sm.active { background: var(--accent); color: white; }
-        .popup { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; padding: 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.2); z-index: 1000; max-height: 80vh; overflow-y: auto; }
-        #master-search { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; margin-top: 10px; box-sizing: border-box;}
-        .result-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
-        .result-item:hover { background: #fff8e1; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .mini-id-tag { display: inline-flex; align-items: center; background: #eee; padding: 2px 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 5px; font-size: 0.8rem; border: 1px solid #ccc; }
-        .mini-id-del { color: #e74c3c; font-weight: bold; margin-left: 6px; cursor: pointer; padding: 0 4px; }
-        .mini-id-del:hover { background: #fdd; border-radius: 50%; }
-        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; align-items: center; }
-        .read-mode-switch { background: #fff; padding: 8px 15px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; display: flex; align-items: center; gap: 8px; }
-		.fast-read-mode {
-    -webkit-user-select: none;
-    user-select: none;
-}
-.fast-temp-select {
-    background: rgba(230,126,34,0.35);
-    border-radius: 4px;
-}
-
+        :root { --primary: #2563eb; --bg: #e2e8f0; --sidebar-w: 350px; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
+        #main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; position: relative; }
+        #toolbar { background: #1e293b; color: white; padding: 12px 25px; display: flex; gap: 15px; align-items: center; z-index: 100; }
+        .btn-tool { background: var(--primary); color: white; padding: 8px 15px; border-radius: 6px; cursor: pointer; border: none; font-weight: bold; font-size: 13px; }
+        .btn-tool.secondary { background: #475569; }
+        #viewer-container { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .page-container { position: relative; background: white; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .textLayer { opacity: 1; mix-blend-mode: multiply; } 
+        .hl-box { position: absolute; background: rgba(255, 255, 0, 0.4); cursor: pointer; z-index: 1; }
+        .ul-box { position: absolute; border-bottom: 2px solid red; cursor: pointer; z-index: 1; }
+        .nt-box { position: absolute; cursor: pointer; z-index: 10; font-size: 24px; transform: translate(-50%, -50%); }
+        #info-sidebar { width: var(--sidebar-w); background: white; border-left: 1px solid #cbd5e1; display: flex; flex-direction: column; box-shadow: -5px 0 15px rgba(0,0,0,0.05); transform: translateX(100%); transition: 0.3s; position: absolute; right: 0; top: 0; bottom: 0; z-index: 1000; }
+        #info-sidebar.open { transform: translateX(0); }
+        .sidebar-header { background: #f8fafc; padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; display: flex; justify-content: space-between; }
+        .sidebar-content { padding: 20px; overflow-y: auto; flex: 1; line-height: 1.6; }
+        .info-label { color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-top: 15px; display: block; }
+        .info-value { background: #f1f5f9; padding: 10px; border-radius: 4px; display: block; margin-bottom: 10px; border-left: 4px solid var(--primary); }
+        #floating-menu { display: none; position: fixed; background: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 2000; padding: 5px; border: 1px solid #ccc; }
+        #floating-menu button { border: none; background: none; padding: 10px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        #note-form-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
+        .note-form { background: white; padding: 25px; border-radius: 12px; width: 500px; display: flex; flex-direction: column; gap: 10px; }
+        .note-form textarea { width: 100%; height: 80px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
     </style>
 </head>
 <body>
-    <div id="setup-view" class="card">
-        <h3>1. Master JSON</h3>
-        <input type="file" id="master-input" accept=".json">
-        <hr>
-        <h3>2. Excel Data</h3>
-        <input type="file" id="excel-input" accept=".xlsx">
+
+<div id="main-content">
+    <div id="toolbar">
+        <label class="btn-tool">📂 Mở PDF <input type="file" id="file-selector" accept="application/pdf" style="display:none"></label>
+        <button class="btn-tool secondary" onclick="exportNotes()">💾 Lưu File Ghi Chú (.json)</button>
+        <label class="btn-tool secondary">📤 Nạp Ghi Chú <input type="file" id="import-selector" accept=".json" style="display:none"></label>
+        <div id="status" style="font-size: 12px; color: #cbd5e1;">Bôi đen text để gán phân tích.</div>
     </div>
-    <div id="main-app" class="hidden">
-        <div class="toolbar">
-            <button class="btn" style="background: #27ae60; color: white; flex: 1; min-width: 150px;" onclick="exportNewData()">📥 Xuất Excel Data Mới</button>
-            <div class="read-mode-switch">
-                <input type="checkbox" id="chk-fast-read" onchange="renderList()"> <span>Đọc nhanh</span>
-            </div>
-            <button id="btn-field-config" class="btn hidden" style="background: #9b59b6; color: white;" onclick="openFieldConfig()">Trường hiển thị</button>
-            <button id="furi-toggle" class="btn" style="background: #f39c12; color: white;" onclick="toggleFurigana()">FURI</button>
-            <button class="btn" style="background: #95a5a6; color: white;" onclick="location.reload()">🔄 Đổi File</button>
+    <div id="viewer-container"></div>
+</div>
+
+<div id="info-sidebar">
+    <div class="sidebar-header">CHI TIẾT PHÂN TÍCH <button onclick="closeSidebar()" style="cursor:pointer; border:none; background:none">✖</button></div>
+    <div class="sidebar-content" id="sidebar-data"></div>
+    <div style="padding:15px; border-top:1px solid #eee">
+        <button id="del-btn" style="color:red; cursor:pointer; border:none; background:none">🗑 Xóa ghi chú này</button>
+    </div>
+</div>
+
+<div id="note-form-overlay">
+    <div class="note-form">
+        <h3>Gán thông tin phân tích</h3>
+        <span class="info-label">Câu gốc (Source)</span>
+        <div id="form-source" style="font-weight:bold; background:#eee; padding:10px; max-height: 60px; overflow: auto;"></div>
+        <span class="info-label">Dịch (Translation)</span>
+        <textarea id="form-trans"></textarea>
+        <span class="info-label">Ngữ pháp (Grammar)</span>
+        <textarea id="form-grammar"></textarea>
+        <span class="info-label">Thành phần (Components)</span>
+        <textarea id="form-comp"></textarea>
+        <div style="display:flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+            <button onclick="closeForm()">Hủy</button>
+            <button onclick="saveNote()" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:4px; cursor:pointer">Lưu lại</button>
         </div>
-        <div id="content-list"></div>
     </div>
-    <div id="overlay" class="overlay hidden" onclick="closePopup()"></div>
-    <div id="popup" class="popup hidden">
-        <div id="popup-inner"></div>
-    </div>
+</div>
+
+<div id="floating-menu">
+    <button onclick="addMarkup('hl')">🖍 HL</button>
+    <button onclick="addMarkup('ul')"><u>U</u></button>
+    <button onclick="showNoteForm()">📝 Note</button>
+</div>
+
 <script>
-    let masterDB = [];
-    let excelRows = [];
-    let sessionPatches = JSON.parse(localStorage.getItem('jp_patches_v3') || '{}');
-    let displayFields = JSON.parse(localStorage.getItem('jp_tip_fields_v1') || '[]');
-    let collapsedState = {}; 
-    let activeTarget = null;
-    let isFuriHidden = false;
-let isSelecting = false;
-let anchorRange = null;
-    // Lưu trữ cấu trúc DOM đã gán ID của từng câu
-    // { rowIdx: "innerHTML_đã_bọc_span" }
-    let domPatches = JSON.parse(localStorage.getItem('jp_dom_patches_v1') || '{}');
-    document.getElementById('master-input').onchange = e => {
-        const r = new FileReader();
-        r.onload = ev => { masterDB = JSON.parse(ev.target.result); alert("✅ Master nạp xong!"); };
-        r.readAsText(e.target.files[0]);
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const viewer = document.getElementById('viewer-container');
+    const menu = document.getElementById('floating-menu');
+    const sidebar = document.getElementById('info-sidebar');
+    let selectedRange = null;
+    let allNotes = []; // Danh sách lưu trữ toàn bộ note
+
+    // Mở File PDF
+    document.getElementById('file-selector').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        viewer.innerHTML = 'Đang tải PDF...';
+        const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        viewer.innerHTML = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'page-container';
+            pageDiv.id = 'page-' + i;
+            pageDiv.style.width = viewport.width + 'px';
+            pageDiv.style.height = viewport.height + 'px';
+            viewer.appendChild(pageDiv);
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            pageDiv.appendChild(canvas);
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            const textLayerDiv = document.createElement('div');
+            textLayerDiv.className = 'textLayer';
+            pageDiv.appendChild(textLayerDiv);
+            pdfjsLib.renderTextLayer({ textContent: await page.getTextContent(), container: textLayerDiv, viewport, textDivs: [] });
+        }
     };
-    document.getElementById('excel-input').onchange = e => {
-        const r = new FileReader();
-        r.onload = ev => {
-            const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'});
-            excelRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            document.getElementById('setup-view').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('hidden');
-            renderList();
+
+    // Nạp file JSON ghi chú
+    document.getElementById('import-selector').onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            allNotes = JSON.parse(ev.target.result);
+            document.querySelectorAll('.nt-box').forEach(el => el.remove());
+            allNotes.forEach(note => createPin(note));
         };
-        r.readAsArrayBuffer(e.target.files[0]);
+        reader.readAsText(file);
     };
-    function toggleFurigana() {
-        isFuriHidden = !isFuriHidden;
-        const container = document.getElementById('content-list');
-        const btn = document.getElementById('furi-toggle');
-        if (isFuriHidden) {
-            container.classList.add('hide-furi');
-            btn.style.opacity = "0.6";
-        } else {
-            container.classList.remove('hide-furi');
-            btn.style.opacity = "1";
+
+    document.addEventListener('mouseup', (e) => {
+        const sel = window.getSelection();
+        if (sel.toString().trim()) {
+            selectedRange = sel.getRangeAt(0);
+            menu.style.display = 'flex';
+            menu.style.left = e.clientX + 'px'; menu.style.top = (e.clientY - 50) + 'px';
+        } else if (!e.target.closest('#floating-menu')) {
+            menu.style.display = 'none';
         }
-    }
-    function parseCurlyBrackets(str) {
-        if (!str) return [];
-        const regex = /\{([^}]+)\}/g;
-        const items = str.split(/[;\n]/);
-        return items.map(item => {
-            const matches = [];
-            let m;
-            while ((m = regex.exec(item)) !== null) { matches.push(m[1]); }
-            return { name: matches[0] || "", desc: matches[1] || "", id: matches[2] || "" };
-        }).filter(x => x.name !== "");
-    }
-function renderList() {
-    const isFastRead = document.getElementById('chk-fast-read').checked;
-    document.getElementById('btn-field-config').classList.toggle('hidden', !isFastRead);
-    const container = document.getElementById('content-list');
-    container.innerHTML = ''; 
-    excelRows.forEach((row, idx) => {
-        const sentenceSpan = document.createElement('span');
-        sentenceSpan.className = 'source-sentence';
-        sentenceSpan.setAttribute('data-idx', idx);
-        if (domPatches[idx]) {
-            sentenceSpan.innerHTML = domPatches[idx];
-        } else {
-            sentenceSpan.innerHTML = (row.SOURCE || '').replace(/\\n/g, '\n');
-        }
-        // TẠO SCREENTIP ĐỘNG KHI Ở CHẾ ĐỘ ĐỌC NHANH
-        if (isFastRead) {
-            sentenceSpan.querySelectorAll('.fast-read-item').forEach(item => {
-                const id = item.getAttribute('data-id');
-                const mInfo = masterDB.find(m => m.master_id === id);
-                let tipContent = `ID: ${id}`;
-                if(mInfo && displayFields.length > 0) {
-                    displayFields.forEach(f => {
-                        if(mInfo[f]) tipContent += `<br><b>${f}:</b> ${mInfo[f]}`;
-                    });
-                }
-                // Luôn xóa cái cũ (nếu có) trước khi thêm cái mới để tránh trùng lặp
-                const oldTip = item.querySelector('.screentip');
-                if(oldTip) oldTip.remove();
-                const tipDiv = document.createElement('div');
-                tipDiv.className = 'screentip';
-                tipDiv.innerHTML = `${tipContent}<div class="tip-ctrl">
-                    <span class="tip-btn" style="color:#ff6b6b" onclick="event.stopPropagation(); deleteFastID(this, ${idx})">Xóa</span>
-                </div>`;
-                item.appendChild(tipDiv);
-            });
-        }
-		if (!isFastRead) {
-			sentenceSpan.onclick = () => showDetail(idx, 'all');
-		} else {
-			// Vô hiệu hóa click để tránh việc click vào câu gây nhiễu quá trình bôi đen
-			sentenceSpan.onclick = (e) => {
-				// Nếu click vào vùng đã gán ID (có class fast-read-item) thì không làm gì cả để Screentip hiện bình thường
-				if (e.target.closest('.fast-read-item')) return;
-				
-				// Ngăn chặn hành vi click để trình duyệt hiểu đây là bắt đầu hoặc kết thúc của việc bôi đen
-				e.stopPropagation();
-			};
-		}
-        container.appendChild(sentenceSpan);
-        container.appendChild(document.createTextNode(' '));
     });
-if (isFastRead) {
-    container.classList.add('fast-read-mode');
-} else {
-    container.classList.remove('fast-read-mode');
-}
 
-}
-document.addEventListener('mousedown', e => {
-    if (!document.getElementById('chk-fast-read')?.checked) return;
-
-    // Safari sentence selection happens HERE
-    e.preventDefault();
-    window.getSelection()?.removeAllRanges();
-}, true); // ⚠️ CAPTURE PHASE
-
-document.addEventListener('touchstart', e => {
-    if (!document.getElementById('chk-fast-read')?.checked) return;
-
-    e.preventDefault();
-    window.getSelection()?.removeAllRanges();
-}, { passive: false, capture: true });
-
-
-document.addEventListener('dblclick', e => {
-    if (!document.getElementById('chk-fast-read')?.checked) return;
-
-	window.getSelection()?.removeAllRanges();
-	
-    const range = getWordAtPoint(e.clientX, e.clientY);
-    if (!range) return;
-
-    const sourceSentence = range.startContainer.parentElement.closest('.source-sentence');
-    if (!sourceSentence) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // ✅ THÊM DÒNG NÀY
-    anchorRange = range.cloneRange();
-	
-    if (tempSelectSpan) {
-        tempSelectSpan.replaceWith(...tempSelectSpan.childNodes);
-    }
-
-    tempSelectSpan = document.createElement('span');
-    tempSelectSpan.className = 'fast-temp-select';
-
-    tempSelectSpan.appendChild(range.extractContents());
-    range.insertNode(tempSelectSpan);
-
-    dragSelecting = true;
-});
-document.addEventListener('mousemove', e => {
-    if (!dragSelecting || !anchorRange) return;
-
-window.getSelection()?.removeAllRanges();
-
-    const r = getWordAtPoint(e.clientX, e.clientY);
-    if (!r) return;
-
-    const newRange = document.createRange();
-    newRange.setStart(anchorRange.startContainer, anchorRange.startOffset);
-    newRange.setEnd(r.endContainer, r.endOffset);
-
-    if (tempSelectSpan) {
-        tempSelectSpan.replaceWith(...tempSelectSpan.childNodes);
-    }
-
-    tempSelectSpan = document.createElement('span');
-    tempSelectSpan.className = 'fast-temp-select';
-    tempSelectSpan.appendChild(newRange.extractContents());
-    newRange.insertNode(tempSelectSpan);
-});
-
-
-document.addEventListener('mouseup', () => {
-    if (!dragSelecting || !tempSelectSpan) return;
-    dragSelecting = false;
-
-    const text = tempSelectSpan.textContent.trim();
-    if (!text) return;
-
-    const sourceSentence = tempSelectSpan.closest('.source-sentence');
-    const rowIdx = parseInt(sourceSentence.getAttribute('data-idx'));
-
-    openFastSearch(rowIdx, {
-        extractContents: () => {
-            const frag = document.createDocumentFragment();
-            frag.appendChild(tempSelectSpan);
-            return frag;
+    function addMarkup(type) {
+        const rects = selectedRange.getClientRects();
+        const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
+        for (let r of rects) {
+            const pageRect = pageNode.getBoundingClientRect();
+            const box = document.createElement('div');
+            box.className = type + '-box';
+            box.style.left = (r.left - pageRect.left) + 'px';
+            box.style.top = (r.top - pageRect.top) + 'px';
+            box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
+            box.onclick = () => box.remove();
+            pageNode.appendChild(box);
         }
-    }, text);
-});
-
-    // Gọi popup search
-function openFastSearch(rowIdx, range, text) {
-    // Lưu trạng thái đang search để chặn việc chọn text nhảy popup liên tục
-    activeTarget = { rowIdx, range, text, isSearching: true };
-    const html = `
-        <h3>Gán ID cho: "${text}"</h3>
-        <input type="text" id="master-search" placeholder="Tìm ID..." 
-               oninput="runSearch(this.value, 'fast')">
-        <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
-        <button class="btn" onclick="closePopup()" style="width:100%; margin-top:10px;">Hủy</button>
-    `;
-    document.getElementById('popup-inner').innerHTML = html;
-    document.getElementById('overlay').classList.remove('hidden');
-    document.getElementById('popup').classList.remove('hidden');
-    // Autofocus cho mobile
-    setTimeout(() => document.getElementById('master-search').focus(), 300);
-}
-function saveFastID(id) {
-    const { range, rowIdx } = activeTarget;
-    const span = document.createElement('span');
-    span.className = 'fast-read-item';
-    span.setAttribute('data-id', id);
-    try {
-        const content = range.extractContents();
-        span.appendChild(content);
-        range.insertNode(span);
-        const parent = span.closest('.source-sentence');
-        parent.normalize(); 
-        // Lưu HTML sạch (chỉ có thẻ span và data-id, không chứa div screentip bên trong)
-        domPatches[rowIdx] = parent.innerHTML;
-        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
-    } catch (err) {
-        console.error("Lỗi:", err);
-        alert("Không thể gán ID cho vùng chọn này.");
+        clearSelection();
     }
-    closePopup();
-    renderList(); // Gọi render để nó tự lắp Screentip động vào
-}
-    window.deleteFastID = (btn, rowIdx) => {
-        if(!confirm("Xóa gán ID này?")) return;
-        const item = btn.closest('.fast-read-item');
-        const parent = item.parentElement;
-        // Giải nén nội dung bên trong trả lại cho cha
-        while(item.firstChild) {
-            if(item.firstChild.className === 'screentip') {
-                item.removeChild(item.firstChild);
-            } else {
-                parent.insertBefore(item.firstChild, item);
+
+    function showNoteForm() {
+        document.getElementById('form-source').innerText = selectedRange.toString();
+        document.getElementById('note-form-overlay').style.display = 'flex';
+        menu.style.display = 'none';
+    }
+
+    function saveNote() {
+        const r = selectedRange.getBoundingClientRect();
+        const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
+        const pRect = pageNode.getBoundingClientRect();
+
+        const note = {
+            id: Date.now(),
+            pageId: pageNode.id,
+            source: selectedRange.toString(),
+            trans: document.getElementById('form-trans').value,
+            grammar: document.getElementById('form-grammar').value,
+            comp: document.getElementById('form-comp').value,
+            x: ((r.left - pRect.left) / pRect.width) * 100, // Lưu tọa độ %
+            y: ((r.top - pRect.top) / pRect.height) * 100
+        };
+
+        allNotes.push(note);
+        createPin(note);
+        closeForm();
+        clearSelection();
+        document.getElementById('form-trans').value = '';
+        document.getElementById('form-grammar').value = '';
+        document.getElementById('form-comp').value = '';
+    }
+
+    function createPin(note) {
+        const parent = document.getElementById(note.pageId);
+        if (!parent) return;
+        const pin = document.createElement('div');
+        pin.className = 'nt-box'; pin.innerHTML = '📌';
+        pin.style.left = note.x + '%'; pin.style.top = note.y + '%';
+        pin.onclick = (e) => { e.stopPropagation(); showDetails(note, pin); };
+        parent.appendChild(pin);
+    }
+
+    function showDetails(note, pinElement) {
+        const container = document.getElementById('sidebar-data');
+        container.innerHTML = `
+            <span class="info-label">Nguyên văn</span><div class="info-value" style="background:#fff">${note.source}</div>
+            <span class="info-label">Dịch nghĩa</span><div class="info-value">${note.trans.replace(/\n/g, '<br>')}</div>
+            <span class="info-label">Ngữ pháp</span><div class="info-value">${note.grammar.replace(/\n/g, '<br>')}</div>
+            <span class="info-label">Thành phần</span><div class="info-value">${note.comp.replace(/\n/g, '<br>')}</div>
+        `;
+        sidebar.classList.add('open');
+        document.getElementById('del-btn').onclick = () => {
+            if(confirm("Xóa phân tích này?")) {
+                allNotes = allNotes.filter(n => n.id !== note.id);
+                pinElement.remove(); closeSidebar();
             }
-        }
-        parent.removeChild(item);
-        parent.normalize(); // Hợp nhất các TextNode rời rạc
-        // Cập nhật lại bộ nhớ
-        domPatches[rowIdx] = parent.innerHTML;
-        localStorage.setItem('jp_dom_patches_v1', JSON.stringify(domPatches));
-        renderList();
-    };
-    // --- CÁC HÀM CŨ GIỮ NGUYÊN ---
-    window.openFieldConfig = () => {
-        if(masterDB.length === 0) return alert("Cần nạp Master JSON trước!");
-        const fields = Object.keys(masterDB[0]).filter(k => k !== 'master_id');
-        const html = `
-            <h3>Chọn trường hiển thị Screentip</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:left;">
-                ${fields.map(f => `
-                    <label style="display:flex; gap:8px; cursor:pointer; font-size:0.9rem;">
-                        <input type="checkbox" ${displayFields.includes(f) ? 'checked' : ''} onchange="toggleTipField('${f}')"> ${f}
-                    </label>
-                `).join('')}
-            </div>
-            <button class="btn" onclick="closePopup()" style="width:100%; margin-top:20px; background:#27ae60; color:white;">Lưu & Đóng</button>
-        `;
-        document.getElementById('popup-inner').innerHTML = html;
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById('popup').classList.remove('hidden');
-    };
-window.toggleTipField = (field) => {
-    if(displayFields.includes(field)) {
-        displayFields = displayFields.filter(f => f !== field);
-    } else {
-        displayFields.push(field);
+        };
     }
-    localStorage.setItem('jp_tip_fields_v1', JSON.stringify(displayFields));
-    // Cập nhật lại toàn bộ Screentip trên màn hình mà không cần F5
-    renderList(); 
-};
-    function showDetail(idx, mode) {
-        const row = excelRows[idx];
-        const grammars = parseCurlyBrackets(row.GRAMMAR);
-        const components = parseCurlyBrackets(row.COMPONENTS);
-        let html = `
-            <div class="action-bar">
-                <button class="btn-sm ${mode==='trans'?'active':''}" onclick="showDetail(${idx}, 'trans')">Dịch</button>
-                <button class="btn-sm ${mode==='grammar'?'active':''}" onclick="showDetail(${idx}, 'grammar')">Ngữ pháp</button>
-                <button class="btn-sm ${mode==='comp'?'active':''}" onclick="showDetail(${idx}, 'comp')">Thành phần</button>
-                <button class="btn-sm ${mode==='all'?'active':''}" onclick="showDetail(${idx}, 'all')">Tất cả</button>
-                <button class="btn-sm" style="background:#3498db; color:white;" onclick="speakText(${idx})">🔊 Đọc</button>
-            </div>
-        `;
-        if (mode === 'all' || mode === 'grammar') {
-            html += `<h4>🔸 Ngữ pháp:</h4>` + renderSection(grammars, 'GRAMMAR', idx, mode);
-        }
-        if (mode === 'all' || mode === 'comp') {
-            html += `<h4>🔹 Thành phần:</h4>` + renderSection(components, 'COMPONENTS', idx, mode);
-        }
-        if (mode === 'all' || mode === 'trans') {
-            html += `<h4>📜 Bản dịch:</h4>
-                     <div class="card tag-desc" style="background:#f9f9f9;" 
-                          onclick="editField(this, ${idx}, 'TRANSLATION')">${row.TRANSLATION || 'Chưa có bản dịch'}</div>`;
-        }
-        html += `<button class="btn" onclick="closePopup()" style="width:100%; margin-top:20px; background:#eee">Đóng</button>`;
-        document.getElementById('popup-inner').innerHTML = html;
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById('popup').classList.remove('hidden');
+
+    function exportNotes() {
+        if (allNotes.length === 0) return alert("Chưa có ghi chú nào để lưu!");
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allNotes));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", "pdf_notes.json");
+        dlAnchor.click();
     }
-    function renderSection(items, fieldKey, rowIdx, mode) {
-        let h = `<ul class="smart-list">`;
-        if (items.length === 0) h += `<li style="color:#999; font-size:0.8rem;">(Trống)</li>`;
-        items.forEach((item, iIdx) => {
-            const type = fieldKey === 'GRAMMAR' ? 'grammar' : 'component';
-            const patchKey = `${rowIdx}-${type}-${iIdx}`;
-            const currentId = sessionPatches[patchKey] || item.id;
-            const isCollapsed = collapsedState[patchKey] === true;
-            const ids = currentId ? currentId.split(',').map(s => s.trim()) : [];
-            const masterInfos = ids.map(id => masterDB.find(m => m.master_id === id)).filter(x => x);
-            h += `<li class="smart-item">
-                <div class="tag-row">
-                    <span class="tag-label" onclick="openSearch('${type}', ${rowIdx}, ${iIdx}, '${item.name}')">${item.name}</span>
-                    <span class="tag-id-badge ${currentId ? 'id-exists' : 'id-none'}" onclick="toggleMasterBox('${patchKey}')">
-                        ID: ${currentId || 'Chưa gán'} ${currentId ? (isCollapsed ? '▼' : '▲') : ''}
-                    </span>
-                </div>
-                <div class="tag-desc" onclick="editArrayField(this, ${rowIdx}, '${fieldKey}', ${iIdx})">${item.desc}</div>
-                <div id="box-${patchKey}" class="master-box ${isCollapsed || !currentId ? 'hidden' : ''}">
-                    ${masterInfos.length > 0 ? masterInfos.map(mInfo => `
-                        <div style="margin-bottom:10px; border-bottom:1px dashed #ccc; padding-bottom:5px;">
-                            <b>Master [${mInfo.master_id}]:</b>
-                            ${renderMasterContent(mInfo)}
-                        </div>
-                    `).join('') : '<i>Không tìm thấy thông tin trong Master DB</i>'}
-                </div>
-            </li>`;
-        });
-        return h + `</ul>`;
-    }
-    window.editField = (el, idx, key) => {
-        if (el.querySelector('textarea')) return;
-        const oldVal = excelRows[idx][key] || "";
-        el.innerHTML = `
-            <div class="edit-container">
-                <textarea class="inline-edit">${oldVal}</textarea>
-                <div class="edit-buttons">
-                    <button class="btn-cancel" onclick="event.stopPropagation(); renderAfterEdit(${idx})">Hủy</button>
-                    <button class="btn-save" onclick="event.stopPropagation(); saveField(${idx}, '${key}', this)">Lưu</button>
-                </div>
-            </div>`;
-        el.querySelector('textarea').focus();
-    };
-    window.saveField = (idx, key, btn) => {
-        const newVal = btn.closest('.edit-container').querySelector('textarea').value;
-        excelRows[idx][key] = newVal;
-        renderAfterEdit(idx);
-    };
-    window.editArrayField = (el, rowIdx, fieldKey, itemIdx) => {
-        if (el.querySelector('textarea')) return;
-        const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
-        const oldDesc = items[itemIdx].desc;
-        el.innerHTML = `
-            <div class="edit-container">
-                <textarea class="inline-edit">${oldDesc}</textarea>
-                <div class="edit-buttons">
-                    <button class="btn-cancel" onclick="event.stopPropagation(); renderAfterEdit(${rowIdx})">Hủy</button>
-                    <button class="btn-save" onclick="event.stopPropagation(); saveArrayField(${rowIdx}, '${fieldKey}', ${itemIdx}, this)">Lưu</button>
-                </div>
-            </div>`;
-        el.querySelector('textarea').focus();
-    };
-    window.saveArrayField = (rowIdx, fieldKey, itemIdx, btn) => {
-        const items = parseCurlyBrackets(excelRows[rowIdx][fieldKey]);
-        items[itemIdx].desc = btn.closest('.edit-container').querySelector('textarea').value;
-        updateRowString(rowIdx, fieldKey, items);
-        renderAfterEdit(rowIdx);
-    };
-    function updateRowString(rowIdx, fieldKey, items) {
-        const newString = items.map((it, idx) => {
-            const type = fieldKey === 'GRAMMAR' ? 'grammar' : 'component';
-            const pKey = `${rowIdx}-${type}-${idx}`;
-            const finalId = sessionPatches[pKey] || it.id;
-            return `{${it.name}}:{${it.desc}}${finalId ? `:{${finalId}}` : ''}`;
-        }).join('; ');
-        excelRows[rowIdx][fieldKey] = newString;
-    }
-    window.renderAfterEdit = (idx) => {
-        showDetail(idx, 'all');
-    };
-    function renderMasterContent(info) {
-        let content = "";
-        for (const [key, value] of Object.entries(info)) {
-            if (key === 'master_id') continue;
-            let displayValue = value;
-            if (Array.isArray(value)) {
-                displayValue = value.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ');
-            } else if (typeof value === 'object' && value !== null) {
-                displayValue = JSON.stringify(value);
-            }
-            content += `<div class="master-entry"><span class="master-key">${key}:</span> ${displayValue}</div>`;
-        }
-        return content;
-    }
-    window.toggleMasterBox = (key) => {
-        collapsedState[key] = !collapsedState[key];
-        const box = document.getElementById('box-' + key);
-        if (box) box.classList.toggle('hidden');
-        const badge = box.parentElement.querySelector('.tag-id-badge');
-        if (badge) {
-            const currentText = badge.innerText;
-            const idPart = currentText.replace('ID: ', '').split(' ')[0];
-            badge.innerHTML = `ID: ${idPart} ${collapsedState[key] ? '▼' : '▲'}`;
-        }
-    };
-    window.speakText = (idx) => {
-        const text = excelRows[idx].SOURCE.replace(/\\n/g, '\n');
-        const div = document.createElement('div');
-        div.innerHTML = text;
-        div.querySelectorAll('rt').forEach(rt => rt.remove());
-        const msg = new SpeechSynthesisUtterance(div.textContent || div.innerText);
-        msg.lang = 'ja-JP';
-        msg.rate = 0.9;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(msg);
-    };
-    window.openSearch = (type, rowIdx, iIdx, name) => {
-        activeTarget = { type, rowIdx, iIdx };
-        const patchKey = `${rowIdx}-${type}-${iIdx}`;
-        const currentId = sessionPatches[patchKey] || "";
-        const ids = currentId ? currentId.split(',').filter(x => x) : [];
-        const html = `
-            <h3>Gán ID cho: ${name}</h3>
-            <div id="current-tags" style="margin-bottom:10px;">
-                ${ids.length > 0 ? ids.map(id => `
-                    <span class="mini-id-tag">${id}<span class="mini-id-del" onclick="removeSingleID('${id}')">×</span></span>
-                `).join('') : '<span style="color:#999; font-size:0.8rem;">(Chưa có ID nào được gán)</span>'}
-            </div>
-            <div style="display:flex; gap:5px;">
-                <input type="text" id="master-search" placeholder="Tìm pattern hoặc ID..." oninput="runSearch(this.value)">
-                <button class="btn" onclick="clearAllIDs()" style="margin-top:10px; background:#e74c3c; color:white; padding: 0 15px; font-size:0.8rem; white-space:nowrap;">Xóa hết</button>
-            </div>
-            <div id="search-results" style="margin-top:10px; max-height:300px; overflow-y:auto; border:1px solid #eee;"></div>
-            <button class="btn" onclick="showDetail(${rowIdx}, 'all')" style="width:100%; margin-top:10px;">Quay lại</button>
-        `;
-        document.getElementById('popup-inner').innerHTML = html;
-        document.getElementById('master-search').focus();
-    };
-    window.runSearch = (val, mode = 'normal') => {
-        if (!val) { document.getElementById('search-results').innerHTML = ""; return; }
-        const res = masterDB.filter(m => 
-            (m.pattern && m.pattern.includes(val)) || 
-            (m.master_id && m.master_id.includes(val))
-        );
-        document.getElementById('search-results').innerHTML = res.map(r => `
-            <div class="result-item" onclick="${mode === 'fast' ? `saveFastID('${r.master_id}')` : `saveID('${r.master_id}')`}">
-                <strong>${r.pattern || 'No Pattern'}</strong> (${r.master_id})<br>
-                <small>${r.core_meaning || ''}</small>
-            </div>
-        `).join('');
-    };
-    window.saveID = id => {
-        const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
-        let currentIds = sessionPatches[key] ? sessionPatches[key].split(',') : [];
-        if (!currentIds.includes(id)) {
-            currentIds.push(id);
-        }
-        sessionPatches[key] = currentIds.filter(x => x).join(',');
-        applyPatchToData();
-        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, ""); 
-    };
-    window.removeSingleID = (idToRemove) => {
-        const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
-        let currentIds = sessionPatches[key] ? sessionPatches[key].split(',') : [];
-        currentIds = currentIds.filter(id => id !== idToRemove);
-        sessionPatches[key] = currentIds.join(',');
-        applyPatchToData();
-        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, ""); 
-    };
-    window.clearAllIDs = () => {
-        if(!confirm("Xóa tất cả ID đã gán cho mục này?")) return;
-        const key = `${activeTarget.rowIdx}-${activeTarget.type}-${activeTarget.iIdx}`;
-        sessionPatches[key] = "";
-        applyPatchToData();
-        openSearch(activeTarget.type, activeTarget.rowIdx, activeTarget.iIdx, "");
-    };
-    function applyPatchToData() {
-        localStorage.setItem('jp_patches_v3', JSON.stringify(sessionPatches));
-        const fieldKey = activeTarget.type === 'grammar' ? 'GRAMMAR' : 'COMPONENTS';
-        const items = parseCurlyBrackets(excelRows[activeTarget.rowIdx][fieldKey]);
-        updateRowString(activeTarget.rowIdx, fieldKey, items);
-    }
-    window.exportNewData = () => {
-        let out = "DỮ LIỆU ĐÃ CHỈNH SỬA (Dán vào Excel):\n\n";
-        excelRows.forEach((row, rIdx) => {
-            out += `--- DÒNG ${rIdx + 1} ---\n`;
-            out += `NGỮ PHÁP: ${row.GRAMMAR || ''}\n`;
-            out += `THÀNH PHẦN: ${row.COMPONENTS || ''}\n`;
-            out += `BẢN DỊCH: ${row.TRANSLATION || ''}\n\n`;
-        });
-        const blob = new Blob([out], {type: "text/plain"});
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "data_updated.txt";
-        link.click();
-    };
-window.closePopup = () => {
-    // Reset trạng thái search để có thể chọn text tiếp theo
-    if (activeTarget) activeTarget.isSearching = false; 
-    document.getElementById('overlay').classList.add('hidden');
-    document.getElementById('popup').classList.add('hidden');
-    window.getSelection()?.removeAllRanges();
-};
-let tempSelectSpan = null;
-let dragSelecting = false;
 
-function getWordAtPoint(x, y) {
-    const range = document.caretRangeFromPoint
-        ? document.caretRangeFromPoint(x, y)
-        : document.caretPositionFromPoint(x, y);
-
-    if (!range) return null;
-
-    const textNode = range.startContainer;
-    if (textNode.nodeType !== 3) return null;
-
-    const text = textNode.textContent;
-    let start = range.startOffset;
-    let end = range.startOffset;
-
-    while (start > 0 && /\S/.test(text[start - 1])) start--;
-    while (end < text.length && /\S/.test(text[end])) end++;
-
-    const r = document.createRange();
-    r.setStart(textNode, start);
-    r.setEnd(textNode, end);
-    return r;
-}
-
-
+    function closeForm() { document.getElementById('note-form-overlay').style.display = 'none'; }
+    function closeSidebar() { sidebar.classList.remove('open'); }
+    function clearSelection() { window.getSelection().removeAllRanges(); menu.style.display = 'none'; }
 </script>
 </body>
 </html>
