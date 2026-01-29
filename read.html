@@ -55,6 +55,30 @@
         #note-form-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
         .note-form { background: white; padding: 25px; border-radius: 12px; width: 500px; display: flex; flex-direction: column; gap: 10px; }
         .note-form textarea { width: 100%; height: 80px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+		/* === Kindle-like selection stability === */
+.textLayer span,
+.textLayer div {
+    display: inline-block;
+    white-space: pre;
+    pointer-events: auto;
+}
+
+/* Không cho leader dots + page number bị select */
+.textLayer span.no-select {
+    user-select: none;
+}
+#info-sidebar {
+    visibility: hidden;
+}
+#info-sidebar.open {
+    visibility: visible;
+}
+.textLayer {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
     </style>
 </head>
 <body>
@@ -123,6 +147,108 @@
     let allNotes = [];
     let masterData = [];
     let currentLinkTarget = null;
+	let userHasInteracted = false;
+	let touchSelecting = false;
+let touchStart = null;
+let iosSelection = {
+    pageNode: null,
+    rects: [],
+    text: ""
+};
+
+viewer.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    touchStart = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now()
+    };
+});
+
+viewer.addEventListener('touchmove', e => {
+    if (!touchStart) return;
+    if (Date.now() - touchStart.time < 300) return;
+
+    touchSelecting = true;
+    e.preventDefault(); // ⛔ chặn scroll + copy
+
+// clear overlay cũ
+document.querySelectorAll('.ios-select-box').forEach(el => el.remove());
+
+const t = e.touches[0];
+const endEl = document.elementFromPoint(t.clientX, t.clientY);
+if (!endEl) return;
+
+const pageNode = endEl.closest('.page-container');
+if (!pageNode) return;
+
+iosSelection.pageNode = pageNode;
+
+const textLayer = pageNode.querySelector('.textLayer');
+const spans = [...textLayer.querySelectorAll('span, div')];
+
+const selRect = {
+    left: Math.min(touchStart.x, t.clientX),
+    right: Math.max(touchStart.x, t.clientX),
+    top: Math.min(touchStart.y, t.clientY),
+    bottom: Math.max(touchStart.y, t.clientY)
+};
+
+iosSelection.rects = [];
+
+spans.forEach(span => {
+    const r = span.getBoundingClientRect();
+    const overlap =
+        !(r.right < selRect.left || r.left > selRect.right ||
+          r.bottom < selRect.top || r.top > selRect.bottom);
+
+    if (overlap && !span.classList.contains('no-select')) {
+        iosSelection.rects.push(r);
+
+        const box = document.createElement('div');
+        box.className = 'hl-box ios-select-box';
+        box.style.left = (r.left - pageNode.getBoundingClientRect().left) + 'px';
+        box.style.top  = (r.top  - pageNode.getBoundingClientRect().top ) + 'px';
+        box.style.width  = r.width + 'px';
+        box.style.height = r.height + 'px';
+        pageNode.appendChild(box);
+    }
+});
+
+});
+
+viewer.addEventListener('touchend', e => {
+    if (!touchSelecting) {
+        touchStart = null;
+        return;
+    }
+
+iosSelection.text = extractTextByRects({
+    getClientRects: () => iosSelection.rects,
+    startContainer: iosSelection.pageNode.querySelector('.textLayer')
+});
+
+selectedRange = null; // ⛔ ép iOS không dùng native range
+
+    menu.style.display = 'flex';
+    menu.style.left = touchStart.x + 'px';
+    menu.style.top = (touchStart.y - 50) + 'px';
+
+    touchSelecting = false;
+    touchStart = null;
+});
+
+
+['touchstart', 'mousedown', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, () => {
+        userHasInteracted = true;
+    }, { once: true });
+});
+const _showDetails = showDetails;
+showDetails = function(note, pinElement) {
+    if (!userHasInteracted) return; // ⛔ chặn Safari auto-trigger
+    _showDetails(note, pinElement);
+};
 
     // Nạp file master.json
     document.getElementById('master-loader').onchange = (e) => {
@@ -160,6 +286,14 @@
             textLayerDiv.className = 'textLayer';
             pageDiv.appendChild(textLayerDiv);
             await pdfjsLib.renderTextLayer({ textContent: await page.getTextContent(), container: textLayerDiv, viewport, textDivs: [] }).promise;
+			// Kindle-style: disable selection for leader dots / page numbers
+textLayerDiv.querySelectorAll('span').forEach(span => {
+    const t = span.innerText || "";
+    if (/^[\.\s\d]{8,}$/.test(t)) {
+        span.classList.add('no-select');
+    }
+});
+
         }
         document.getElementById('status').innerText = "PDF đã sẵn sàng.";
     };
@@ -256,6 +390,48 @@ async function findAndPin(cleanText, rawData) {
         }
     }
     return false;
+}
+function extractTextByRects(range) {
+    const rects = Array.from(range.getClientRects());
+    if (!rects.length) return "";
+
+    const pageNode = range.startContainer.parentElement.closest('.page-container');
+    if (!pageNode) return "";
+
+    const textLayer = pageNode.querySelector('.textLayer');
+    const spans = Array.from(textLayer.querySelectorAll('span, div'));
+
+    const hits = [];
+
+    rects.forEach(r => {
+        spans.forEach(span => {
+            if (span.classList.contains('no-select')) return;
+
+            const b = span.getBoundingClientRect();
+            const overlap =
+                !(b.right < r.left || b.left > r.right || b.bottom < r.top || b.top > r.bottom);
+
+            if (overlap) {
+                hits.push({
+                    text: span.innerText,
+                    top: b.top,
+                    left: b.left
+                });
+            }
+        });
+    });
+
+    // sort theo vị trí vật lý: trên → dưới, trái → phải
+    hits.sort((a, b) =>
+        Math.abs(a.top - b.top) > 5 ? a.top - b.top : a.left - b.left
+    );
+
+    // clean + merge
+    return hits
+        .map(h => h.text)
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function mergeRectsByLine(rects) {
@@ -397,12 +573,15 @@ function mergeRectsByLine(rects) {
 
     function saveNote() {
         const r = selectedRange.getBoundingClientRect();
+		const sourceText = selectedRange
+			? extractTextByRects(selectedRange)
+			: iosSelection.text;
         const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
         const pRect = pageNode.getBoundingClientRect();
         const note = {
             id: Date.now() + Math.random(),
             pageId: pageNode.id,
-            source: selectedRange.toString(),
+            source: extractTextByRects(selectedRange),
             trans: document.getElementById('form-trans').value,
             grammar: document.getElementById('form-grammar').value,
             comp: document.getElementById('form-comp').value,
@@ -437,7 +616,7 @@ function mergeRectsByLine(rects) {
     }
 
 function addMarkup(type) {
-    if (!selectedRange) return;
+    if (!selectedRange && iosSelection.rects.length === 0) return;
 
     const rawRects = Array.from(selectedRange.getClientRects());
     if (!rawRects.length) return;
@@ -487,7 +666,8 @@ function addMarkup(type) {
     }
 
     function showNoteForm() {
-        document.getElementById('form-source').innerText = selectedRange.toString();
+        document.getElementById('form-source').innerText =
+    selectedRange ? extractTextByRects(selectedRange) : iosSelection.text;
         document.getElementById('note-form-overlay').style.display = 'flex';
         menu.style.display = 'none';
     }
