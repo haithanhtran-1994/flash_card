@@ -74,10 +74,11 @@
     visibility: visible;
 }
 .textLayer {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
 }
+
 
     </style>
 </head>
@@ -167,7 +168,8 @@ viewer.addEventListener('touchstart', e => {
 
 viewer.addEventListener('touchmove', e => {
     if (!touchStart) return;
-    if (Date.now() - touchStart.time < 300) return;
+	const elapsed = Date.now() - touchStart.time;
+    if (elapsed < 400) return; // ⬅ cho Safari sống
 
     touchSelecting = true;
     e.preventDefault(); // ⛔ chặn scroll + copy
@@ -232,7 +234,13 @@ iosSelection.text = extractTextByRects({
     startContainer: iosSelection.pageNode.querySelector('.textLayer')
 });
 
-selectedRange = null; // ⛔ ép iOS không dùng native range
+const sel = window.getSelection();
+if (!sel || sel.isCollapsed) {
+    selectedRange = null;
+} else {
+    selectedRange = sel.getRangeAt(0);
+}
+
 
     menu.style.display = 'flex';
     menu.style.left = touchStart.x + 'px';
