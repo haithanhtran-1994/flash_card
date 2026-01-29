@@ -242,9 +242,8 @@ if (!sel || sel.isCollapsed) {
 }
 
 
-    menu.style.display = 'flex';
-    menu.style.left = touchStart.x + 'px';
-    menu.style.top = (touchStart.y - 50) + 'px';
+positionMenuBelowSelection(iosSelection.rects);
+
 
     touchSelecting = false;
     touchStart = null;
@@ -360,6 +359,24 @@ textLayerDiv.querySelectorAll('span').forEach(span => {
         };
         reader.readAsText(file);
     };
+
+function positionMenuBelowSelection(rects) {
+    if (!rects || rects.length === 0) return;
+
+    let minLeft = Infinity;
+    let maxBottom = -Infinity;
+
+    rects.forEach(r => {
+        minLeft = Math.min(minLeft, r.left);
+        maxBottom = Math.max(maxBottom, r.bottom);
+    });
+
+    const GAP = 8; // khoảng cách với text
+    menu.style.display = 'flex';
+    menu.style.left = `${minLeft}px`;
+    menu.style.top  = `${maxBottom + GAP}px`;
+}
+
 
 async function findAndPin(cleanText, rawData) {
     const pages = document.querySelectorAll('.page-container');
