@@ -78,14 +78,6 @@
     user-select: text;
     -webkit-touch-callout: default;
 }
-body.overlay-mode {
-    -webkit-touch-callout: none;
-}
-
-body.overlay-mode .textLayer {
-    -webkit-user-select: none;
-    user-select: none;
-}
 
 
     </style>
@@ -159,8 +151,6 @@ body.overlay-mode .textLayer {
 	let userHasInteracted = false;
 	let touchSelecting = false;
 let touchStart = null;
-let selectionMode = 'native'; // 'native' | 'overlay'
-
 let iosSelection = {
     pageNode: null,
     rects: [],
@@ -182,9 +172,6 @@ viewer.addEventListener('touchmove', e => {
     if (elapsed < 400) return; // ⬅ cho Safari sống
 
     touchSelecting = true;
-	selectionMode = 'overlay';
-document.body.classList.add('overlay-mode');
-
     e.preventDefault(); // ⛔ chặn scroll + copy
 
 // clear overlay cũ
@@ -239,9 +226,6 @@ spans.forEach(span => {
 viewer.addEventListener('touchend', e => {
     if (!touchSelecting) {
         touchStart = null;
-		selectionMode = 'native';
-document.body.classList.remove('overlay-mode');
-
         return;
     }
 
