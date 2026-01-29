@@ -78,6 +78,14 @@
     user-select: text;
     -webkit-touch-callout: default;
 }
+body.overlay-mode {
+    -webkit-touch-callout: none;
+}
+
+body.overlay-mode .textLayer {
+    -webkit-user-select: none;
+    user-select: none;
+}
 
 
     </style>
@@ -151,6 +159,8 @@
 	let userHasInteracted = false;
 	let touchSelecting = false;
 let touchStart = null;
+let selectionMode = 'native'; // 'native' | 'overlay'
+
 let iosSelection = {
     pageNode: null,
     rects: [],
@@ -172,6 +182,9 @@ viewer.addEventListener('touchmove', e => {
     if (elapsed < 400) return; // ⬅ cho Safari sống
 
     touchSelecting = true;
+	selectionMode = 'overlay';
+document.body.classList.add('overlay-mode');
+
     e.preventDefault(); // ⛔ chặn scroll + copy
 
 // clear overlay cũ
@@ -226,6 +239,9 @@ spans.forEach(span => {
 viewer.addEventListener('touchend', e => {
     if (!touchSelecting) {
         touchStart = null;
+		selectionMode = 'native';
+document.body.classList.remove('overlay-mode');
+
         return;
     }
 
@@ -489,10 +505,13 @@ function mergeRectsByLine(rects) {
         }
     }
 
-    return lines.map(l => ({
-        top: l.top,
-        height: l.bottom - l.top
-    }));
+return lines.map(l => ({
+    top: l.top,
+    height: l.bottom - l.top,
+    left: l.left,
+    right: l.right
+}));
+
 }
 
 
@@ -663,9 +682,9 @@ function addMarkup(type) {
         const box = document.createElement('div');
         box.className = type + '-box';
 
-        box.style.left = (textRect.left - pageRect.left) + 'px';
+        box.style.left = (line.left - pageRect.left) + 'px';
         box.style.top = (line.top - pageRect.top) + 'px';
-        box.style.width = textRect.width + 'px';
+        box.style.width = (line.right - line.left) + 'px';
         box.style.height = line.height + 'px';
 
         box.onclick = () => box.remove();
