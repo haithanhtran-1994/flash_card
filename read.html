@@ -172,7 +172,8 @@ viewer.addEventListener('touchmove', e => {
     if (elapsed < 400) return; // ⬅ cho Safari sống
 
     touchSelecting = true;
-    e.preventDefault(); // ⛔ chặn scroll + copy
+    if (elapsed >= 400) e.preventDefault();
+
 
 // clear overlay cũ
 document.querySelectorAll('.ios-select-box').forEach(el => el.remove());
@@ -242,7 +243,15 @@ if (!sel || sel.isCollapsed) {
 }
 
 
-positionMenuBelowSelection(iosSelection.rects);
+if (iosSelection.rects.length > 0) {
+    // overlay mode
+    positionMenuBelowSelection(iosSelection.rects);
+} else if (selectedRange) {
+    // native Safari selection
+    positionMenuBelowSelection(
+        Array.from(selectedRange.getClientRects())
+    );
+}
 
 
     touchSelecting = false;
@@ -698,6 +707,7 @@ function addMarkup(type) {
 
 
     document.addEventListener('mouseup', (e) => {
+		if ('ontouchstart' in window) return;
         const sel = window.getSelection();
         if (sel.toString().trim()) {
             selectedRange = sel.getRangeAt(0);
