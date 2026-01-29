@@ -197,23 +197,27 @@ const selRect = {
 iosSelection.rects = [];
 
 spans.forEach(span => {
-    const r = span.getBoundingClientRect();
-    const overlap =
-        !(r.right < selRect.left || r.left > selRect.right ||
-          r.bottom < selRect.top || r.top > selRect.bottom);
+    if (!span.__charRects) return;
 
-    if (overlap && !span.classList.contains('no-select')) {
-        iosSelection.rects.push(r);
+    span.__charRects.forEach(c => {
+        const overlap =
+            !(c.right < selRect.left || c.left > selRect.right ||
+              c.bottom < selRect.top || c.top > selRect.bottom);
 
-        const box = document.createElement('div');
-        box.className = 'hl-box ios-select-box';
-        box.style.left = (r.left - pageNode.getBoundingClientRect().left) + 'px';
-        box.style.top  = (r.top  - pageNode.getBoundingClientRect().top ) + 'px';
-        box.style.width  = r.width + 'px';
-        box.style.height = r.height + 'px';
-        pageNode.appendChild(box);
-    }
+        if (overlap) {
+            iosSelection.rects.push(c);
+
+            const box = document.createElement('div');
+            box.className = 'hl-box ios-select-box';
+            box.style.left = (c.left - pageNode.getBoundingClientRect().left) + 'px';
+            box.style.top  = (c.top  - pageNode.getBoundingClientRect().top ) + 'px';
+            box.style.width  = (c.right - c.left) + 'px';
+            box.style.height = (c.bottom - c.top) + 'px';
+            pageNode.appendChild(box);
+        }
+    });
 });
+
 
 });
 
@@ -286,6 +290,23 @@ showDetails = function(note, pinElement) {
             textLayerDiv.className = 'textLayer';
             pageDiv.appendChild(textLayerDiv);
             await pdfjsLib.renderTextLayer({ textContent: await page.getTextContent(), container: textLayerDiv, viewport, textDivs: [] }).promise;
+			textLayerDiv.querySelectorAll('span').forEach(span => {
+    const text = span.innerText;
+    if (!text || span.classList.contains('no-select')) return;
+
+    const r = span.getBoundingClientRect();
+    const p = span.closest('.page-container').getBoundingClientRect();
+    const charW = r.width / text.length;
+
+    span.__charRects = [...text].map((ch, i) => ({
+        char: ch,
+        left: r.left + i * charW,
+        right: r.left + (i + 1) * charW,
+        top: r.top,
+        bottom: r.bottom
+    }));
+});
+
 			// Kindle-style: disable selection for leader dots / page numbers
 textLayerDiv.querySelectorAll('span').forEach(span => {
     const t = span.innerText || "";
@@ -428,10 +449,11 @@ function extractTextByRects(range) {
 
     // clean + merge
     return hits
-        .map(h => h.text)
-        .join('')
-        .replace(/\s+/g, ' ')
-        .trim();
+		.map(h => h.char || h.text)
+		.join('')
+		.replace(/\s+/g, ' ')
+		.trim();
+
 }
 
 function mergeRectsByLine(rects) {
