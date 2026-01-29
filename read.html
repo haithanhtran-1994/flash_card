@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Study Tool - JSON Storage</title>
+    <title>PDF Study Tool - Master Linker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
     <style>
-        :root { --primary: #2563eb; --bg: #e2e8f0; --sidebar-w: 350px; }
+        :root { --primary: #2563eb; --bg: #e2e8f0; --sidebar-w: 380px; }
         body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
         #main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; position: relative; }
         #toolbar { background: #1e293b; color: white; padding: 12px 25px; display: flex; gap: 15px; align-items: center; z-index: 100; }
@@ -15,16 +15,41 @@
         .btn-tool.secondary { background: #475569; }
         #viewer-container { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .page-container { position: relative; background: white; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .textLayer { opacity: 1; mix-blend-mode: multiply; } 
+        .textLayer { opacity: 1;} 
         .hl-box { position: absolute; background: rgba(255, 255, 0, 0.4); cursor: pointer; z-index: 1; }
         .ul-box { position: absolute; border-bottom: 2px solid red; cursor: pointer; z-index: 1; }
-        .nt-box { position: absolute; cursor: pointer; z-index: 10; font-size: 24px; transform: translate(-50%, -50%); }
+        .nt-box { position: absolute; cursor: pointer; z-index: 10; font-size: 12px; transform: translate(-50%, -50%); transition: transform 0.2s; }
+        .nt-box:hover { transform: translate(-50%, -50%) scale(1.3); }
         #info-sidebar { width: var(--sidebar-w); background: white; border-left: 1px solid #cbd5e1; display: flex; flex-direction: column; box-shadow: -5px 0 15px rgba(0,0,0,0.05); transform: translateX(100%); transition: 0.3s; position: absolute; right: 0; top: 0; bottom: 0; z-index: 1000; }
         #info-sidebar.open { transform: translateX(0); }
         .sidebar-header { background: #f8fafc; padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; display: flex; justify-content: space-between; }
         .sidebar-content { padding: 20px; overflow-y: auto; flex: 1; line-height: 1.6; }
-        .info-label { color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-top: 15px; display: block; }
-        .info-value { background: #f1f5f9; padding: 10px; border-radius: 4px; display: block; margin-bottom: 10px; border-left: 4px solid var(--primary); }
+        .info-label { color: #64748b; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-top: 15px; display: block; }
+        .info-value { background: #f1f5f9; padding: 10px; border-radius: 4px; display: block; margin-bottom: 10px; border-left: 4px solid var(--primary); font-size: 14px; }
+        .textLayer span {
+    white-space: pre;
+}
+
+::selection {
+    background: rgba(255, 200, 0, 0.6);
+}
+
+        /* New Styles for Linking */
+        .grammar-row { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        .link-status { font-size: 10px; padding: 2px 6px; border-radius: 10px; cursor: pointer; margin-left: 5px; }
+        .status-none { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+        .status-linked { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+        .quote-text { font-weight: bold; cursor: pointer; color: var(--primary); }
+        .master-data-box { background: white; border: 1px solid #2563eb; padding: 10px; border-radius: 5px; margin-top: 8px; display: none; font-size: 13px; }
+        .master-data-box.open { display: block; }
+
+        /* Search Modal */
+        #search-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 4000; align-items: center; justify-content: center; }
+        .search-box { background: white; width: 400px; padding: 20px; border-radius: 10px; max-height: 80vh; display: flex; flex-direction: column; }
+        .search-results { overflow-y: auto; margin-top: 10px; }
+        .result-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .result-item:hover { background: #f1f5f9; }
+
         #floating-menu { display: none; position: fixed; background: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 2000; padding: 5px; border: 1px solid #ccc; }
         #floating-menu button { border: none; background: none; padding: 10px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; }
         #note-form-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
@@ -37,9 +62,11 @@
 <div id="main-content">
     <div id="toolbar">
         <label class="btn-tool">📂 Mở PDF <input type="file" id="file-selector" accept="application/pdf" style="display:none"></label>
-        <button class="btn-tool secondary" onclick="exportNotes()">💾 Lưu File Ghi Chú (.json)</button>
-        <label class="btn-tool secondary">📤 Nạp Ghi Chú <input type="file" id="import-selector" accept=".json" style="display:none"></label>
-        <div id="status" style="font-size: 12px; color: #cbd5e1;">Bôi đen text để gán phân tích.</div>
+        <label class="btn-tool secondary">📖 Nạp Master <input type="file" id="master-loader" accept=".json" style="display:none"></label>
+        <label class="btn-tool secondary">🤖 Auto Mapping <input type="file" id="mapping-selector" accept=".json" style="display:none"></label>
+        <label class="btn-tool" style="background: #059669;">📥 Import Notes <input type="file" id="import-selector" accept=".json" style="display:none"></label>
+        <button class="btn-tool secondary" onclick="exportNotes()">💾 Xuất JSON</button>
+        <div id="status" style="font-size: 12px; color: #cbd5e1;">Nạp PDF -> Master -> Mapping/Import.</div>
     </div>
     <div id="viewer-container"></div>
 </div>
@@ -52,6 +79,15 @@
     </div>
 </div>
 
+<div id="search-modal">
+    <div class="search-box">
+        <h3>Tìm trong Master Dictionary</h3>
+        <input type="text" id="master-search-input" placeholder="Gõ từ khóa..." style="padding:10px; border:1px solid #ccc">
+        <div class="search-results" id="master-results"></div>
+        <button onclick="document.getElementById('search-modal').style.display='none'" style="margin-top:10px">Đóng</button>
+    </div>
+</div>
+
 <div id="note-form-overlay">
     <div class="note-form">
         <h3>Gán thông tin phân tích</h3>
@@ -60,9 +96,9 @@
         <span class="info-label">Dịch (Translation)</span>
         <textarea id="form-trans"></textarea>
         <span class="info-label">Ngữ pháp (Grammar)</span>
-        <textarea id="form-grammar"></textarea>
+        <textarea id="form-grammar" placeholder="{Trích}:{Nghĩa}"></textarea>
         <span class="info-label">Thành phần (Components)</span>
-        <textarea id="form-comp"></textarea>
+        <textarea id="form-comp" placeholder="{Trích}:{Nghĩa}"></textarea>
         <div style="display:flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
             <button onclick="closeForm()">Hủy</button>
             <button onclick="saveNote()" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:4px; cursor:pointer">Lưu lại</button>
@@ -84,7 +120,21 @@
     const menu = document.getElementById('floating-menu');
     const sidebar = document.getElementById('info-sidebar');
     let selectedRange = null;
-    let allNotes = []; // Danh sách lưu trữ toàn bộ note
+    let allNotes = [];
+    let masterData = [];
+    let currentLinkTarget = null;
+
+    // Nạp file master.json
+    document.getElementById('master-loader').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            masterData = JSON.parse(ev.target.result);
+            document.getElementById('status').innerText = `Đã nạp ${masterData.length} mục từ điển.`;
+        };
+        reader.readAsText(file);
+    };
 
     // Mở File PDF
     document.getElementById('file-selector').onchange = async (e) => {
@@ -109,78 +159,230 @@
             const textLayerDiv = document.createElement('div');
             textLayerDiv.className = 'textLayer';
             pageDiv.appendChild(textLayerDiv);
-            pdfjsLib.renderTextLayer({ textContent: await page.getTextContent(), container: textLayerDiv, viewport, textDivs: [] });
+            await pdfjsLib.renderTextLayer({ textContent: await page.getTextContent(), container: textLayerDiv, viewport, textDivs: [] }).promise;
         }
+        document.getElementById('status').innerText = "PDF đã sẵn sàng.";
     };
 
-    // Nạp file JSON ghi chú
+    // --- CHỨC NĂNG IMPORT NOTES (DÙNG LẠI DỮ LIỆU ĐÃ XUẤT) ---
     document.getElementById('import-selector').onchange = (e) => {
         const file = e.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-            allNotes = JSON.parse(ev.target.result);
+            const imported = JSON.parse(ev.target.result);
+            allNotes = imported; // Ghi đè hoặc nối thêm tùy ý, ở đây tôi chọn thay thế
+            // Xóa hết pin cũ trên màn hình trước khi vẽ mới
             document.querySelectorAll('.nt-box').forEach(el => el.remove());
             allNotes.forEach(note => createPin(note));
+            alert(`Đã nạp thành công ${allNotes.length} ghi chú từ file.`);
         };
         reader.readAsText(file);
     };
 
-    document.addEventListener('mouseup', (e) => {
-        const sel = window.getSelection();
-        if (sel.toString().trim()) {
-            selectedRange = sel.getRangeAt(0);
-            menu.style.display = 'flex';
-            menu.style.left = e.clientX + 'px'; menu.style.top = (e.clientY - 50) + 'px';
-        } else if (!e.target.closest('#floating-menu')) {
-            menu.style.display = 'none';
-        }
-    });
-
-    function addMarkup(type) {
-        const rects = selectedRange.getClientRects();
-        const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
-        for (let r of rects) {
-            const pageRect = pageNode.getBoundingClientRect();
-            const box = document.createElement('div');
-            box.className = type + '-box';
-            box.style.left = (r.left - pageRect.left) + 'px';
-            box.style.top = (r.top - pageRect.top) + 'px';
-            box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
-            box.onclick = () => box.remove();
-            pageNode.appendChild(box);
-        }
-        clearSelection();
-    }
-
-    function showNoteForm() {
-        document.getElementById('form-source').innerText = selectedRange.toString();
-        document.getElementById('note-form-overlay').style.display = 'flex';
-        menu.style.display = 'none';
-    }
-
-    function saveNote() {
-        const r = selectedRange.getBoundingClientRect();
-        const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
-        const pRect = pageNode.getBoundingClientRect();
-
-        const note = {
-            id: Date.now(),
-            pageId: pageNode.id,
-            source: selectedRange.toString(),
-            trans: document.getElementById('form-trans').value,
-            grammar: document.getElementById('form-grammar').value,
-            comp: document.getElementById('form-comp').value,
-            x: ((r.left - pRect.left) / pRect.width) * 100, // Lưu tọa độ %
-            y: ((r.top - pRect.top) / pRect.height) * 100
+    // --- CHỨC NĂNG AUTO MAPPING ---
+    document.getElementById('mapping-selector').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const data = JSON.parse(ev.target.result);
+            let count = 0;
+            for (let item of data) {
+                let cleanSource = item.SOURCE.replace(/<rt>.*?<\/rt>/g, "").replace(/<[^>]*>/g, "").trim();
+                const success = await findAndPin(cleanSource, item);
+                if (success) count++;
+            }
+            alert(`Hoàn tất Auto Mapping! ${count}/${data.length} câu.`);
         };
+        reader.readAsText(file);
+    };
 
-        allNotes.push(note);
-        createPin(note);
-        closeForm();
-        clearSelection();
-        document.getElementById('form-trans').value = '';
-        document.getElementById('form-grammar').value = '';
-        document.getElementById('form-comp').value = '';
+async function findAndPin(cleanText, rawData) {
+    const pages = document.querySelectorAll('.page-container');
+    const searchString = cleanText.toLowerCase().replace(/\s+/g, '');
+    for (let page of pages) {
+        const textLayer = page.querySelector('.textLayer');
+        if (!textLayer) continue;
+        const allDivs = Array.from(textLayer.querySelectorAll('div, span'));
+        let fullPageText = "";
+        let charMap = []; 
+        allDivs.forEach(div => {
+            const originalText = div.innerText;
+            const rect = div.getBoundingClientRect();
+            const pRect = page.getBoundingClientRect();
+            const charWidth = rect.width / (originalText.length || 1);
+            for (let i = 0; i < originalText.length; i++) {
+                const char = originalText[i].toLowerCase();
+                if (/\S/.test(char)) {
+                    fullPageText += char;
+                    charMap.push({
+                        x: ((rect.left - pRect.left + (i * charWidth)) / pRect.width) * 100,
+                        y: ((rect.top - pRect.top) / pRect.height) * 100,
+                        el: div
+                    });
+                }
+            }
+        });
+        const matchIdx = fullPageText.indexOf(searchString);
+        if (matchIdx !== -1) {
+            const firstCharData = charMap[matchIdx];
+            const targetEl = firstCharData.el;
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const originalBg = targetEl.style.background;
+            targetEl.style.background = "#fbbf24";
+            const userConfirmed = await new Promise((resolve) => {
+                setTimeout(() => {
+                    const ok = confirm(`Khớp: "${cleanText.substring(0, 30)}..."\nCắm ghim?`);
+                    resolve(ok);
+                }, 500);
+            });
+            targetEl.style.background = originalBg;
+            if (userConfirmed) {
+                const note = {
+                    id: Date.now() + Math.random(),
+                    pageId: page.id,
+                    source: rawData.SOURCE,
+                    trans: rawData.TRANSLATION,
+                    grammar: rawData.GRAMMAR,
+                    comp: rawData.COMPONENTS,
+                    x: firstCharData.x, 
+                    y: firstCharData.y
+                };
+                allNotes.push(note);
+                createPin(note);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function mergeRectsByLine(rects) {
+    const lines = [];
+    const tolerance = 5; // px – cho PDF scale khác nhau
+
+    for (let r of rects) {
+        let line = lines.find(l =>
+            Math.abs(l.centerY - (r.top + r.height / 2)) < tolerance
+        );
+
+        if (!line) {
+            lines.push({
+                top: r.top,
+                bottom: r.bottom,
+                left: r.left,
+                right: r.right,
+                centerY: r.top + r.height / 2
+            });
+        } else {
+            line.left = Math.min(line.left, r.left);
+            line.right = Math.max(line.right, r.right);
+            line.top = Math.min(line.top, r.top);
+            line.bottom = Math.max(line.bottom, r.bottom);
+        }
+    }
+
+    return lines.map(l => ({
+        top: l.top,
+        height: l.bottom - l.top
+    }));
+}
+
+
+    // --- LOGIC PHÂN TÍCH CHUỖI VÀ LINKING ---
+    function renderParsedContent(note, fieldName) {
+        const text = note[fieldName];
+        if (!text) return "N/A";
+        const lines = text.split('\n');
+        let html = "";
+        lines.forEach((line, index) => {
+            const matches = [...line.matchAll(/\{(.*?)\}/g)].map(m => m[1]);
+            if (matches.length >= 2) {
+                const quote = matches[0];
+                const desc = matches[1];
+                const masterIds = matches[2] ? matches[2].split(',').map(id => id.trim()).filter(id => id) : [];
+                const isLinked = masterIds.length > 0;
+                const uniqueBoxId = `box-${fieldName}-${note.id.toString().replace('.','')}-${index}`;
+
+                html += `<div class="grammar-row">
+                    <span class="quote-text" onclick="toggleMasterBox('${uniqueBoxId}')">${quote}</span>: ${desc}
+                    <span class="link-status ${isLinked?'status-linked':'status-none'}" 
+                          onclick="openLinkSearch('${note.id}', '${fieldName}', ${index})">
+                        ${isLinked ? 'Linked ('+masterIds.length+')' : 'no link'}
+                    </span>
+                    <div id="${uniqueBoxId}" class="master-data-box">
+                        ${isLinked ? renderMasterInfo(masterIds) : '<i>Chưa gán link dữ liệu.</i>'}
+                    </div>
+                </div>`;
+            } else {
+                html += `<div>${line}</div>`;
+            }
+        });
+        return html;
+    }
+
+    function renderMasterInfo(ids) {
+        let h = "";
+        ids.forEach(id => {
+            const data = masterData.find(m => m.master_id === id);
+            if (data) {
+                h += `<div style="border-bottom:1px dashed #ccc; margin-bottom:5px; padding-bottom:5px">
+                    <b style="color:red">${data.pattern}</b> (${data.reading})<br>
+                    <span style="font-weight:bold">${data.core_meaning}</span><br>
+                    <small>${data.description}</small>
+                </div>`;
+            } else h += `<div style="color:red">ID không khớp Master: ${id}</div>`;
+        });
+        return h;
+    }
+
+    function toggleMasterBox(id) {
+        const el = document.getElementById(id);
+        if(el) el.classList.toggle('open');
+    }
+
+    function openLinkSearch(noteId, field, lineIdx) {
+        if(masterData.length === 0) return alert("Cần nạp Master.json trước!");
+        currentLinkTarget = { noteId, field, lineIdx };
+        document.getElementById('search-modal').style.display = 'flex';
+        document.getElementById('master-results').innerHTML = "";
+    }
+
+    document.getElementById('master-search-input').oninput = (e) => {
+        const key = e.target.value.toLowerCase();
+        if(!key) return;
+        const results = masterData.filter(m => 
+            m.pattern.toLowerCase().includes(key) || 
+            m.core_meaning.toLowerCase().includes(key) ||
+            m.master_id.toLowerCase().includes(key)
+        ).slice(0, 10);
+        let h = "";
+        results.forEach(r => {
+            h += `<div class="result-item" onclick="attachMasterId('${r.master_id}')">
+                <b>${r.pattern}</b> - ${r.core_meaning} <br> <small>${r.master_id}</small>
+            </div>`;
+        });
+        document.getElementById('master-results').innerHTML = h;
+    };
+
+    function attachMasterId(mId) {
+        const note = allNotes.find(n => n.id.toString() == currentLinkTarget.noteId.toString());
+        const lines = note[currentLinkTarget.field].split('\n');
+        let line = lines[currentLinkTarget.lineIdx];
+        const matches = [...line.matchAll(/\{(.*?)\}/g)].map(m => m[1]);
+        
+        if(matches.length == 2) {
+            line = `{${matches[0]}}:{${matches[1]}}:{${mId}}`;
+        } else if(matches.length >= 3) {
+            const existingIds = matches[2].split(',').map(i => i.trim()).filter(i => i);
+            if(!existingIds.includes(mId)) existingIds.push(mId);
+            line = `{${matches[0]}}:{${matches[1]}}:{${existingIds.join(', ')}}`;
+        }
+        lines[currentLinkTarget.lineIdx] = line;
+        note[currentLinkTarget.field] = lines.join('\n');
+        document.getElementById('search-modal').style.display = 'none';
+        showDetails(note, null);
     }
 
     function createPin(note) {
@@ -193,32 +395,102 @@
         parent.appendChild(pin);
     }
 
+    function saveNote() {
+        const r = selectedRange.getBoundingClientRect();
+        const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
+        const pRect = pageNode.getBoundingClientRect();
+        const note = {
+            id: Date.now() + Math.random(),
+            pageId: pageNode.id,
+            source: selectedRange.toString(),
+            trans: document.getElementById('form-trans').value,
+            grammar: document.getElementById('form-grammar').value,
+            comp: document.getElementById('form-comp').value,
+            x: ((r.left - pRect.left + (r.width/2)) / pRect.width) * 100,
+            y: ((r.top - pRect.top) / pRect.height) * 100
+        };
+        allNotes.push(note);
+        createPin(note);
+        closeForm();
+        clearSelection();
+    }
+
     function showDetails(note, pinElement) {
         const container = document.getElementById('sidebar-data');
         container.innerHTML = `
             <span class="info-label">Nguyên văn</span><div class="info-value" style="background:#fff">${note.source}</div>
             <span class="info-label">Dịch nghĩa</span><div class="info-value">${note.trans.replace(/\n/g, '<br>')}</div>
-            <span class="info-label">Ngữ pháp</span><div class="info-value">${note.grammar.replace(/\n/g, '<br>')}</div>
-            <span class="info-label">Thành phần</span><div class="info-value">${note.comp.replace(/\n/g, '<br>')}</div>
+            <span class="info-label">Ngữ pháp</span>
+            <div class="info-value" style="background:white">${renderParsedContent(note, 'grammar')}</div>
+            <span class="info-label">Thành phần</span>
+            <div class="info-value" style="background:white">${renderParsedContent(note, 'comp')}</div>
         `;
         sidebar.classList.add('open');
-        document.getElementById('del-btn').onclick = () => {
-            if(confirm("Xóa phân tích này?")) {
-                allNotes = allNotes.filter(n => n.id !== note.id);
-                pinElement.remove(); closeSidebar();
-            }
-        };
+        if (pinElement) {
+            document.getElementById('del-btn').onclick = () => {
+                if(confirm("Xóa ghi chú này?")) {
+                    allNotes = allNotes.filter(n => n.id !== note.id);
+                    pinElement.remove(); closeSidebar();
+                }
+            };
+        }
     }
 
+function addMarkup(type) {
+    if (!selectedRange) return;
+
+    const rawRects = Array.from(selectedRange.getClientRects());
+    if (!rawRects.length) return;
+
+    const lines = mergeRectsByLine(rawRects);
+    const pageNode = selectedRange.startContainer.parentElement.closest('.page-container');
+    if (!pageNode) return;
+
+    const pageRect = pageNode.getBoundingClientRect();
+    const textLayer = pageNode.querySelector('.textLayer');
+    const textRect = textLayer.getBoundingClientRect();
+
+    for (let line of lines) {
+        const box = document.createElement('div');
+        box.className = type + '-box';
+
+        box.style.left = (textRect.left - pageRect.left) + 'px';
+        box.style.top = (line.top - pageRect.top) + 'px';
+        box.style.width = textRect.width + 'px';
+        box.style.height = line.height + 'px';
+
+        box.onclick = () => box.remove();
+        pageNode.appendChild(box);
+    }
+
+    clearSelection();
+}
+
+
+
+    document.addEventListener('mouseup', (e) => {
+        const sel = window.getSelection();
+        if (sel.toString().trim()) {
+            selectedRange = sel.getRangeAt(0);
+            menu.style.display = 'flex';
+            menu.style.left = e.clientX + 'px'; menu.style.top = (e.clientY - 50) + 'px';
+        } else if (!e.target.closest('#floating-menu')) menu.style.display = 'none';
+    });
+
     function exportNotes() {
-        if (allNotes.length === 0) return alert("Chưa có ghi chú nào để lưu!");
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allNotes));
+        // Xuất toàn bộ mảng allNotes, mảng này đã chứa các chuỗi format có master_id
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allNotes, null, 2));
         const dlAnchor = document.createElement('a');
         dlAnchor.setAttribute("href", dataStr);
-        dlAnchor.setAttribute("download", "pdf_notes.json");
+        dlAnchor.setAttribute("download", "pdf_study_full_data.json");
         dlAnchor.click();
     }
 
+    function showNoteForm() {
+        document.getElementById('form-source').innerText = selectedRange.toString();
+        document.getElementById('note-form-overlay').style.display = 'flex';
+        menu.style.display = 'none';
+    }
     function closeForm() { document.getElementById('note-form-overlay').style.display = 'none'; }
     function closeSidebar() { sidebar.classList.remove('open'); }
     function clearSelection() { window.getSelection().removeAllRanges(); menu.style.display = 'none'; }
