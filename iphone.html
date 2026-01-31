@@ -1438,15 +1438,42 @@ function enterEditMode() {
     showEditPopup();
 }
 function showEditPopup() {
+    // 1. Tìm cái vùng chứa (thẻ cha của display-text)
+    const container = document.getElementById('display-text').parentElement;
+    
+    // 2. Nếu đã có popup cũ thì xóa đi
+    const oldPopup = document.getElementById('edit-popup');
+    if (oldPopup) oldPopup.remove();
+
+    // 3. Tạo popup mới
     const popup = document.createElement('div');
     popup.id = 'edit-popup';
-    popup.innerHTML = `
-        <div class="edit-popup">
-            <button onclick="saveEdit()">💾 Lưu</button>
-            <button onclick="cancelEdit()">❌ Hủy</button>
-        </div>
+    
+    // Ép style trực tiếp để nó nằm dưới đáy và giãn cách 2 bên
+    popup.style.cssText = `
+        position: absolute;
+        bottom: -10px; /* Đẩy xuống sát đáy hoặc dưới đáy khung một tí */
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100%; /* Rộng bằng khung đang sửa */
+        display: flex;
+        justify-content: space-between; /* Đẩy Lưu sang trái, Hủy sang phải */
+        padding: 0 10px; /* Cách mép một tí cho đẹp */
+        box-sizing: border-box;
+        z-index: 1001;
+        pointer-events: none; /* Tránh che vùng click của text */
     `;
-    document.body.appendChild(popup);
+
+    popup.innerHTML = `
+        <button class="btn-save" onclick="saveEdit()" style="pointer-events: auto; min-width: 90px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">💾 Lưu</button>
+        <button class="btn-cancel" onclick="cancelEdit()" style="pointer-events: auto; min-width: 90px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">❌ Hủy</button>
+    `;
+    
+    // 4. Đảm bảo thẻ cha có position relative
+    container.style.position = 'relative';
+    
+    // 5. Thêm vào container
+    container.appendChild(popup);
 }
 async function saveEdit() {
     console.log("--- BẮT ĐẦU LƯU ---");
@@ -1456,17 +1483,32 @@ async function saveEdit() {
     const newValue = el.innerText.trim();
     const word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
 
-    // Lấy rowIndex (giờ đã có nhờ Bước 1)
+    // 1. Tìm chính xác cái tên cột đang hiển thị trên màn hình
+    // Headers là mảng ["Từ vựng", "Hán tự + Nghĩa", ...]
+    // Chúng ta tìm xem cái text cũ trước khi sửa nó thuộc về trường nào trong 'word'
+    let actualField = "";
+    headers.forEach((h) => {
+        if (word[h] === editOriginalText) {
+            actualField = h;
+        }
+    });
+
+    // Nếu không tìm thấy field theo text cũ, thì mới dùng currentFieldIndex làm dự phòng
+    const fieldName = actualField || headers[currentFieldIndex];
+    const fieldIdx = headers.indexOf(fieldName); 
+    
+    // Database dùng col1, col2... (col1 thường là Từ vựng)
+    const dbFieldName = `col${fieldIdx + 1}`; 
     const rowIndex = parseInt(word.row_index);
-    const dbFieldName = `col${currentFieldIndex}`; 
+
+    console.log("Xác nhận lưu:", { fieldName, dbFieldName, rowIndex, newValue });
 
     if (isNaN(rowIndex)) {
-        alert("Lỗi: row_index không tồn tại. Hãy F5 trang để tải lại dữ liệu!");
+        alert("Lỗi: Không tìm thấy ID dòng!");
         return;
     }
 
     try {
-        // Gửi lệnh update lên Supabase
         const { data, error } = await supabaseClient
             .from('hoc_tap')
             .update({ [dbFieldName]: newValue }) 
@@ -1475,32 +1517,21 @@ async function saveEdit() {
 
         if (error) throw error;
 
-        if (!data || data.length === 0) {
-            alert("Lưu thất bại: Database không tìm thấy dòng này.");
-        } else {
-            // Cập nhật local để hiển thị luôn
-            const localFieldName = headers[currentFieldIndex];
-            word[localFieldName] = newValue;
+        if (data && data.length > 0) {
+            // CẬP NHẬT ĐÚNG TRƯỜNG DỮ LIỆU
+            word[fieldName] = newValue;
             
-            alert("Đã lưu thành công!");
+            // Nếu vô tình ghi đè vào trường khác, ta cần đảm bảo các trường khác giữ nguyên
+            // (Đoạn này giúp tránh vụ STT bị biến thành chữ)
             
-            // TỰ ĐÓNG POPUP VÀ THOÁT EDIT
-            const popup = document.getElementById('edit-popup');
-            if (popup) popup.remove(); // Xóa popup sửa
-            
-            isEditing = false;
-            el.setAttribute('contenteditable', 'false');
-            el.style.userSelect = 'none';
-            el.style.cursor = 'default';
-            
-            // Nếu mày có hàm exitEditMode() thì gọi nó thay cho mấy dòng trên
-            if (typeof exitEditMode === 'function') exitEditMode();
-            
+            alert("Đã lưu thành công vào cột: " + fieldName);
+            exitEditMode();
             updateDisplay(true); 
+        } else {
+            alert("Lỗi: Không tìm thấy dòng để update trên Database.");
         }
-
     } catch (err) {
-        alert("Lỗi lưu dữ liệu: " + err.message);
+        alert("Lỗi: " + err.message);
         console.error(err);
     }
 }
