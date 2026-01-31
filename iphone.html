@@ -305,11 +305,6 @@
 </div>
 
 <div class="card">
-<div id="edit-controls" class="hidden">
-    <button onclick="saveEditedText()">💾 Lưu</button>
-    <button onclick="cancelEditText()">✖ Hủy</button>
-</div>
-
     <div class="card-touch-zone">
         <div id="display-text" class="card-content" onclick="speakText()">
             ---
@@ -321,8 +316,30 @@
 			<span>Tốc độ: <input type="range" id="voiceRate" min="0.25" max="3" step="0.25" value="1" oninput="document.getElementById('speed-display').innerText = this.value + 'x'"> 
 				<span id="speed-display" class="speed-val">1x</span>
 			</span>
-			<label><input type="checkbox" id="autoSpeak" checked> Tự động đọc</label>
-			<label id="random-multi-wrap"><input type="checkbox" id="randomMulti" checked> Random</label>
+			<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+				<label>
+					<input type="checkbox" id="autoSpeak" checked> Tự động đọc
+				</label>
+			
+				<label id="random-multi-wrap">
+					<input type="checkbox" id="randomMulti" checked> Random
+				</label>
+			
+				<button id="btn-edit"
+					onclick="enterEditMode()"
+					style="
+						background:#f59e0b;
+						color:white;
+						border:none;
+						border-radius:8px;
+						padding:6px 12px;
+						font-size:0.8rem;
+						font-weight:bold;
+					">
+					✏️ Edit
+				</button>
+			</div>
+
 			<div style="display: flex; gap: 5px; width: 100%; margin-top: 5px;">
 				<button id="furiganaToggle" onclick="toggleFurigana()" style="flex: 1; background: #e2e8f0; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">Furigana: OFF</button>
 				<button id="btn-data-toggle" onclick="toggleDataMenu()" style="flex: 1; background: #334155; color: white; padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; border: none;">Data ▾</button>
@@ -339,8 +356,8 @@
 				<button onclick="resetDatabase()" style="background:none; color:#ef4444; font-size:11px; border:none; text-decoration: underline; cursor: pointer;">[Xóa sạch Database hệ thống]</button>
 			</div>
 		</div>
-		<div id="study-controls" class="hidden"></div> 
-		
+		<div id="study-controls" class="hidden" style="margin-top: 10px;"></div>
+
 		<div id="review-controls" class="hidden" style="margin-top: 10px;">
 			<button id="btn-autoplay" class="btn-autoplay" onclick="toggleAutoPlay()" style="width: 100%;">▶ Tự động phát</button>
 		</div>
@@ -413,8 +430,9 @@
     let userAnswers = {};
     let isDataChanged = false;
     let availableVoices = [];
-let isEditingText = false;
-let originalTextCache = '';
+let isEditing = false;
+let editOriginalText = "";
+
 
     let hotkeys = JSON.parse(localStorage.getItem('vocab_hotkeys')) || {
         'next': 'arrowright', 'prev': 'arrowleft', 'learned': '1', 'mastered': '2',
@@ -500,43 +518,6 @@ function applyColumnVisibility() {
     closeColumnModal();
     updateDisplay();
 }
-
-async function saveEditedText() {
-    if (!isEditingText) return;
-
-    const el = document.getElementById('display-text');
-    const newText = el.innerText.trim();
-
-    const word = currentMode === 'study'
-        ? rawData[currentWordIndex]
-        : reviewPool[reviewIndex];
-
-    const fieldName = headers[currentFieldIndex];
-
-    // update local
-    word[fieldName] = newText;
-
-    // update cloud (mày đã có logic sync)
-    await syncToCloud();
-
-    exitEditMode();
-    updateDisplay(true);
-}
-function cancelEditText() {
-    const el = document.getElementById('display-text');
-    el.innerText = originalTextCache;
-    exitEditMode();
-}
-function exitEditMode() {
-    const el = document.getElementById('display-text');
-    el.removeAttribute('contenteditable');
-
-    isEditingText = false;
-    originalTextCache = '';
-
-    hideEditControls();
-}
-
 
 // Kiểm tra nếu đang đứng ở cột bị ẩn thì nhảy sang cột gần nhất không bị ẩn
 function validateCurrentField() {
@@ -640,8 +621,12 @@ function formatFurigana(text) {
 				console.log("3. Đã thấy vocab, số lượng:", vocab.length);
 				
 				rawData = vocab.map(row => {
-					let obj = {};
-					headers.forEach((h, i) => { obj[h] = row[`col${i+1}`]; });
+					// 1. Phải nạp row_index vào object ngay từ đầu
+					let obj = { row_index: row.row_index }; 
+					
+					headers.forEach((h, i) => { 
+						obj[h] = row[`col${i+1}`]; 
+					});
 					return obj;
 				});
 	
@@ -929,8 +914,8 @@ function switchMode(mode) {
         
         document.getElementById('study-controls').classList.add('hidden');
         document.getElementById('review-controls').classList.remove('hidden');
-        document.getElementById('btn-to-review').classList.add('hidden');
-        document.getElementById('btn-to-study').classList.remove('hidden');
+        //document.getElementById('btn-to-review').classList.add('hidden');
+        //document.getElementById('btn-to-study').classList.remove('hidden');
         document.getElementById('random-multi-wrap').classList.remove('hidden');
         reviewIndex = 0; 
         currentFieldIndex = 1; 
@@ -941,8 +926,8 @@ function switchMode(mode) {
         
         document.getElementById('study-controls').classList.remove('hidden');
         document.getElementById('review-controls').classList.add('hidden');
-        document.getElementById('btn-to-review').classList.remove('hidden');
-        document.getElementById('btn-to-study').classList.add('hidden');
+        //document.getElementById('btn-to-review').classList.remove('hidden');
+        //document.getElementById('btn-to-study').classList.add('hidden');
         document.getElementById('random-multi-wrap').classList.add('hidden');
         currentFieldIndex = 1; 
         updateDisplay(true);
@@ -1327,26 +1312,6 @@ function showQuizScreen(event) {
         }, 1000);
     }
 
-const displayTextEl = document.getElementById('display-text');
-
-if (displayTextEl) {
-    displayTextEl.addEventListener('dblclick', e => {
-        if (isAutoPlaying) return;      // đang auto thì cấm edit
-        if (isEditingText) return;
-
-        isEditingText = true;
-        e.stopPropagation();
-
-        originalTextCache = displayTextEl.innerText;
-
-        displayTextEl.setAttribute('contenteditable', 'true');
-        displayTextEl.focus();
-
-        showEditControls(); // chỉ HIỆN nút, không sửa UI cũ
-    });
-}
-
-
 function restartQuiz() {
     clearInterval(quizInterval); // Dừng đếm ngược cũ
     document.getElementById('quiz-result-summary').classList.add('hidden'); // Ẩn bảng điểm
@@ -1449,6 +1414,123 @@ if (forceQuit) {
         }
     }
 }
+
+function enterEditMode() {
+    if (isEditing) return;
+
+    stopAutoPlay(); // tránh conflict
+    isEditing = true;
+
+    const el = document.getElementById('display-text');
+    if (!el) return;
+
+    editOriginalText = el.innerText;
+
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+
+    el.style.userSelect = 'text';
+    el.style.webkitUserSelect = 'text';
+    el.style.cursor = 'text';
+
+    disableSwipe();
+
+    showEditPopup();
+}
+function showEditPopup() {
+    const popup = document.createElement('div');
+    popup.id = 'edit-popup';
+    popup.innerHTML = `
+        <div class="edit-popup">
+            <button onclick="saveEdit()">💾 Lưu</button>
+            <button onclick="cancelEdit()">❌ Hủy</button>
+        </div>
+    `;
+    document.body.appendChild(popup);
+}
+async function saveEdit() {
+    console.log("--- BẮT ĐẦU LƯU ---");
+    const el = document.getElementById('display-text');
+    if (!el) return;
+
+    const newValue = el.innerText.trim();
+    const word = currentMode === 'study' ? rawData[currentWordIndex] : reviewPool[reviewIndex];
+
+    // Lấy rowIndex (giờ đã có nhờ Bước 1)
+    const rowIndex = parseInt(word.row_index);
+    const dbFieldName = `col${currentFieldIndex}`; 
+
+    if (isNaN(rowIndex)) {
+        alert("Lỗi: row_index không tồn tại. Hãy F5 trang để tải lại dữ liệu!");
+        return;
+    }
+
+    try {
+        // Gửi lệnh update lên Supabase
+        const { data, error } = await supabaseClient
+            .from('hoc_tap')
+            .update({ [dbFieldName]: newValue }) 
+            .eq('row_index', rowIndex)
+            .select();
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            alert("Lưu thất bại: Database không tìm thấy dòng này.");
+        } else {
+            // Cập nhật local để hiển thị luôn
+            const localFieldName = headers[currentFieldIndex];
+            word[localFieldName] = newValue;
+            
+            alert("Đã lưu thành công!");
+            
+            // TỰ ĐÓNG POPUP VÀ THOÁT EDIT
+            const popup = document.getElementById('edit-popup');
+            if (popup) popup.remove(); // Xóa popup sửa
+            
+            isEditing = false;
+            el.setAttribute('contenteditable', 'false');
+            el.style.userSelect = 'none';
+            el.style.cursor = 'default';
+            
+            // Nếu mày có hàm exitEditMode() thì gọi nó thay cho mấy dòng trên
+            if (typeof exitEditMode === 'function') exitEditMode();
+            
+            updateDisplay(true); 
+        }
+
+    } catch (err) {
+        alert("Lỗi lưu dữ liệu: " + err.message);
+        console.error(err);
+    }
+}
+function cancelEdit() {
+    const el = document.getElementById('display-text');
+    el.innerText = editOriginalText;
+    exitEditMode();
+}
+function exitEditMode() {
+    const el = document.getElementById('display-text');
+    el.removeAttribute('contenteditable');
+
+    isEditing = false;
+    editOriginalText = "";
+
+    enableSwipe();
+
+    const popup = document.getElementById('edit-popup');
+    if (popup) popup.remove();
+}
+function disableSwipe() {
+    cardElement.style.touchAction = 'none';
+}
+
+function enableSwipe() {
+    cardElement.style.touchAction = '';
+}
+
+
+
 // --- LOGIC VUỐT (SWIPE) ĐÃ TỐI ƯU CHO IPHONE ---
 // --- LOGIC VUỐT (SWIPE) TỐI ƯU ---
 let touchstartX = 0;
@@ -1464,6 +1546,7 @@ if (cardElement) {
     }, {passive: true});
 
     cardElement.addEventListener('touchmove', e => {
+		if (isEditing) return;
         let currX = e.changedTouches[0].screenX;
         let currY = e.changedTouches[0].screenY;
         
