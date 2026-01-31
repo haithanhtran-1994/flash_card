@@ -305,6 +305,11 @@
 </div>
 
 <div class="card">
+<div id="edit-controls" class="hidden">
+    <button onclick="saveEditedText()">💾 Lưu</button>
+    <button onclick="cancelEditText()">✖ Hủy</button>
+</div>
+
     <div class="card-touch-zone">
         <div id="display-text" class="card-content" onclick="speakText()">
             ---
@@ -408,6 +413,8 @@
     let userAnswers = {};
     let isDataChanged = false;
     let availableVoices = [];
+let isEditingText = false;
+let originalTextCache = '';
 
     let hotkeys = JSON.parse(localStorage.getItem('vocab_hotkeys')) || {
         'next': 'arrowright', 'prev': 'arrowleft', 'learned': '1', 'mastered': '2',
@@ -493,6 +500,43 @@ function applyColumnVisibility() {
     closeColumnModal();
     updateDisplay();
 }
+
+async function saveEditedText() {
+    if (!isEditingText) return;
+
+    const el = document.getElementById('display-text');
+    const newText = el.innerText.trim();
+
+    const word = currentMode === 'study'
+        ? rawData[currentWordIndex]
+        : reviewPool[reviewIndex];
+
+    const fieldName = headers[currentFieldIndex];
+
+    // update local
+    word[fieldName] = newText;
+
+    // update cloud (mày đã có logic sync)
+    await syncToCloud();
+
+    exitEditMode();
+    updateDisplay(true);
+}
+function cancelEditText() {
+    const el = document.getElementById('display-text');
+    el.innerText = originalTextCache;
+    exitEditMode();
+}
+function exitEditMode() {
+    const el = document.getElementById('display-text');
+    el.removeAttribute('contenteditable');
+
+    isEditingText = false;
+    originalTextCache = '';
+
+    hideEditControls();
+}
+
 
 // Kiểm tra nếu đang đứng ở cột bị ẩn thì nhảy sang cột gần nhất không bị ẩn
 function validateCurrentField() {
@@ -1282,6 +1326,26 @@ function showQuizScreen(event) {
             if (timeLeft <= 0) { clearInterval(quizInterval); finishQuiz(); }
         }, 1000);
     }
+
+const displayTextEl = document.getElementById('display-text');
+
+if (displayTextEl) {
+    displayTextEl.addEventListener('dblclick', e => {
+        if (isAutoPlaying) return;      // đang auto thì cấm edit
+        if (isEditingText) return;
+
+        isEditingText = true;
+        e.stopPropagation();
+
+        originalTextCache = displayTextEl.innerText;
+
+        displayTextEl.setAttribute('contenteditable', 'true');
+        displayTextEl.focus();
+
+        showEditControls(); // chỉ HIỆN nút, không sửa UI cũ
+    });
+}
+
 
 function restartQuiz() {
     clearInterval(quizInterval); // Dừng đếm ngược cũ
