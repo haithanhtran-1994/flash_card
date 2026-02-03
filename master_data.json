@@ -1,0 +1,38 @@
+[
+  {
+    "master_id": "ja-aux-datta",
+    "pattern": "〜だった",
+    "reading": "だった",
+    "level": "N5",
+    "type": "Auxiliary",
+    "core_meaning": "Thì quá khứ của Desu (だ)",
+    "description": "Dùng để xác nhận một trạng thái hoặc sự việc trong quá khứ. Thường dùng cho danh từ và tính từ đuôi na.",
+    "examples": [
+      { "jp": "昨日は雨だった。", "vi": "Hôm qua trời mưa." }
+    ]
+  },
+  {
+    "master_id": "ja-particle-wa",
+    "pattern": "〜は",
+    "reading": "は (wa)",
+    "level": "N5",
+    "type": "Particle",
+    "core_meaning": "Trợ từ chủ đề",
+    "description": "Đứng sau danh từ để chỉ định đó là chủ đề chính của câu.",
+    "examples": [
+      { "jp": "私は学生です。", "vi": "Tôi là sinh viên." }
+    ]
+  },
+  {
+    "master_id": "ja-neg-naide",
+    "pattern": "〜ないで",
+    "reading": "ないで",
+    "level": "N4",
+    "type": "Conjunction",
+    "core_meaning": "Làm gì đó mà không làm gì đó",
+    "description": "Diễn tả hành động A xảy ra trong trạng thái không thực hiện hành động B.",
+    "examples": [
+      { "jp": "傘を持たないで出かけました。", "vi": "Đã đi ra ngoài mà không mang theo ô." }
+    ]
+  }
+]
