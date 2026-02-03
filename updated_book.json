@@ -1,0 +1,81 @@
+{
+    "meta": {
+        "book_id": "formal_verification_intro",
+        "title": "Introduction to Formal Verification",
+        "language": "en",
+        "source": {
+            "type": "pdf",
+            "file": "formal_verification.pdf"
+        }
+    },
+    "blocks": [
+        {
+            "id": "b_0001",
+            "type": "chapter",
+            "page": 1,
+            "content": {
+                "raw": "Basic formal verification algorithms",
+                "reading": null
+            },
+            "translation": {
+                "vi": "Các thuật toán kiểm chứng hình thức cơ bản"
+            },
+            "grammar": [],
+            "analysis": [],
+            "highlights": [],
+            "underlines": []
+        },
+        {
+            "id": "b_0002",
+            "type": "quote",
+            "page": 1,
+            "content": {
+                "raw": "“And how exactly like an egg he is!” she said aloud, standing with her hands ready to catch him, for she was every moment expecting him to fall.\n\n“It’s very provoking,” Humpty Dumpty said after a long silence, looking away from Alice as he spoke, “to be called an egg — very!”\n\n“I said you looked like an egg, Sir,” Alice gently explained. “And some eggs are very pretty, you know,” she added, hoping to turn her remark into a sort of a compliment.\n\n“Some people,” said Humpty Dumpty, looking away from her as usual, “have no more sense than a baby!”\n\n— Lewis Carroll, Through the Looking-Glass",
+                "reading": null
+            },
+            "translation": {
+                "vi": "“Trông ông giống một quả trứng thật đấy!” cô nói to, đứng sẵn sàng với đôi tay để đỡ lấy ông, vì cô luôn nghĩ rằng ông sẽ ngã bất cứ lúc nào.\n\n“Thật là khiêu khích,” Humpty Dumpty nói sau một hồi im lặng dài, quay mặt đi chỗ khác khi nói, “bị gọi là một quả trứng — thật quá đáng!”\n\n“Tôi nói là ông trông giống một quả trứng thôi, thưa ngài,” Alice nhẹ nhàng giải thích. “Và có những quả trứng rất đẹp mà,” cô nói thêm, hy vọng biến nhận xét của mình thành một lời khen.\n\n“Có những người,” Humpty Dumpty nói, như thường lệ quay mặt đi, “chẳng có nhiều lý trí hơn một đứa trẻ sơ sinh!”"
+            },
+            "grammar": [],
+            "analysis": [],
+            "highlights": [],
+            "underlines": []
+        },
+        {
+            "id": "b_0003",
+            "type": "sentence",
+            "page": 1,
+            "content": {
+                "raw": "This chapter will provide you with a general idea of the kinds of algorithms that are used in formal verification tools.",
+                "reading": null
+            },
+            "translation": {
+                "vi": "Chương này sẽ cung cấp cho bạn cái nhìn tổng quát về các loại thuật toán được sử dụng trong các công cụ kiểm chứng hình thức."
+            },
+            "grammar": [
+                {
+                    "quote": "will provide you with",
+                    "explanation": "Thì tương lai đơn dùng để mô tả nội dung sẽ được trình bày trong chương.",
+                    "role": "ngữ pháp",
+                    "ref_id": "ja-aux-datta"
+                }
+            ],
+            "analysis": [
+                {
+                    "quote": "This chapter",
+                    "explanation": "Danh từ chỉ chủ thể của câu, đại diện cho chương hiện tại.",
+                    "role": "chủ ngữ",
+                    "ref_id": "ja-neg-naide"
+                },
+                {
+                    "quote": "the kinds of algorithms",
+                    "explanation": "Cụm danh từ chỉ đối tượng được giới thiệu trong chương.",
+                    "role": "tân ngữ",
+                    "ref_id": null
+                }
+            ],
+            "highlights": [],
+            "underlines": []
+        }
+    ]
+}
