@@ -76,6 +76,51 @@
         .view-content label { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; font-size: 14px; }
         .view-content label:hover { background: #f1f1f1; }
         .view-content input { width: auto; margin: 0; }
+		/* ===== Reading Tooltip (hover on block) ===== */
+.reading-tip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    transform: translateY(-6px);
+    background: #222;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;        /* đúng chiều dài câu */
+    width: fit-content;
+    max-width: 100%;
+    z-index: 1500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.block:hover .reading-tip {
+    opacity: 1;
+}
+/* ===== Collapse / Expand items ===== */
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.item-toggle {
+    font-size: 12px;
+    color: #007bff;
+    user-select: none;
+}
+
+.item-body.collapsed {
+    display: none;
+}
+
     </style>
 </head>
 <body>
@@ -121,7 +166,7 @@
     </div>
 
     <div id="editor-overlay" class="hidden">
-        <span class="close-btn" onclick="closeEditor()">&times;</span>
+        <span class="close-btn" onclick="checkAndClose()">&times;</span>
         <h3 id="edit-title">Chi tiết Block</h3>
         
         <div id="container-trans">
@@ -136,7 +181,13 @@
 
         <div id="container-grammar">
             <div class="header-split">
-                <h4 class="clickable-header" onclick="openFilter('grammar')">Ngữ pháp ⚙️</h4>
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('grammar')">
+						Ngữ pháp ⚙️
+					</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('grammar', event)">[±]</span>
+				</div>
                 <button class="add-btn" onclick="addItem('grammar')">+</button>
             </div>
             <div id="grammar-list"></div>
@@ -144,7 +195,14 @@
 
         <div id="container-analysis">
             <div class="header-split">
-                <h4 class="clickable-header" onclick="openFilter('analysis')">Phân tích câu ⚙️</h4>
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('analysis')">
+						Phân tích câu ⚙️
+					</h4>
+				
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('analysis', event)">[±]</span>
+				</div>
                 <button class="add-btn" onclick="addItem('analysis')">+</button>
             </div>
             <div id="analysis-list"></div>
@@ -237,21 +295,75 @@
                     });
                 }
 
+
                 div.innerHTML = content;
+				// ===== MỚI: reading screentip =====
+// ===== MỚI: reading screentip =====
+if (block.content && block.content.reading) {
+    const tip = document.createElement('div');
+    tip.className = 'reading-tip';
+    tip.innerText = block.content.reading;
+    div.appendChild(tip);
+}
                 div.onclick = () => openEditor(block.id);
                 viewer.appendChild(div);
             });
         }
-
-        function openEditor(id) {
+		let originalBlockData = null;
+function openEditor(id) {
             currentBlockId = id;
             const block = bookData.blocks.find(b => b.id === id);
+            
+            // CHỤP ẢNH DỮ LIỆU BAN ĐẦU (Deep Copy)
+            originalBlockData = JSON.parse(JSON.stringify(block));
+
             document.getElementById('edit-title').innerText = "Block: " + id;
             document.getElementById('edit-trans').value = block.translation?.vi || '';
             refreshEditorLists(block);
             document.getElementById('editor-overlay').classList.remove('hidden');
         }
+// HÀM MỚI: Kiểm tra thay đổi khi ấn nút X
+        function checkAndClose() {
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            // Cập nhật giá trị dịch thuật hiện thời vào object để so sánh
+            block.translation = block.translation || {};
+            block.translation.vi = document.getElementById('edit-trans').value;
 
+            const changes = [];
+            
+            // 1. Kiểm tra dịch thuật
+            if (block.translation.vi !== (originalBlockData.translation?.vi || '')) {
+                changes.push("- Bản dịch (VI)");
+            }
+
+            // 2. Kiểm tra Ngữ pháp & Phân tích (So sánh JSON string cho nhanh và chính xác)
+            if (JSON.stringify(block.grammar) !== JSON.stringify(originalBlockData.grammar)) {
+                changes.push("- Dữ liệu Ngữ pháp");
+            }
+            if (JSON.stringify(block.analysis) !== JSON.stringify(originalBlockData.analysis)) {
+                changes.push("- Dữ liệu Phân tích câu");
+            }
+            if (JSON.stringify(block.highlights) !== JSON.stringify(originalBlockData.highlights) || 
+                JSON.stringify(block.underlines) !== JSON.stringify(originalBlockData.underlines)) {
+                changes.push("- Đánh dấu (Highlights/Underlines)");
+            }
+
+            if (changes.length > 0) {
+                const message = "Bạn đã thay đổi:\n" + changes.join("\n") + "\n\nBạn có muốn LƯU những thay đổi này không?\n(Ấn 'Cancel' để hủy bỏ thay đổi và đóng)";
+                if (confirm(message)) {
+                    closeEditor(); // Lưu và đóng
+                } else {
+                    // Hoàn tác dữ liệu về bản cũ
+                    const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
+                    bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
+                    document.getElementById('editor-overlay').classList.add('hidden');
+                    renderBook();
+                }
+            } else {
+                // Không có thay đổi thì đóng luôn
+                document.getElementById('editor-overlay').classList.add('hidden');
+            }
+        }
         function refreshEditorLists(block) {
             // MỚI: Ẩn hiện các container dựa trên View Menu
             document.getElementById('container-trans').className = editorModulesVisibility.trans ? '' : 'hidden';
@@ -278,22 +390,43 @@
             document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
         }
 
-        function renderItems(items, type) {
-            return (items || []).map((item, i) => {
-                const refText = item.ref_id ? `ID: ${item.ref_id}` : "[Gán ID Master]";
-                return `
-                <div class="section-group">
-                    <span class="btn-x" onclick="removeItem('${type}',${i})" title="Xóa">×</span>
-                    <span class="ref-link" 
-                          onmouseover="showTooltip(event, '${item.ref_id}', '${type}')" 
-                          onmouseout="hideTooltip()" 
-                          onclick="openSearch('${type}', ${i})">${refText}</span>
-                    <input value="${item.quote}" oninput="updateField('${type}',${i},'quote',this.value)" placeholder="Quote">
-                    ${type === 'analysis' ? `<input value="${item.role || ''}" oninput="updateField('${type}',${i},'role',this.value)" placeholder="Role (Vai trò)">` : ''}
-                    <textarea oninput="updateField('${type}',${i},'explanation',this.value)" placeholder="Giải thích">${item.explanation}</textarea>
-                </div>
-            `}).join('');
-        }
+function renderItems(items, type) {
+    return (items || []).map((item, i) => {
+        const refText = item.ref_id ? `ID: ${item.ref_id}` : "[Gán ID Master]";
+        return `
+        <div class="section-group" data-type="${type}">
+            
+            <div class="item-header" onclick="toggleItem(this)">
+                <span>${type === 'grammar' ? '📘 Ngữ pháp' : '🧩 Phân tích'} #${i+1}</span>
+                <span class="item-toggle">▾</span>
+            </div>
+
+            <div class="item-body">
+                <span class="btn-x" onclick="removeItem('${type}',${i})" title="Xóa">×</span>
+
+                <span class="ref-link" 
+                      onmouseover="showTooltip(event, '${item.ref_id}', '${type}')" 
+                      onmouseout="hideTooltip()" 
+                      onclick="openSearch('${type}', ${i})">${refText}</span>
+
+                <input value="${item.quote}" 
+                       oninput="updateField('${type}',${i},'quote',this.value)" 
+                       placeholder="Quote">
+
+                ${type === 'analysis'
+                    ? `<input value="${item.role || ''}" 
+                              oninput="updateField('${type}',${i},'role',this.value)" 
+                              placeholder="Role (Vai trò)">`
+                    : ''}
+
+                <textarea oninput="updateField('${type}',${i},'explanation',this.value)" 
+                          placeholder="Giải thích">${item.explanation}</textarea>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
 
         function openFilter(type) {
             currentFilterType = type;
@@ -489,6 +622,28 @@
             const a = document.createElement('a');
             a.href = url; a.download = "updated_book.json"; a.click();
         };
+		function toggleItem(headerEl) {
+    const body = headerEl.nextElementSibling;
+    const icon = headerEl.querySelector('.item-toggle');
+
+    body.classList.toggle('collapsed');
+    icon.innerText = body.classList.contains('collapsed') ? '▸' : '▾';
+}
+
+function toggleAll(type, ev) {
+    ev.stopPropagation();
+
+    const container = document.getElementById(type + '-list');
+    const bodies = container.querySelectorAll('.item-body');
+    const headers = container.querySelectorAll('.item-header .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        headers[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
     </script>
 </body>
 </html>
