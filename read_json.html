@@ -13,7 +13,18 @@
         .block { margin-bottom: 15px; cursor: pointer; padding: 8px; border-radius: 4px; border-left: 4px solid transparent; position: relative; }
         .block:hover { background: #f8f9fa; border-left-color: #007bff; }
         .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
-
+/* ===== Sentence block: hiển thị gọn 1 dòng ===== */
+.block.sentence {
+    display: inline;            /* 🔥 QUAN TRỌNG */
+    line-height: 1.4;
+    padding: 2px 4px;            /* padding ngang để click dễ */
+    margin: 0;                   /* 🔥 CẮT margin-bottom */
+    white-space: pre-wrap;
+    border-radius: 4px;
+}
+.block:not(.sentence) {
+    margin-bottom: 15px;
+}
         /* Sidebar Editor */
         #editor-overlay { position: fixed; right: 0; top: 0; width: 450px; height: 100%; background: white; box-shadow: -5px 0 20px rgba(0,0,0,0.15); z-index: 1000; overflow-y: auto; padding: 25px; box-sizing: border-box; }
         .hidden { display: none !important; }
@@ -63,7 +74,18 @@
 
         #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
         .hl-item { border-radius: 3px; padding: 2px 0; }
-        .ul-item { border-bottom-style: solid; border-bottom-width: 2px; }
+        /*.ul-item { border-bottom-style: solid; border-bottom-width: 2px; }*/
+		.ul-item { position: relative;}
+
+.ul-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;           /* 👈 chỉnh cao thấp */
+    height: 2px;
+    background: var(--ul-color);
+}
 
         /* MỚI: Menu View Style */
         .view-dropdown { position: relative; display: inline-block; }
@@ -143,7 +165,11 @@
                         <label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
                     </div>
                 </div>
-
+				<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
+				<select id="audioLang">
+					<option value="en-US">EN</option>
+					<option value="ja-JP">JP</option>
+				</select>
                 <button id="exportBtn">Xuất File</button>
             </div>
         </header>
@@ -167,16 +193,37 @@
 
     <div id="editor-overlay" class="hidden">
         <span class="close-btn" onclick="checkAndClose()">&times;</span>
-        <h3 id="edit-title">Chi tiết Block</h3>
-        
+        <h3 id="edit-title" class="clickable-header" onclick="openContentEditor()">
+			Block:
+		</h3>
+		
+		<div id="content-editor" class="section-group hidden">
+			<label>Content (Raw):</label>
+			<textarea id="edit-raw" rows="3"></textarea>
+		
+			<label>Content (Reading):</label>
+			<textarea id="edit-reading" rows="2"></textarea>
+		
+			<div style="display:flex; gap:10px; margin-top:8px;">
+				<button onclick="saveContentEdit()" style="background:#28a745;color:white;">Lưu</button>
+				<button onclick="cancelContentEdit()">Hủy</button>
+			</div>
+		</div>
+
         <div id="container-trans">
             <label>Bản dịch (VI):</label>
             <textarea id="edit-trans" rows="3"></textarea>
         </div>
 
         <div id="container-marks">
-            <div class="header-split"><h4>Highlights & Underlines</h4></div>
-            <div id="marks-list"></div>
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4>Highlights & Underlines</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAllMarks(event)">[±]</span>
+				</div>
+			</div>
+			 <div id="marks-list"></div>
         </div>
 
         <div id="container-grammar">
@@ -259,14 +306,37 @@
             reader.readAsText(e.target.files[0]);
         };
 
-        document.getElementById('fileInput').onchange = (e) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                bookData = JSON.parse(ev.target.result);
-                renderBook();
-            };
-            reader.readAsText(e.target.files[0]);
-        };
+let bookFileHandle = null;
+
+document.getElementById('fileInput').onchange = (e) => {
+    if (!e.target.files.length) return;
+
+    const file = e.target.files[0];
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        bookData = JSON.parse(ev.target.result);
+        renderBook();
+    };
+    reader.readAsText(file);
+
+    // reset handle – vì file input KHÔNG cho ghi đè
+    bookFileHandle = null;
+};
+
+function toggleAllMarks(ev) {
+    ev.stopPropagation();
+    const bodies = document.querySelectorAll('#marks-list .item-body');
+    const icons = document.querySelectorAll('#marks-list .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        icons[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
+
 
         const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
         const cssToHex = (css) => css.replace('#', '0x');
@@ -281,20 +351,30 @@
                 div.className = `block ${block.type}`;
                 div.id = block.id;
                 
-                let content = block.content.raw;
-                if (block.highlights) {
-                    block.highlights.forEach(hl => {
-                        const color = hexToCss(hl.color);
-                        content = content.split(hl.quote).join(`<span class="hl-item" style="background-color: ${color}">${hl.quote}</span>`);
-                    });
-                }
-                if (block.underlines) {
-                    block.underlines.forEach(ul => {
-                        const color = hexToCss(ul.color);
-                        content = content.split(ul.quote).join(`<span class="ul-item" style="border-bottom-color: ${color}">${ul.quote}</span>`);
-                    });
-                }
+                let raw = block.content.raw || '';
 
+				// ===== Sentence formatting rules =====
+				if (block.type === 'sentence') {
+				
+					// 1️⃣ Chuyển \n (TEXT) thành newline thật
+					raw = raw.replace(/\\n/g, '\n');
+				
+					// 2️⃣ Chuyển \t (TEXT) thành tab thật
+					raw = raw.replace(/\\t/g, '\t');
+				
+					// 3️⃣ Tab hiển thị = 5 spaces
+					raw = raw.replace(/\t/g, '     ');
+				
+					// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
+					if (!raw.startsWith('\n')) {
+						raw = raw.replace(/\n/g, ' ');
+					}
+				}
+				let content = renderMarks(
+					raw,
+					block.highlights || [],
+					block.underlines || []
+				);
 
                 div.innerHTML = content;
 				// ===== MỚI: reading screentip =====
@@ -309,6 +389,101 @@ if (block.content && block.content.reading) {
                 viewer.appendChild(div);
             });
         }
+
+
+function renderMarks(raw, highlights = [], underlines = []) {
+    const marks = [];
+
+    function pushMark(list, type) {
+        list.forEach(m => {
+            const idx = raw.indexOf(m.quote);
+            if (idx === -1) return;
+
+            marks.push({
+                start: idx,
+                end: idx + m.quote.length,
+                type,
+                color: hexToCss(m.color)
+            });
+        });
+    }
+
+    pushMark(highlights, 'highlight');
+    pushMark(underlines, 'underline');
+
+    // bigger = outer
+    const priority = { underline: 1, highlight: 2 };
+
+    let html = '';
+    let active = [];
+
+    for (let i = 0; i < raw.length; i++) {
+
+        // 🔻 CLOSE: inner đóng trước
+        active
+            .filter(m => m.end === i)
+            .sort((a, b) => priority[b.type] - priority[a.type])
+            .forEach(() => html += '</span>');
+
+        active = active.filter(m => m.end !== i);
+
+        // 🔺 OPEN: outer mở trước
+        marks
+            .filter(m => m.start === i)
+            .sort((a, b) => priority[a.type] - priority[b.type])
+            .forEach(m => {
+                if (m.type === 'highlight') {
+                    html += `<span class="hl-item" style="background:${m.color}">`;
+                } else {
+                    html += `<span class="ul-item" style="--ul-color:${m.color}">`;
+                }
+                active.push(m);
+            });
+
+        html += raw[i];
+    }
+
+    // close remaining
+    active
+        .sort((a, b) => priority[b.type] - priority[a.type])
+        .forEach(() => html += '</span>');
+
+    return html;
+}
+
+
+	
+let originalContentSnapshot = null;
+
+function openContentEditor() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if (!block) return;
+
+    originalContentSnapshot = JSON.parse(JSON.stringify(block.content));
+
+    document.getElementById('edit-raw').value = block.content.raw || '';
+    document.getElementById('edit-reading').value = block.content.reading || '';
+
+    document.getElementById('content-editor').classList.remove('hidden');
+}
+
+function saveContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+
+    block.content.raw = document.getElementById('edit-raw').value;
+    block.content.reading = document.getElementById('edit-reading').value || null;
+
+    document.getElementById('content-editor').classList.add('hidden');
+    renderBook();
+}
+
+function cancelContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.content = JSON.parse(JSON.stringify(originalContentSnapshot));
+
+    document.getElementById('content-editor').classList.add('hidden');
+}
+
 		let originalBlockData = null;
 function openEditor(id) {
             currentBlockId = id;
@@ -318,6 +493,7 @@ function openEditor(id) {
             originalBlockData = JSON.parse(JSON.stringify(block));
 
             document.getElementById('edit-title').innerText = "Block: " + id;
+			document.getElementById('content-editor').classList.add('hidden');
             document.getElementById('edit-trans').value = block.translation?.vi || '';
             refreshEditorLists(block);
             document.getElementById('editor-overlay').classList.remove('hidden');
@@ -358,10 +534,12 @@ function openEditor(id) {
                     bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
                     document.getElementById('editor-overlay').classList.add('hidden');
                     renderBook();
+					currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
                 }
             } else {
                 // Không có thay đổi thì đóng luôn
                 document.getElementById('editor-overlay').classList.add('hidden');
+				currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
             }
         }
         function refreshEditorLists(block) {
@@ -371,20 +549,36 @@ function openEditor(id) {
             document.getElementById('container-grammar').className = editorModulesVisibility.grammar ? '' : 'hidden';
             document.getElementById('container-analysis').className = editorModulesVisibility.analysis ? '' : 'hidden';
 
-            const marksList = document.getElementById('marks-list');
-            marksList.innerHTML = '';
-            ['highlights', 'underlines'].forEach(key => {
-                (block[key] || []).forEach((item, idx) => {
-                    const div = document.createElement('div');
-                    div.className = 'section-group';
-                    div.innerHTML = `
-                        <small>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: <b>"${item.quote}"</b></small>
-                        <input type="text" placeholder="Ghi chú (Note)" value="${item.note || ''}" onchange="updateMark('${key}', ${idx}, this.value)">
-                        <button class="del-btn" onclick="deleteMark('${key}', ${idx})">Xóa</button>
-                    `;
-                    marksList.appendChild(div);
-                });
-            });
+			const marksList = document.getElementById('marks-list');
+			marksList.innerHTML = '';
+			
+			['highlights', 'underlines'].forEach(key => {
+				(block[key] || []).forEach((item, idx) => {
+					const div = document.createElement('div');
+					div.className = 'section-group';
+			
+					div.innerHTML = `
+						<div class="item-header" onclick="toggleItem(this)">
+							<span>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: 
+								<b>"${item.quote}"</b>
+							</span>
+							<span class="item-toggle">▾</span>
+						</div>
+			
+						<div class="item-body">
+							<span class="btn-x"
+								onclick="event.stopPropagation(); deleteMark('${key}', ${idx})"
+								title="Xóa">×</span>
+			
+							<input type="text"
+								placeholder="Ghi chú (Note)"
+								value="${item.note || ''}"
+								onchange="updateMark('${key}', ${idx}, this.value)">
+						</div>
+					`;
+					marksList.appendChild(div);
+				});
+			});
 
             document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
             document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
@@ -613,15 +807,43 @@ function renderItems(items, type) {
             block.translation = block.translation || {};
             block.translation.vi = document.getElementById('edit-trans').value;
             document.getElementById('editor-overlay').classList.add('hidden'); 
-            renderBook(); 
+            renderBook();
+			currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
         }
 
-        document.getElementById('exportBtn').onclick = () => {
-            const blob = new Blob([JSON.stringify(bookData, null, 4)], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = "updated_book.json"; a.click();
-        };
+document.getElementById('exportBtn').onclick = async () => {
+    if (!bookData) {
+        alert("Chưa có dữ liệu để lưu");
+        return;
+    }
+
+    // Nếu browser hỗ trợ File System Access API
+    if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: "updated_book.json",
+            types: [{
+                description: "JSON File",
+                accept: { "application/json": [".json"] }
+            }]
+        });
+
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(bookData, null, 4));
+        await writable.close();
+
+        alert("Đã lưu file ✅");
+    } else {
+        // fallback cũ
+        const blob = new Blob(
+            [JSON.stringify(bookData, null, 4)],
+            { type: "application/json" }
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "updated_book.json";
+        a.click();
+    }
+};
 		function toggleItem(headerEl) {
     const body = headerEl.nextElementSibling;
     const icon = headerEl.querySelector('.item-toggle');
@@ -644,6 +866,60 @@ function toggleAll(type, ev) {
         headers[i].innerText = shouldCollapse ? '▸' : '▾';
     });
 }
+let pageUtterance = null;
+let isReadingPage = false;
+
+function togglePageAudio() {
+    if (!bookData || !bookData.blocks || bookData.blocks.length === 0) return;
+
+    if (isReadingPage) {
+        speechSynthesis.cancel();
+        isReadingPage = false;
+        return;
+    }
+
+    let text = '';
+
+    // ✅ CASE 1: đã click block → chỉ đọc block đó
+    if (currentBlockId) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        if (block?.content?.raw) {
+            text = block.content.raw;
+        }
+    }
+
+    // ✅ CASE 2: chưa click block → đọc cả page
+    if (!text.trim()) {
+        const page = bookData.blocks[0].page;
+
+        text = bookData.blocks
+            .filter(b => b.page === page && b.content?.raw)
+            .map(b => b.content.raw)
+            .join('. ');
+    }
+
+    if (!text.trim()) {
+        console.warn("Không có text để đọc");
+        return;
+    }
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = document.getElementById('audioLang')?.value || 'en-US';
+    utter.rate = 1;
+    utter.pitch = 1;
+
+    utter.onend = () => isReadingPage = false;
+    utter.onerror = (e) => {
+        console.error("Speech error", e);
+        isReadingPage = false;
+    };
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utter);
+
+    isReadingPage = true;
+}
+
     </script>
 </body>
 </html>
