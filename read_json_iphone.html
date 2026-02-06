@@ -156,19 +156,24 @@
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
 }
-/* ===== iOS SAFE TEXT SELECTION ===== */
-
-/* Mặc định: KHÔNG cho select */
+/* ===== DEFAULT (Select mode OFF) ===== */
+/* ❌ Không cho select text
+   ✅ Giữ lì vẫn hiện popup copy iOS */
 .block {
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: default;
 }
 
-/* Khi bật Select mode */
+/* ===== SELECT MODE ON ===== */
+/* ✅ Cho select text
+   ❌ Tắt popup copy iOS */
 .select-mode .block {
     -webkit-user-select: text;
     user-select: text;
+    -webkit-touch-callout: none;
 }
+
 
     </style>
 </head>
@@ -192,10 +197,10 @@
                         <label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
                     </div>
                 </div>
-				<label style="font-size:12px; margin-left:10px;">
-    <input type="checkbox" id="selectModeToggle">
-    Select mode
-</label>
+				<label style="font-size:12px; margin-left:10px;    display:inline-flex;align-items:center;gap:4px;">
+					<input type="checkbox" id="selectModeToggle">
+					Select mode
+				</label>
 
 				<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
 				<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
@@ -517,7 +522,15 @@ if (block.content && block.content.reading) {
     div.appendChild(icon);
 }
 
-                div.onclick = () => openEditor(block.id);
+                div.onclick = (e) => {
+					if (isSelectMode) {
+						e.preventDefault();
+						e.stopPropagation();
+						return; // ❌ không mở editor
+					}
+					openEditor(block.id);
+				};
+
                 viewer.appendChild(div);
             });
         }
