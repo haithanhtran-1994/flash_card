@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Book Editor Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; color: #333; }
+        .app-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        #book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }
+        
+        .block { margin-bottom: 15px; cursor: pointer; padding: 8px; border-radius: 4px; border-left: 4px solid transparent; position: relative; }
+        .block:hover { background: #f8f9fa; border-left-color: #007bff; }
+        .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
+/* ===== Sentence block: hiển thị gọn 1 dòng ===== */
+.block.sentence {
+    display: inline;            /* 🔥 QUAN TRỌNG */
+    line-height: 1.4;
+    padding: 2px 4px;            /* padding ngang để click dễ */
+    margin: 0;                   /* 🔥 CẮT margin-bottom */
+    white-space: pre-wrap;
+    border-radius: 4px;
+}
+.block:not(.sentence) {
+    margin-bottom: 15px;
+}
+        /* Sidebar Editor */
+        #editor-overlay { position: fixed; right: 0; top: 0; width: 450px; height: 100%; background: white; box-shadow: -5px 0 20px rgba(0,0,0,0.15); z-index: 1000; overflow-y: auto; padding: 25px; box-sizing: border-box; }
+        .hidden { display: none !important; }
+        .close-btn { float: right; font-size: 30px; cursor: pointer; color: #999; }
+        
+        .section-group { background: #f9f9f9; border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 6px; position: relative; }
+        .header-split { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-bottom: 2px solid #eee; }
+        
+        .clickable-header { cursor: pointer; transition: color 0.2s; }
+        .clickable-header:hover { color: #007bff; }
+        
+        input, textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; font-size: 14px; }
+        button { cursor: pointer; padding: 8px 12px; border-radius: 5px; border: none; }
+        #exportBtn { background: #28a745; color: white; font-weight: bold; }
+        .add-btn { background: #007bff; color: white; }
+        
+        .btn-x {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: transparent;
+            color: #ccc;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0 5px;
+            line-height: 1;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+        .btn-x:hover { color: #dc3545; }
+
+        .ref-link { color: #007bff; cursor: pointer; font-size: 12px; text-decoration: underline; display: inline-block; margin-bottom: 5px; }
+        .ref-link:hover { color: #0056b3; }
+        .tooltip-box { position: absolute; background: #333; color: white; padding: 12px; border-radius: 8px; font-size: 13px; z-index: 2000; width: 280px; line-height: 1.5; pointer-events: none; box-shadow: 0 8px 16px rgba(0,0,0,0.4); }
+        .tooltip-box hr { border: 0; border-top: 1px solid #555; margin: 8px 0; }
+        .tooltip-item { margin-bottom: 4px; }
+        .tooltip-label { color: #aaa; font-size: 11px; text-transform: uppercase; display: block; }
+
+        #search-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 0 50px rgba(0,0,0,0.5); z-index: 3000; width: 400px; padding: 20px; }
+        .search-results { max-height: 300px; overflow-y: auto; margin-top: 10px; }
+        .search-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .search-item:hover { background: #f0f7ff; }
+
+        #filter-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 0 50px rgba(0,0,0,0.5); z-index: 4000; width: 300px; padding: 20px; }
+        .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+        .filter-option input { width: auto; margin: 0; }
+
+        #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
+        .hl-item { border-radius: 3px; padding: 2px 0; }
+        /*.ul-item { border-bottom-style: solid; border-bottom-width: 2px; }*/
+		.ul-item { position: relative;}
+
+.ul-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;           /* 👈 chỉnh cao thấp */
+    height: 2px;
+    background: var(--ul-color);
+}
+
+        /* MỚI: Menu View Style */
+        .view-dropdown { position: relative; display: inline-block; }
+        .view-btn { background: #6c757d; color: white; margin-left: 10px; }
+        .view-content { 
+            position: absolute; right: 0; top: 100%; background: white; 
+            min-width: 180px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
+            z-index: 5000; border-radius: 8px; padding: 10px;
+        }
+        .view-content label { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; font-size: 14px; }
+        .view-content label:hover { background: #f1f1f1; }
+        .view-content input { width: auto; margin: 0; }
+		/* ===== Reading Tooltip (hover on block) ===== */
+.reading-tip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    transform: translateY(-6px);
+    background: #222;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;        /* đúng chiều dài câu */
+    width: fit-content;
+    max-width: 100%;
+    z-index: 1500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+/* ===== Collapse / Expand items ===== */
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.item-toggle {
+    font-size: 12px;
+    color: #007bff;
+    user-select: none;
+}
+
+.item-body.collapsed {
+    display: none;
+}
+/* ===== Image & Equation block ===== */
+.block.image,
+.block.equation {
+    text-align: center;
+    cursor: pointer;
+}
+
+.block.image svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Equation container */
+.equation-box {
+    font-size: 1em;      /* 🔒 khóa size */
+    line-height: 1.2;
+}
+/* ===== iOS SAFE TEXT SELECTION ===== */
+
+/* Mặc định: KHÔNG cho select */
+.block {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Khi bật Select mode */
+.select-mode .block {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h2>📚 JSON Editor</h2>
+            <div>
+                <span style="font-size: 12px; color: #666;">Book:</span>
+                <input type="file" id="fileInput" accept=".json" style="width: 150px;">
+                <span style="font-size: 12px; color: #666; margin-left: 10px;">Master:</span>
+                <input type="file" id="masterInput" accept=".json" style="width: 150px;">
+                
+                <div class="view-dropdown">
+                    <button class="view-btn" onclick="toggleViewMenu()">View 👁️</button>
+                    <div id="viewMenu" class="view-content hidden">
+                        <label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
+                        <label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights & Underlines</label>
+                        <label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
+                        <label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
+                    </div>
+                </div>
+				<label style="font-size:12px; margin-left:10px;">
+    <input type="checkbox" id="selectModeToggle">
+    Select mode
+</label>
+
+				<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
+				<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
+					<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+						Speed:
+						<select id="speedSelect" style="font-size:12px; padding:2px 6px;">
+							<option value="0.25">0.25x</option>
+							<option value="0.5">0.5x</option>
+							<option value="0.75">0.75x</option>
+							<option value="1" selected>1x</option>
+							<option value="1.25">1.25x</option>
+							<option value="1.5">1.5x</option>
+							<option value="2">2x</option>
+							<option value="2.5">2.5x</option>
+							<option value="3">3x</option>
+						</select>
+					</label>
+
+				
+					<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+						<input type="checkbox" id="repeatToggle">
+						Repeat
+					</label>
+				</div>
+				<select id="audioLang">
+					<option value="en-US">EN</option>
+					<option value="ja-JP">JP</option>
+				</select>
+                <button id="exportBtn">Xuất File</button>
+            </div>
+        </header>
+        <main id="book-viewer">
+            <p style="text-align:center; color:#999">Tải file JSON để bắt đầu...</p>
+        </main>
+    </div>
+
+    <div id="search-modal" class="hidden">
+        <h4>Tìm kiếm Master Data</h4>
+        <input type="text" id="masterSearch" placeholder="Nhập pattern, reading hoặc ý nghĩa..." oninput="filterMasterData()">
+        <div class="search-results" id="search-results"></div>
+        <button onclick="closeSearch()" style="margin-top: 10px; width: 100%;">Đóng</button>
+    </div>
+
+    <div id="filter-modal" class="hidden">
+        <h4 id="filter-title">Cấu hình hiển thị</h4>
+        <div id="filter-options"></div>
+        <button onclick="closeFilter()" style="margin-top: 15px; width: 100%; background: #007bff; color: white;">Xong</button>
+    </div>
+
+    <div id="editor-overlay" class="hidden">
+        <span class="close-btn" onclick="checkAndClose()">&times;</span>
+        <h3 id="edit-title" class="clickable-header" onclick="openContentEditor()">
+			Block:
+		</h3>
+		
+		<div id="content-editor" class="section-group hidden">
+			<label>Content (Raw):</label>
+			<textarea id="edit-raw" rows="3"></textarea>
+		
+			<label>Content (Reading):</label>
+			<textarea id="edit-reading" rows="2"></textarea>
+		
+			<div style="display:flex; gap:10px; margin-top:8px;">
+				<button onclick="saveContentEdit()" style="background:#28a745;color:white;">Lưu</button>
+				<button onclick="cancelContentEdit()">Hủy</button>
+			</div>
+		</div>
+
+        <div id="container-trans">
+            <label>Bản dịch (VI):</label>
+            <textarea id="edit-trans" rows="3"></textarea>
+        </div>
+
+        <div id="container-marks">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4>Highlights & Underlines</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAllMarks(event)">[±]</span>
+				</div>
+			</div>
+			 <div id="marks-list"></div>
+        </div>
+
+        <div id="container-grammar">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('grammar')">
+						Ngữ pháp ⚙️
+					</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('grammar', event)">[±]</span>
+				</div>
+                <button class="add-btn" onclick="addItem('grammar')">+</button>
+            </div>
+            <div id="grammar-list"></div>
+        </div>
+
+        <div id="container-analysis">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('analysis')">
+						Phân tích câu ⚙️
+					</h4>
+				
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('analysis', event)">[±]</span>
+				</div>
+                <button class="add-btn" onclick="addItem('analysis')">+</button>
+            </div>
+            <div id="analysis-list"></div>
+        </div>
+
+        <button style="width:100%; margin-top:30px; background:#444; color:white;" onclick="closeEditor()">Lưu & Đóng</button>
+    </div>
+
+    <div id="text-toolbar" class="hidden">
+        <input type="color" id="markColor" value="#ffff00">
+        <button onclick="applyMark('highlight')">Highlight</button>
+        <button onclick="applyMark('underline')">Underline</button>
+    </div>
+
+    <script>
+        let bookData = null;
+        let masterData = JSON.parse(localStorage.getItem('master_data_cache')) || [];
+        let currentBlockId = null;
+        let currentAssigningRef = { type: null, index: null };
+        
+        let displayFilters = JSON.parse(localStorage.getItem('display_filters')) || { grammar: [], analysis: [] };
+        let currentFilterType = '';
+		let isSelectMode = false;
+
+document.getElementById('selectModeToggle').onchange = (e) => {
+    isSelectMode = e.target.checked;
+    document.body.classList.toggle('select-mode', isSelectMode);
+};
+
+const audioState = {
+    page: {
+        speed: 1,
+        repeat: false
+    },
+    block: {
+        // blockId → { speed, repeat }
+    }
+};
+function getCurrentAudioConfig() {
+    if (currentBlockId) {
+        if (!audioState.block[currentBlockId]) {
+            audioState.block[currentBlockId] = { speed: 1, repeat: false };
+        }
+        return audioState.block[currentBlockId];
+    }
+    return audioState.page;
+}
+
+const repeatToggle = document.getElementById('repeatToggle');
+const speedSelect = document.getElementById('speedSelect');
+
+speedSelect.onchange = () => {
+    const cfg = getCurrentAudioConfig();
+    cfg.speed = parseFloat(speedSelect.value);
+};
+
+
+repeatToggle.onchange = () => {
+    const cfg = getCurrentAudioConfig();
+    cfg.repeat = repeatToggle.checked;
+};
+
+
+        // MỚI: Lưu trạng thái hiển thị của các module Editor
+        let editorModulesVisibility = { trans: true, marks: true, grammar: true, analysis: true };
+
+        function toggleViewMenu() {
+            document.getElementById('viewMenu').classList.toggle('hidden');
+        }
+
+        function toggleView(module, isVisible) {
+            editorModulesVisibility[module] = isVisible;
+            if (currentBlockId) {
+                const block = bookData.blocks.find(b => b.id === currentBlockId);
+                refreshEditorLists(block);
+            }
+        }
+
+        // Đóng menu view khi click ra ngoài
+        window.onclick = function(event) {
+            if (!event.target.matches('.view-btn')) {
+                const menu = document.getElementById('viewMenu');
+                if (menu && !menu.classList.contains('hidden')) menu.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('masterInput').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                masterData = JSON.parse(ev.target.result);
+                localStorage.setItem('master_data_cache', JSON.stringify(masterData));
+                alert("Đã tải và lưu Master Data!");
+            };
+            reader.readAsText(e.target.files[0]);
+        };
+
+let bookFileHandle = null;
+
+document.getElementById('fileInput').onchange = (e) => {
+    if (!e.target.files.length) return;
+
+    const file = e.target.files[0];
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        bookData = JSON.parse(ev.target.result);
+        renderBook();
+    };
+    reader.readAsText(file);
+
+    // reset handle – vì file input KHÔNG cho ghi đè
+    bookFileHandle = null;
+};
+
+function toggleAllMarks(ev) {
+    ev.stopPropagation();
+    const bodies = document.querySelectorAll('#marks-list .item-body');
+    const icons = document.querySelectorAll('#marks-list .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        icons[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
+
+
+        const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
+        const cssToHex = (css) => css.replace('#', '0x');
+
+        function renderBook() {
+            if (!bookData) return;
+            const viewer = document.getElementById('book-viewer');
+            viewer.innerHTML = '';
+            
+            bookData.blocks.forEach(block => {
+                const div = document.createElement('div');
+                div.className = `block ${block.type}`;
+                div.id = block.id;
+                
+                let raw = block.content.raw || '';
+
+				// ===== Sentence formatting rules =====
+				if (block.type === 'sentence') {
+				
+					// 1️⃣ Chuyển \n (TEXT) thành newline thật
+					raw = raw.replace(/\\n/g, '\n');
+				
+					// 2️⃣ Chuyển \t (TEXT) thành tab thật
+					raw = raw.replace(/\\t/g, '\t');
+				
+					// 3️⃣ Tab hiển thị = 5 spaces
+					raw = raw.replace(/\t/g, '     ');
+				
+					// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
+					if (!raw.startsWith('\n')) {
+						raw = raw.replace(/\n/g, ' ');
+					}
+				}
+				let content = '';
+
+				if (block.type === 'image') {
+					// SVG raw → render trực tiếp
+					content = `<div class="image-box">${raw}</div>`;
+				
+				} else if (block.type === 'equation') {
+					// LaTeX raw
+					content = `<div class="equation-box">\\[${raw}\\]</div>`;
+				
+				} else {
+					// === logic cũ giữ nguyên ===
+					content = renderMarks(
+						raw,
+						block.highlights || [],
+						block.underlines || []
+					);
+				}
+
+                div.innerHTML = content;
+				if (block.type === 'equation' && window.MathJax) {
+					requestAnimationFrame(() => {
+						MathJax.typesetPromise([div]);
+					});
+				}
+
+
+				// ===== MỚI: reading screentip =====
+// ===== MỚI: reading screentip =====
+if (block.content && block.content.reading) {
+    const tip = document.createElement('div');
+    tip.className = 'reading-tip';
+    tip.innerText = block.content.reading;
+    tip.style.opacity = '0';
+    div.appendChild(tip);
+
+    const icon = document.createElement('span');
+    icon.innerText = '📖';
+    icon.style.cssText = `
+        font-size:12px;
+        margin-left:6px;
+        cursor:pointer;
+        opacity:0.6;
+    `;
+
+    icon.onclick = (e) => {
+        e.stopPropagation();
+        tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+    };
+
+    div.appendChild(icon);
+}
+
+                div.onclick = () => openEditor(block.id);
+                viewer.appendChild(div);
+            });
+        }
+
+
+function renderMarks(raw, highlights = [], underlines = []) {
+    const marks = [];
+
+    function pushMark(list, type) {
+        list.forEach(m => {
+            const idx = raw.indexOf(m.quote);
+            if (idx === -1) return;
+
+            marks.push({
+                start: idx,
+                end: idx + m.quote.length,
+                type,
+                color: hexToCss(m.color)
+            });
+        });
+    }
+
+    pushMark(highlights, 'highlight');
+    pushMark(underlines, 'underline');
+
+    // bigger = outer
+    const priority = { underline: 1, highlight: 2 };
+
+    let html = '';
+    let active = [];
+
+    for (let i = 0; i < raw.length; i++) {
+
+        // 🔻 CLOSE: inner đóng trước
+        active
+            .filter(m => m.end === i)
+            .sort((a, b) => priority[b.type] - priority[a.type])
+            .forEach(() => html += '</span>');
+
+        active = active.filter(m => m.end !== i);
+
+        // 🔺 OPEN: outer mở trước
+        marks
+            .filter(m => m.start === i)
+            .sort((a, b) => priority[a.type] - priority[b.type])
+            .forEach(m => {
+                if (m.type === 'highlight') {
+                    html += `<span class="hl-item" style="background:${m.color}">`;
+                } else {
+                    html += `<span class="ul-item" style="--ul-color:${m.color}">`;
+                }
+                active.push(m);
+            });
+
+        html += raw[i];
+    }
+
+    // close remaining
+    active
+        .sort((a, b) => priority[b.type] - priority[a.type])
+        .forEach(() => html += '</span>');
+
+    return html;
+}
+
+
+	
+let originalContentSnapshot = null;
+
+function openContentEditor() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if (!block) return;
+
+    originalContentSnapshot = JSON.parse(JSON.stringify(block.content));
+
+    document.getElementById('edit-raw').value = block.content.raw || '';
+    document.getElementById('edit-reading').value = block.content.reading || '';
+
+    document.getElementById('content-editor').classList.remove('hidden');
+}
+
+function saveContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+
+    block.content.raw = document.getElementById('edit-raw').value;
+    block.content.reading = document.getElementById('edit-reading').value || null;
+
+    document.getElementById('content-editor').classList.add('hidden');
+    renderBook();
+}
+
+function cancelContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.content = JSON.parse(JSON.stringify(originalContentSnapshot));
+
+    document.getElementById('content-editor').classList.add('hidden');
+}
+
+		let originalBlockData = null;
+function openEditor(id) {
+            currentBlockId = id;
+            const block = bookData.blocks.find(b => b.id === id);
+            
+            // CHỤP ẢNH DỮ LIỆU BAN ĐẦU (Deep Copy)
+            originalBlockData = JSON.parse(JSON.stringify(block));
+
+            document.getElementById('edit-title').innerText = "Block: " + id;
+			document.getElementById('content-editor').classList.add('hidden');
+            document.getElementById('edit-trans').value = block.translation?.vi || '';
+            refreshEditorLists(block);
+            document.getElementById('editor-overlay').classList.remove('hidden');
+			const cfg = getCurrentAudioConfig();
+speedSelect.value = cfg.speed.toString();
+repeatToggle.checked = cfg.repeat;
+
+        }
+// HÀM MỚI: Kiểm tra thay đổi khi ấn nút X
+        function checkAndClose() {
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            // Cập nhật giá trị dịch thuật hiện thời vào object để so sánh
+            block.translation = block.translation || {};
+            block.translation.vi = document.getElementById('edit-trans').value;
+
+            const changes = [];
+            
+            // 1. Kiểm tra dịch thuật
+            if (block.translation.vi !== (originalBlockData.translation?.vi || '')) {
+                changes.push("- Bản dịch (VI)");
+            }
+
+            // 2. Kiểm tra Ngữ pháp & Phân tích (So sánh JSON string cho nhanh và chính xác)
+            if (JSON.stringify(block.grammar) !== JSON.stringify(originalBlockData.grammar)) {
+                changes.push("- Dữ liệu Ngữ pháp");
+            }
+            if (JSON.stringify(block.analysis) !== JSON.stringify(originalBlockData.analysis)) {
+                changes.push("- Dữ liệu Phân tích câu");
+            }
+            if (JSON.stringify(block.highlights) !== JSON.stringify(originalBlockData.highlights) || 
+                JSON.stringify(block.underlines) !== JSON.stringify(originalBlockData.underlines)) {
+                changes.push("- Đánh dấu (Highlights/Underlines)");
+            }
+
+            if (changes.length > 0) {
+                const message = "Bạn đã thay đổi:\n" + changes.join("\n") + "\n\nBạn có muốn LƯU những thay đổi này không?\n(Ấn 'Cancel' để hủy bỏ thay đổi và đóng)";
+                if (confirm(message)) {
+                    closeEditor(); // Lưu và đóng
+                } else {
+                    // Hoàn tác dữ liệu về bản cũ
+                    const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
+                    bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
+                    document.getElementById('editor-overlay').classList.add('hidden');
+                    renderBook();
+					currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
+                }
+            } else {
+                // Không có thay đổi thì đóng luôn
+                document.getElementById('editor-overlay').classList.add('hidden');
+				currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
+            }
+        }
+        function refreshEditorLists(block) {
+            // MỚI: Ẩn hiện các container dựa trên View Menu
+            document.getElementById('container-trans').className = editorModulesVisibility.trans ? '' : 'hidden';
+            document.getElementById('container-marks').className = editorModulesVisibility.marks ? '' : 'hidden';
+            document.getElementById('container-grammar').className = editorModulesVisibility.grammar ? '' : 'hidden';
+            document.getElementById('container-analysis').className = editorModulesVisibility.analysis ? '' : 'hidden';
+
+			const marksList = document.getElementById('marks-list');
+			marksList.innerHTML = '';
+			
+			['highlights', 'underlines'].forEach(key => {
+				(block[key] || []).forEach((item, idx) => {
+					const div = document.createElement('div');
+					div.className = 'section-group';
+			
+					div.innerHTML = `
+						<div class="item-header" onclick="toggleItem(this)">
+							<span>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: 
+								<b>"${item.quote}"</b>
+							</span>
+							<span class="item-toggle">▾</span>
+						</div>
+			
+						<div class="item-body">
+							<span class="btn-x"
+								onclick="event.stopPropagation(); deleteMark('${key}', ${idx})"
+								title="Xóa">×</span>
+			
+							<input type="text"
+								placeholder="Ghi chú (Note)"
+								value="${item.note || ''}"
+								onchange="updateMark('${key}', ${idx}, this.value)">
+						</div>
+					`;
+					marksList.appendChild(div);
+				});
+			});
+
+            document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
+            document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
+        }
+
+function renderItems(items, type) {
+    return (items || []).map((item, i) => {
+        const refText = item.ref_id ? `ID: ${item.ref_id}` : "[Gán ID Master]";
+        return `
+        <div class="section-group" data-type="${type}">
+            
+            <div class="item-header" onclick="toggleItem(this)">
+                <span>${type === 'grammar' ? '📘 Ngữ pháp' : '🧩 Phân tích'} #${i+1}</span>
+                <span class="item-toggle">▾</span>
+            </div>
+
+            <div class="item-body">
+                <span class="btn-x" onclick="removeItem('${type}',${i})" title="Xóa">×</span>
+
+                <span class="ref-link" 
+                      onmouseover="showTooltip(event, '${item.ref_id}', '${type}')" 
+                      onmouseout="hideTooltip()" 
+                      onclick="openSearch('${type}', ${i})">${refText}</span>
+
+                <input value="${item.quote}" 
+                       oninput="updateField('${type}',${i},'quote',this.value)" 
+                       placeholder="Quote">
+
+                ${type === 'analysis'
+                    ? `<input value="${item.role || ''}" 
+                              oninput="updateField('${type}',${i},'role',this.value)" 
+                              placeholder="Role (Vai trò)">`
+                    : ''}
+
+                <textarea oninput="updateField('${type}',${i},'explanation',this.value)" 
+                          placeholder="Giải thích">${item.explanation}</textarea>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+
+        function openFilter(type) {
+            currentFilterType = type;
+            const modal = document.getElementById('filter-modal');
+            const optionsDiv = document.getElementById('filter-options');
+            document.getElementById('filter-title').innerText = `Ẩn trường (${type === 'grammar' ? 'Ngữ pháp' : 'Phân tích'})`;
+            
+            let allKeys = [];
+            if (masterData.length > 0) {
+                allKeys = Object.keys(masterData[0]);
+            } else {
+                optionsDiv.innerHTML = '<p>Hãy load Master Data trước</p>';
+                modal.classList.remove('hidden');
+                return;
+            }
+
+            optionsDiv.innerHTML = allKeys.map(key => `
+                <div class="filter-option">
+                    <input type="checkbox" id="f-${key}" ${displayFilters[type].includes(key) ? 'checked' : ''} 
+                           onchange="toggleFilterField('${key}')">
+                    <label for="f-${key}">${key}</label>
+                </div>
+            `).join('');
+
+            modal.classList.remove('hidden');
+        }
+
+        function toggleFilterField(key) {
+            const index = displayFilters[currentFilterType].indexOf(key);
+            if (index > -1) {
+                displayFilters[currentFilterType].splice(index, 1);
+            } else {
+                displayFilters[currentFilterType].push(key);
+            }
+            localStorage.setItem('display_filters', JSON.stringify(displayFilters));
+        }
+
+        function closeFilter() {
+            document.getElementById('filter-modal').classList.add('hidden');
+        }
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip-box hidden';
+        document.body.appendChild(tooltip);
+
+        function showTooltip(e, refId, type) {
+            if (!refId || masterData.length === 0) return;
+            const info = masterData.find(m => m.master_id === refId);
+            if (!info) return;
+
+            const hiddenFields = displayFilters[type] || [];
+            let htmlContent = '';
+
+            Object.keys(info).forEach(key => {
+                if (!hiddenFields.includes(key)) {
+                    let val = info[key];
+                    if (Array.isArray(val)) val = JSON.stringify(val); 
+                    if (typeof val === 'object') val = JSON.stringify(val);
+                    
+                    htmlContent += `
+                        <div class="tooltip-item">
+                            <span class="tooltip-label">${key}</span>
+                            <div>${val}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            tooltip.innerHTML = htmlContent || '<em>(Không có dữ liệu hiển thị)</em>';
+            tooltip.classList.remove('hidden');
+            
+            let x = e.pageX + 15;
+            let y = e.pageY + 15;
+            if (x + 300 > window.innerWidth) x = e.pageX - 300;
+            
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        }
+
+        function hideTooltip() {
+            tooltip.classList.add('hidden');
+        }
+
+        function openSearch(type, index) {
+            currentAssigningRef = { type, index };
+            document.getElementById('search-modal').classList.remove('hidden');
+            document.getElementById('masterSearch').value = '';
+            filterMasterData();
+        }
+
+        function closeSearch() {
+            document.getElementById('search-modal').classList.add('hidden');
+        }
+
+        function filterMasterData() {
+            const term = document.getElementById('masterSearch').value.toLowerCase();
+            const resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = '';
+
+            const filtered = masterData.filter(m => 
+                m.pattern?.toLowerCase().includes(term) || 
+                m.reading?.toLowerCase().includes(term) || 
+                m.core_meaning?.toLowerCase().includes(term) ||
+                m.master_id?.toLowerCase().includes(term)
+            );
+
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                div.innerHTML = `<strong>${item.pattern}</strong> (${item.reading})<br><small>${item.core_meaning}</small>`;
+                div.onclick = () => assignRefId(item.master_id);
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        function assignRefId(id) {
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            block[currentAssigningRef.type][currentAssigningRef.index].ref_id = id;
+            refreshEditorLists(block);
+            closeSearch();
+        }
+
+        window.updateMark = (key, i, val) => { bookData.blocks.find(b => b.id === currentBlockId)[key][i].note = val; };
+        window.deleteMark = (key, i) => { 
+            if (confirm("Bạn có chắc chắn muốn xóa đánh dấu này không?")) {
+                const block = bookData.blocks.find(b => b.id === currentBlockId);
+                block[key].splice(i, 1); 
+                renderBook(); 
+                refreshEditorLists(block);
+            }
+        };
+        window.updateField = (type, i, field, val) => { 
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            block[type][i][field] = val; 
+        };
+        window.removeItem = (type, i) => {
+            if (confirm("Bạn có chắc chắn muốn xóa mục này không?")) {
+                const block = bookData.blocks.find(b => b.id === currentBlockId);
+                block[type].splice(i, 1);
+                refreshEditorLists(block);
+            }
+        };
+        window.addItem = (type) => {
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            if(!block[type]) block[type] = [];
+            const newItem = {quote: '', explanation: '', ref_id: ''};
+            if(type === 'analysis') newItem.role = '';
+            block[type].push(newItem);
+            refreshEditorLists(block);
+        };
+
+document.addEventListener('selectionchange', () => {
+    if (!isSelectMode) return;
+
+    const sel = window.getSelection();
+    const txt = sel.toString().trim();
+    const toolbar = document.getElementById('text-toolbar');
+
+    if (!txt || sel.rangeCount === 0) {
+        toolbar.classList.add('hidden');
+        return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const block = range.startContainer.parentElement?.closest('.block');
+    if (!block) return;
+
+    const rect = range.getBoundingClientRect();
+
+    toolbar.style.top  = (window.scrollY + rect.top - 50) + 'px';
+    toolbar.style.left = (window.scrollX + rect.left) + 'px';
+    toolbar.classList.remove('hidden');
+
+    toolbar.dataset.blockId = block.id;
+    toolbar.dataset.text = txt;
+});
+
+
+        function applyMark(type) {
+            const tb = document.getElementById('text-toolbar');
+            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+            const key = type === 'highlight' ? 'highlights' : 'underlines';
+            if (!block[key]) block[key] = [];
+            block[key].push({
+                quote: tb.dataset.text,
+                color: cssToHex(document.getElementById('markColor').value),
+                note: ""
+            });
+            renderBook();
+            tb.classList.add('hidden');
+        }
+
+        function closeEditor() { 
+            const block = bookData.blocks.find(b => b.id === currentBlockId);
+            block.translation = block.translation || {};
+            block.translation.vi = document.getElementById('edit-trans').value;
+            document.getElementById('editor-overlay').classList.add('hidden'); 
+            renderBook();
+			currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
+        }
+
+document.getElementById('exportBtn').onclick = async () => {
+    if (!bookData) {
+        alert("Chưa có dữ liệu để lưu");
+        return;
+    }
+
+    // Nếu browser hỗ trợ File System Access API
+    if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: "updated_book.json",
+            types: [{
+                description: "JSON File",
+                accept: { "application/json": [".json"] }
+            }]
+        });
+
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(bookData, null, 4));
+        await writable.close();
+
+        alert("Đã lưu file ✅");
+    } else {
+        // fallback cũ
+        const blob = new Blob(
+            [JSON.stringify(bookData, null, 4)],
+            { type: "application/json" }
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "updated_book.json";
+        a.click();
+    }
+};
+		function toggleItem(headerEl) {
+    const body = headerEl.nextElementSibling;
+    const icon = headerEl.querySelector('.item-toggle');
+
+    body.classList.toggle('collapsed');
+    icon.innerText = body.classList.contains('collapsed') ? '▸' : '▾';
+}
+
+function toggleAll(type, ev) {
+    ev.stopPropagation();
+
+    const container = document.getElementById(type + '-list');
+    const bodies = container.querySelectorAll('.item-body');
+    const headers = container.querySelectorAll('.item-header .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        headers[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
+let pageUtterance = null;
+let isReadingPage = false;
+
+function togglePageAudio() {
+    if (!bookData || !bookData.blocks || bookData.blocks.length === 0) return;
+
+    // ===== STOP đang phát =====
+    if (isReadingPage) {
+        speechSynthesis.cancel();
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+        isReadingPage = false;
+        return;
+    }
+
+    let block = null;
+
+    // ✅ CASE 1: đã click block → đọc block đó
+    if (currentBlockId) {
+        block = bookData.blocks.find(b => b.id === currentBlockId);
+    }
+
+    // ✅ CASE 2: chưa click → fallback đọc text cả page
+    if (!block) {
+        block = bookData.blocks.find(b => b.content?.raw);
+    }
+
+    if (!block) {
+        console.warn("Không có block để đọc");
+        return;
+    }
+
+    // =====================================================
+    // 🔊 CASE A: BLOCK CÓ AUDIO → PLAY FILE
+    // =====================================================
+    if (hasAudioSrc(block)) {
+		const cfg = getCurrentAudioConfig();
+        audioPlayer.src = block.audio.src;
+		audioPlayer.playbackRate = cfg.speed;
+		audioPlayer.loop = cfg.repeat;
+        audioPlayer.onended = () => isReadingPage = false;
+        audioPlayer.onerror = (e) => {
+            console.error("Audio file error", e);
+            isReadingPage = false;
+        };
+
+        audioPlayer.play().catch(err => {
+            console.error("Cannot play audio:", err);
+            isReadingPage = false;
+        });
+
+        isReadingPage = true;
+        return;
+    }
+
+    // =====================================================
+    // 🗣️ CASE B: KHÔNG CÓ AUDIO → DÙNG TTS CŨ
+    // =====================================================
+let text = block.content?.raw || '';
+if (!text.trim()) return;
+
+// === CASE B: ưu tiên block → fallback page ===
+const blockAudio = audioState.block[block.id];
+const speed  = blockAudio?.speed  ?? audioState.page.speed ?? 1;
+const repeat = blockAudio?.repeat ?? audioState.page.repeat ?? false;
+
+const utter = new SpeechSynthesisUtterance(text);
+utter.lang  = document.getElementById('audioLang')?.value || 'en-US';
+utter.rate  = speed;
+utter.pitch = 1;
+
+utter.onend = () => {
+    if (repeat) {
+        // repeat block
+        speechSynthesis.speak(utter);
+    } else {
+        isReadingPage = false;
+    }
+};
+
+utter.onerror = (e) => {
+    console.error("Speech error", e);
+    isReadingPage = false;
+};
+
+speechSynthesis.cancel();
+speechSynthesis.speak(utter);
+
+isReadingPage = true;
+
+}
+
+let audioPlayer = new Audio();
+audioPlayer.preload = 'auto';
+function hasAudioSrc(block) {
+    const src = block?.audio?.src;
+    return typeof src === 'string' && src.trim() !== '';
+}
+
+    </script>
+	<script>
+window.MathJax = {
+    tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+    },
+    svg: {
+        fontCache: 'global',
+        scale: 1.0          // 🔒 không auto phóng to
+    }
+};
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+</body>
+</html>
