@@ -920,6 +920,25 @@ function renderItems(items, type) {
             block[type].push(newItem);
             refreshEditorLists(block);
         };
+// 🚫 Kill iOS copy/select menu when Select mode ON
+document.addEventListener('contextmenu', (e) => {
+    if (!isSelectMode) return;
+
+    const block = e.target.closest('.block');
+    if (!block) return;
+
+    e.preventDefault();
+});
+document.addEventListener('selectionchange', () => {
+    if (!isSelectMode) {
+        document.getElementById('text-toolbar').classList.add('hidden');
+    }
+});
+document.addEventListener('selectionchange', () => {
+    if (!isSelectMode) {
+        document.getElementById('text-toolbar').classList.add('hidden');
+    }
+});
 
 document.addEventListener('selectionchange', () => {
     if (!isSelectMode) return;
