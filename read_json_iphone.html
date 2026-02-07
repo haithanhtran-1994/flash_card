@@ -26,7 +26,6 @@
     margin-bottom: 15px;
 }
         /* Sidebar Editor */
-        .hidden { display: none !important; }
         .close-btn { float: right; font-size: 30px; cursor: pointer; color: #999; }
         
         .section-group { background: #f9f9f9; border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 6px; position: relative; }
@@ -182,13 +181,15 @@
     inset: 0;
     display: flex;
     background: #f0f2f5;
-    overflow: hidden;
+    overflow-x: hidden;
+	overflow-y: hidden;
 }
 
 .main-pane {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
+    overflow: auto;
+	-webkit-overflow-scrolling: touch; /* iOS mượt */
 }
 
 .editor-pane {
@@ -200,6 +201,7 @@
 .splitter {
     background: #ddd;
     z-index: 2000;
+	touch-action: none;  
 }
 
 /* ===== PORTRAIT: editor ở dưới ===== */
@@ -753,7 +755,6 @@ repeatToggle.checked = cfg.repeat;
                     const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
                     bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
                     document.getElementById('editor-overlay').classList.add('hidden');
-					document.getElementById('editor-overlay').classList.add('hidden');
 document.querySelector('.splitter').classList.add('hidden');
 
                     renderBook();
@@ -761,7 +762,6 @@ document.querySelector('.splitter').classList.add('hidden');
                 }
             } else {
                 // Không có thay đổi thì đóng luôn
-                document.getElementById('editor-overlay').classList.add('hidden');
 				document.getElementById('editor-overlay').classList.add('hidden');
 document.querySelector('.splitter').classList.add('hidden');
 
@@ -1006,16 +1006,6 @@ document.addEventListener('contextmenu', (e) => {
 
     e.preventDefault();
 });
-document.addEventListener('selectionchange', () => {
-    if (!isSelectMode) {
-        document.getElementById('text-toolbar').classList.add('hidden');
-    }
-});
-document.addEventListener('selectionchange', () => {
-    if (!isSelectMode) {
-        document.getElementById('text-toolbar').classList.add('hidden');
-    }
-});
 
 document.addEventListener('selectionchange', () => {
     if (!isSelectMode) return;
@@ -1063,7 +1053,6 @@ document.addEventListener('selectionchange', () => {
             block.translation = block.translation || {};
             block.translation.vi = document.getElementById('edit-trans').value;
             document.getElementById('editor-overlay').classList.add('hidden'); 
-			document.getElementById('editor-overlay').classList.add('hidden');
 document.querySelector('.splitter').classList.add('hidden');
 
             renderBook();
@@ -1110,6 +1099,29 @@ document.getElementById('exportBtn').onclick = async () => {
     body.classList.toggle('collapsed');
     icon.innerText = body.classList.contains('collapsed') ? '▸' : '▾';
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    let isDraggingSplitter = false;
+    const splitter = document.querySelector('.splitter');
+
+    if (!splitter) return;   // phòng trường hợp editor chưa render
+
+    splitter.addEventListener('touchstart', e => {
+        isDraggingSplitter = true;
+        e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchmove', e => {
+        if (isDraggingSplitter) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        isDraggingSplitter = false;
+    });
+});
 
 function toggleAll(type, ev) {
     ev.stopPropagation();
