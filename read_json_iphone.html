@@ -269,6 +269,64 @@
 body.page-mode .main-pane {
     overflow-y: hidden;
 }
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 3000;
+    background: white;
+    padding: 6px 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.compact {
+    width: 120px;
+    font-size: 12px;
+}
+
+.compact-label {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* BOOK POPUP */
+.book-menu {
+    position: absolute;
+    top: 42px;
+    left: 8px;
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    width: 260px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    z-index: 4000;
+}
+
+.menu-group {
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.menu-group b {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #555;
+}
 
     </style>
 </head>
@@ -277,76 +335,81 @@ body.page-mode .main-pane {
 
     <div class="main-pane">
 		<div class="app-container">
-			<header>
-				<h2>📚 JSON Editor</h2>
-				<div>
-					<span style="font-size: 12px; color: #666;">Book:</span>
-					<input type="file" id="fileInput" accept=".json" style="width: 150px;">
-					<span style="font-size: 12px; color: #666; margin-left: 10px;">Master:</span>
-					<input type="file" id="masterInput" accept=".json" style="width: 150px;">
-					
-					<div class="view-dropdown">
-						<button class="view-btn" onclick="toggleViewMenu()">View 👁️</button>
+			<header class="topbar">
+				<div class="topbar-left">
+					<!-- 📚 BOOK MENU TOGGLE -->
+					<button class="icon-btn" onclick="toggleBookMenu()">📚</button>
+			
+					<!-- BOOK SELECT -->
+					<input type="file" id="fileInput" accept=".json" class="compact">
+			
+					<!-- AUDIO -->
+					<button id="pageAudioBtn" onclick="togglePageAudio()">🔊</button>
+			
+					<!-- SELECT MODE -->
+					<label class="compact-label">
+						<input type="checkbox" id="selectModeToggle">
+						Select
+					</label>
+				</div>
+			
+				<!-- POPUP MENU -->
+				<div id="bookMenu" class="book-menu hidden">
+					<div class="menu-group">
+						<b>Book / Master</b>
+						<input type="file" id="masterInput" accept=".json">
+					</div>
+			
+					<div class="menu-group">
+						<b>View</b>
+						<button class="view-btn" onclick="toggleViewMenu()">👁️ View</button>
 						<div id="viewMenu" class="view-content hidden">
 							<label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
-							<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights & Underlines</label>
+							<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights</label>
 							<label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
-							<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
+							<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích</label>
 						</div>
 					</div>
-					<label style="font-size:12px; margin-left:10px;    display:inline-flex;align-items:center;gap:4px;">
-						<input type="checkbox" id="selectModeToggle">
-						Select mode
-					</label>
-					<label style="font-size:12px; margin-left:10px; display:inline-flex; align-items:center; gap:4px;">
-						<input type="radio" name="viewMode" checked onchange="setViewMode('page')">
-						Page
-					</label>
-					
-					<label style="font-size:12px; display:inline-flex; align-items:center; gap:4px;">
-						<input type="radio" name="viewMode" onchange="setViewMode('scroll')">
-						Scroll
-					</label>
-
-					<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
-					<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
-						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+			
+					<div class="menu-group">
+						<b>Mode</b>
+						<label><input type="radio" name="viewMode" checked onchange="setViewMode('page')"> Page</label>
+						<label><input type="radio" name="viewMode" onchange="setViewMode('scroll')"> Scroll</label>
+					</div>
+			
+					<div class="menu-group">
+						<b>Audio</b>
+						<label>
 							Speed:
-							<select id="speedSelect" style="font-size:12px; padding:2px 6px;">
-								<option value="0.25">0.25x</option>
+							<select id="speedSelect">
 								<option value="0.5">0.5x</option>
-								<option value="0.75">0.75x</option>
 								<option value="1" selected>1x</option>
-								<option value="1.25">1.25x</option>
 								<option value="1.5">1.5x</option>
 								<option value="2">2x</option>
-								<option value="2.5">2.5x</option>
-								<option value="3">3x</option>
 							</select>
 						</label>
-							<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
-							Font:
-							<select id="fontSizeSelect"
-									onchange="setFontSize(this.value)"
-									style="font-size:12px; padding:2px 6px;">
-								<option value="tiny">Tiny</option>
-								<option value="small">Small</option>
-								<option value="ex-small">Ex-small</option>
-								<option value="medium" selected>Medium</option>
-								<option value="large">Large</option>
-							</select>
+						<label>
+							<input type="checkbox" id="repeatToggle"> Repeat
 						</label>
-
-						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
-							<input type="checkbox" id="repeatToggle">
-							Repeat
-						</label>
+						<select id="audioLang">
+							<option value="en-US">EN</option>
+							<option value="ja-JP">JP</option>
+						</select>
 					</div>
-					<select id="audioLang">
-						<option value="en-US">EN</option>
-						<option value="ja-JP">JP</option>
-					</select>
-					<button id="exportBtn">Xuất File</button>
+			
+					<div class="menu-group">
+						<b>Font</b>
+						<select id="fontSizeSelect" onchange="setFontSize(this.value)">
+							<option value="tiny">Tiny</option>
+							<option value="small">Small</option>
+							<option value="medium" selected>Medium</option>
+							<option value="large">Large</option>
+						</select>
+					</div>
+			
+					<div class="menu-group">
+						<button id="exportBtn">Xuất File</button>
+					</div>
 				</div>
 			</header>
 			<main id="book-viewer">
@@ -471,6 +534,9 @@ function getPages() {
         .forEach(p => pages.push(map[p]));
 
     return pages;
+}
+function toggleBookMenu() {
+    document.getElementById('bookMenu').classList.toggle('hidden');
 }
 
 
