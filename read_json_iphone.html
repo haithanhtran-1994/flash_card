@@ -259,10 +259,15 @@
     display: none !important;
 }
 .page-footer {
+    margin: 8px 0 0;
+    padding: 0;
     text-align: center;
     font-size: 12px;
     color: #999;
-    margin: 20px 0 10px;
+}
+
+body.page-mode .main-pane {
+    overflow-y: hidden;
 }
 
     </style>
@@ -598,7 +603,8 @@ function renderPage(index) {
     page.forEach(block => {
         renderSingleBlock(block, viewer);
     });
-
+const footer = document.getElementById('page-indicator');
+    footer.textContent = `— Page ${index + 1} / ${pages.length} —`;
     viewer.scrollTop = 0;
 	updatePageIndicator();
 }
@@ -1489,17 +1495,18 @@ splitter.addEventListener('touchmove', (e) => {
 
 function setViewMode(mode) {
     viewMode = mode;
-	updatePageIndicatorVisibility();
+    document.body.classList.toggle('page-mode', mode === 'page');
+    currentPageIndex = 0;
+
     if (mode === 'page') {
-        currentPageIndex = 0;
-        disablePageSwipe(); // tránh double
-        enablePageSwipe();
-        renderPage(currentPageIndex);
+        renderPage(0);
     } else {
-        disablePageSwipe();
         renderBook();
     }
+
+    updatePageIndicatorVisibility();
 }
+
 let touchStartX = 0;
 
 function onTouchStart(e) {
@@ -1538,6 +1545,54 @@ function prevPage() {
         renderPage(currentPageIndex);
     }
 }
+// ===== PAGE SWIPE (iOS SAFARI FIX) =====
+const swipeLayer = document.querySelector('.main-pane');
+
+let sx = 0, sy = 0;
+let locked = false;
+
+const SWIPE_X = 60;
+const ANGLE_RATIO = 1.3;
+
+swipeLayer.addEventListener('touchstart', e => {
+    if (viewMode !== 'page') return;
+    const t = e.touches[0];
+    sx = t.clientX;
+    sy = t.clientY;
+    locked = false;
+}, { passive: true });
+
+swipeLayer.addEventListener('touchmove', e => {
+    if (viewMode !== 'page') return;
+
+    const t = e.touches[0];
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+
+    if (Math.abs(dx) > Math.abs(dy) * ANGLE_RATIO) {
+        locked = true;
+        e.preventDefault(); // 🔥 khóa scroll dọc
+    }
+}, { passive: false });
+
+swipeLayer.addEventListener('touchend', e => {
+    if (viewMode !== 'page' || !locked) return;
+
+    const dx = e.changedTouches[0].clientX - sx;
+    const pages = getPages();
+
+    if (Math.abs(dx) < SWIPE_X) return;
+
+    if (dx < 0 && currentPageIndex < pages.length - 1) {
+        currentPageIndex++;
+        renderPage(currentPageIndex);
+    } 
+    else if (dx > 0 && currentPageIndex > 0) {
+        currentPageIndex--;
+        renderPage(currentPageIndex);
+    }
+});
+
     </script>
 	<script>
 window.MathJax = {
