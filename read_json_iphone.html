@@ -6,7 +6,7 @@
     <title>JSON Book Editor Pro</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; color: #333; }
-        .app-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .app-container {margin: 0 auto; padding: 20px; }
         header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         #book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }
         
@@ -26,7 +26,6 @@
     margin-bottom: 15px;
 }
         /* Sidebar Editor */
-        #editor-overlay { position: fixed; right: 0; top: 0; width: 450px; height: 100%; background: white; box-shadow: -5px 0 20px rgba(0,0,0,0.15); z-index: 1000; overflow-y: auto; padding: 25px; box-sizing: border-box; }
         .hidden { display: none !important; }
         .close-btn { float: right; font-size: 30px; cursor: pointer; color: #999; }
         
@@ -174,83 +173,140 @@
     -webkit-touch-callout: none;
 }
 
+/* ===============================
+   APP SPLIT LAYOUT (Safari iOS)
+   =============================== */
+
+.app-shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    background: #f0f2f5;
+    overflow: hidden;
+}
+
+.main-pane {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.editor-pane {
+    background: white;
+    overflow-y: auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+}
+
+.splitter {
+    background: #ddd;
+    z-index: 2000;
+}
+
+/* ===== PORTRAIT: editor ở dưới ===== */
+@media (orientation: portrait) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .editor-pane {
+        height: 50%;
+    }
+
+    .splitter {
+        height: 8px;
+        cursor: row-resize;
+    }
+}
+
+/* ===== LANDSCAPE: editor bên phải ===== */
+@media (orientation: landscape) {
+    .app-shell {
+        flex-direction: row;
+    }
+
+    .editor-pane {
+        width: 50%;
+    }
+
+    .splitter {
+        width: 8px;
+        cursor: col-resize;
+    }
+}
+
+/* Ẩn editor + splitter khi chưa mở */
+.hidden {
+    display: none !important;
+}
 
     </style>
 </head>
 <body>
+<div class="app-shell">
 
-    <div class="app-container">
-        <header>
-            <h2>📚 JSON Editor</h2>
-            <div>
-                <span style="font-size: 12px; color: #666;">Book:</span>
-                <input type="file" id="fileInput" accept=".json" style="width: 150px;">
-                <span style="font-size: 12px; color: #666; margin-left: 10px;">Master:</span>
-                <input type="file" id="masterInput" accept=".json" style="width: 150px;">
-                
-                <div class="view-dropdown">
-                    <button class="view-btn" onclick="toggleViewMenu()">View 👁️</button>
-                    <div id="viewMenu" class="view-content hidden">
-                        <label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
-                        <label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights & Underlines</label>
-                        <label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
-                        <label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
-                    </div>
-                </div>
-				<label style="font-size:12px; margin-left:10px;    display:inline-flex;align-items:center;gap:4px;">
-					<input type="checkbox" id="selectModeToggle">
-					Select mode
-				</label>
-
-				<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
-				<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
-					<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
-						Speed:
-						<select id="speedSelect" style="font-size:12px; padding:2px 6px;">
-							<option value="0.25">0.25x</option>
-							<option value="0.5">0.5x</option>
-							<option value="0.75">0.75x</option>
-							<option value="1" selected>1x</option>
-							<option value="1.25">1.25x</option>
-							<option value="1.5">1.5x</option>
-							<option value="2">2x</option>
-							<option value="2.5">2.5x</option>
-							<option value="3">3x</option>
-						</select>
+    <div class="main-pane">
+		<div class="app-container">
+			<header>
+				<h2>📚 JSON Editor</h2>
+				<div>
+					<span style="font-size: 12px; color: #666;">Book:</span>
+					<input type="file" id="fileInput" accept=".json" style="width: 150px;">
+					<span style="font-size: 12px; color: #666; margin-left: 10px;">Master:</span>
+					<input type="file" id="masterInput" accept=".json" style="width: 150px;">
+					
+					<div class="view-dropdown">
+						<button class="view-btn" onclick="toggleViewMenu()">View 👁️</button>
+						<div id="viewMenu" class="view-content hidden">
+							<label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
+							<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights & Underlines</label>
+							<label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
+							<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích câu</label>
+						</div>
+					</div>
+					<label style="font-size:12px; margin-left:10px;    display:inline-flex;align-items:center;gap:4px;">
+						<input type="checkbox" id="selectModeToggle">
+						Select mode
 					</label>
-
-				
-					<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
-						<input type="checkbox" id="repeatToggle">
-						Repeat
-					</label>
+	
+					<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
+					<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
+						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+							Speed:
+							<select id="speedSelect" style="font-size:12px; padding:2px 6px;">
+								<option value="0.25">0.25x</option>
+								<option value="0.5">0.5x</option>
+								<option value="0.75">0.75x</option>
+								<option value="1" selected>1x</option>
+								<option value="1.25">1.25x</option>
+								<option value="1.5">1.5x</option>
+								<option value="2">2x</option>
+								<option value="2.5">2.5x</option>
+								<option value="3">3x</option>
+							</select>
+						</label>
+	
+					
+						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+							<input type="checkbox" id="repeatToggle">
+							Repeat
+						</label>
+					</div>
+					<select id="audioLang">
+						<option value="en-US">EN</option>
+						<option value="ja-JP">JP</option>
+					</select>
+					<button id="exportBtn">Xuất File</button>
 				</div>
-				<select id="audioLang">
-					<option value="en-US">EN</option>
-					<option value="ja-JP">JP</option>
-				</select>
-                <button id="exportBtn">Xuất File</button>
-            </div>
-        </header>
-        <main id="book-viewer">
-            <p style="text-align:center; color:#999">Tải file JSON để bắt đầu...</p>
-        </main>
-    </div>
-
-    <div id="search-modal" class="hidden">
-        <h4>Tìm kiếm Master Data</h4>
-        <input type="text" id="masterSearch" placeholder="Nhập pattern, reading hoặc ý nghĩa..." oninput="filterMasterData()">
-        <div class="search-results" id="search-results"></div>
-        <button onclick="closeSearch()" style="margin-top: 10px; width: 100%;">Đóng</button>
-    </div>
-
-    <div id="filter-modal" class="hidden">
-        <h4 id="filter-title">Cấu hình hiển thị</h4>
-        <div id="filter-options"></div>
-        <button onclick="closeFilter()" style="margin-top: 15px; width: 100%; background: #007bff; color: white;">Xong</button>
-    </div>
-
-    <div id="editor-overlay" class="hidden">
+			</header>
+			<main id="book-viewer">
+				<p style="text-align:center; color:#999">Tải file JSON để bắt đầu...</p>
+			</main>
+		</div>
+	</div>
+	
+	<div class="splitter hidden"></div>
+	
+    <div id="editor-overlay" class="editor-pane hidden">
         <span class="close-btn" onclick="checkAndClose()">&times;</span>
         <h3 id="edit-title" class="clickable-header" onclick="openContentEditor()">
 			Block:
@@ -315,6 +371,19 @@
         </div>
 
         <button style="width:100%; margin-top:30px; background:#444; color:white;" onclick="closeEditor()">Lưu & Đóng</button>
+    </div>
+</div>	
+    <div id="search-modal" class="hidden">
+        <h4>Tìm kiếm Master Data</h4>
+        <input type="text" id="masterSearch" placeholder="Nhập pattern, reading hoặc ý nghĩa..." oninput="filterMasterData()">
+        <div class="search-results" id="search-results"></div>
+        <button onclick="closeSearch()" style="margin-top: 10px; width: 100%;">Đóng</button>
+    </div>
+
+    <div id="filter-modal" class="hidden">
+        <h4 id="filter-title">Cấu hình hiển thị</h4>
+        <div id="filter-options"></div>
+        <button onclick="closeFilter()" style="margin-top: 15px; width: 100%; background: #007bff; color: white;">Xong</button>
     </div>
 
     <div id="text-toolbar" class="hidden">
@@ -636,6 +705,8 @@ function openEditor(id) {
             
             // CHỤP ẢNH DỮ LIỆU BAN ĐẦU (Deep Copy)
             originalBlockData = JSON.parse(JSON.stringify(block));
+document.getElementById('editor-overlay').classList.remove('hidden');
+document.querySelector('.splitter').classList.remove('hidden');
 
             document.getElementById('edit-title').innerText = "Block: " + id;
 			document.getElementById('content-editor').classList.add('hidden');
@@ -682,12 +753,18 @@ repeatToggle.checked = cfg.repeat;
                     const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
                     bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
                     document.getElementById('editor-overlay').classList.add('hidden');
+					document.getElementById('editor-overlay').classList.add('hidden');
+document.querySelector('.splitter').classList.add('hidden');
+
                     renderBook();
 					currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
                 }
             } else {
                 // Không có thay đổi thì đóng luôn
                 document.getElementById('editor-overlay').classList.add('hidden');
+				document.getElementById('editor-overlay').classList.add('hidden');
+document.querySelector('.splitter').classList.add('hidden');
+
 				currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
             }
         }
@@ -986,6 +1063,9 @@ document.addEventListener('selectionchange', () => {
             block.translation = block.translation || {};
             block.translation.vi = document.getElementById('edit-trans').value;
             document.getElementById('editor-overlay').classList.add('hidden'); 
+			document.getElementById('editor-overlay').classList.add('hidden');
+document.querySelector('.splitter').classList.add('hidden');
+
             renderBook();
 			currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
         }
@@ -1143,6 +1223,28 @@ function hasAudioSrc(block) {
     const src = block?.audio?.src;
     return typeof src === 'string' && src.trim() !== '';
 }
+
+const splitter = document.querySelector('.splitter');
+const editorPane = document.getElementById('editor-overlay');
+
+let dragging = false;
+
+splitter.addEventListener('touchstart', () => dragging = true);
+splitter.addEventListener('touchend', () => dragging = false);
+
+splitter.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+
+    const t = e.touches[0];
+
+    if (window.matchMedia('(orientation: portrait)').matches) {
+        const h = window.innerHeight - t.clientY;
+        editorPane.style.height = Math.max(150, h) + 'px';
+    } else {
+        const w = window.innerWidth - t.clientX;
+        editorPane.style.width = Math.max(250, w) + 'px';
+    }
+});
 
     </script>
 	<script>
