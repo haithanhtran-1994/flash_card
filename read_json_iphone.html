@@ -347,6 +347,7 @@
 			<main id="book-viewer">
 				<p style="text-align:center; color:#999">Tải file JSON để bắt đầu...</p>
 			</main>
+			<div id="page-indicator" class="page-footer"></div>
 		</div>
 	</div>
 	
@@ -579,10 +580,17 @@ function toggleAllMarks(ev) {
         const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
         const cssToHex = (css) => css.replace('#', '0x');
 
+function updatePageIndicatorVisibility() {
+    const el = document.getElementById('page-indicator');
+    if (!el) return;
+
+    el.style.display = (viewMode === 'page') ? 'block' : 'none';
+}
+
 function renderPage(index) {
     const viewer = document.getElementById('book-viewer');
     viewer.innerHTML = '';
-
+	currentPage = null;
     const pages = getPages();
     const page = pages[index];
     if (!page) return;
@@ -592,6 +600,16 @@ function renderPage(index) {
     });
 
     viewer.scrollTop = 0;
+	updatePageIndicator();
+}
+function updatePageIndicator() {
+    if (viewMode !== 'page') return;
+
+    const pages = getPages();
+    const el = document.getElementById('page-indicator');
+    if (!el) return;
+
+    el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
 }
 
 function renderSingleBlock(block, viewer) {
@@ -600,14 +618,16 @@ function renderSingleBlock(block, viewer) {
     div.id = block.id;
     
     let raw = block.content.raw || '';
-	if (block.page !== undefined && block.page !== currentPage) {
-		if (currentPage !== null) {
-			const footer = document.createElement('div');
-			footer.className = 'page-footer';
-			footer.innerText = `— Page ${currentPage} —`;
-			viewer.appendChild(footer);
+	if (viewMode === 'scroll') {
+		if (block.page !== undefined && block.page !== currentPage) {
+			if (currentPage !== null) {
+				const footer = document.createElement('div');
+				footer.className = 'page-footer';
+				footer.innerText = `— Page ${currentPage} —`;
+				viewer.appendChild(footer);
+			}
+			currentPage = block.page;
 		}
-		currentPage = block.page;
 	}
 	// ===== Sentence formatting rules =====
 	if (block.type === 'sentence') {
@@ -1469,7 +1489,7 @@ splitter.addEventListener('touchmove', (e) => {
 
 function setViewMode(mode) {
     viewMode = mode;
-
+	updatePageIndicatorVisibility();
     if (mode === 'page') {
         currentPageIndex = 0;
         disablePageSwipe(); // tránh double
