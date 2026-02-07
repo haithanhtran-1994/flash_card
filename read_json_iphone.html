@@ -86,7 +86,6 @@
 
         #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
         .hl-item { border-radius: 3px; padding: 2px 0; }
-        /*.ul-item { border-bottom-style: solid; border-bottom-width: 2px; }*/
 		.ul-item { position: relative;}
 
 .ul-item::after {
@@ -100,7 +99,7 @@
 }
 
         /* MỚI: Menu View Style */
-        .view-dropdown { position: relative; display: inline-block; }
+       
         .view-btn { background: #6c757d; color: white; margin-left: 10px; }
         .view-content { 
             position: absolute; right: 0; top: 100%; background: white; 
@@ -298,10 +297,12 @@ body.page-mode .main-pane {
 
 .compact-label {
     font-size: 12px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;       /* 👈 sát vào checkbox */
+    cursor: pointer;
 }
+
 
 /* BOOK POPUP */
 .book-menu {
@@ -327,12 +328,54 @@ body.page-mode .main-pane {
     font-size: 12px;
     color: #555;
 }
+.audio-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;          /* 👈 sát ngay bên phải */
+}
+
+
+.audio-header select {
+    font-size: 12px;
+}
+.view-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.view-content {
+    position: absolute;
+    left: 100%;   /* 👈 popup bắt đầu từ mép phải nút */
+    top: 100%;    /* 👈 popup bắt đầu từ mép dưới nút */
+    
+    background: white;
+    min-width: 180px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 5000;
+    border-radius: 8px;
+    padding: 10px;
+}
+.toc-item {
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 14px;
+}
+
+.toc-item:hover {
+    background: #f0f7ff;
+}
+
+.toc-level-1 { font-weight: bold; }
+.toc-level-2 { margin-left: 16px; }
+.toc-level-3 { margin-left: 32px; }
+.toc-level-4 { margin-left: 48px; }
+
 
     </style>
 </head>
 <body>
 <div class="app-shell">
-
+	<div id="toc-container"></div>
     <div class="main-pane">
 		<div class="app-container">
 			<header class="topbar">
@@ -349,7 +392,7 @@ body.page-mode .main-pane {
 					<!-- SELECT MODE -->
 					<label class="compact-label">
 						<input type="checkbox" id="selectModeToggle">
-						Select
+						<span>Select text</span>
 					</label>
 				</div>
 			
@@ -362,23 +405,40 @@ body.page-mode .main-pane {
 			
 					<div class="menu-group">
 						<b>View</b>
-						<button class="view-btn" onclick="toggleViewMenu()">👁️ View</button>
-						<div id="viewMenu" class="view-content hidden">
-							<label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
-							<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights</label>
-							<label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
-							<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích</label>
+						<div class="view-wrapper">
+							<button class="view-btn" onclick="toggleViewMenu(event)">👁️ View</button>
+							<div id="viewMenu" class="view-content hidden">
+								<label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
+								<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights</label>
+								<label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
+								<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích</label>
+							</div>
 						</div>
+
 					</div>
 			
 					<div class="menu-group">
 						<b>Mode</b>
-						<label><input type="radio" name="viewMode" checked onchange="setViewMode('page')"> Page</label>
-						<label><input type="radio" name="viewMode" onchange="setViewMode('scroll')"> Scroll</label>
+						<label class="compact-label">
+							<input type="radio" name="viewMode" checked onchange="setViewMode('page')">
+							<span>Page</span>
+						</label>
+						<label class="compact-label">
+							<input type="radio" name="viewMode" onchange="setViewMode('scroll')">
+							<span>Scroll</span>
+						</label>
 					</div>
+
 			
 					<div class="menu-group">
-						<b>Audio</b>
+						<div class="audio-header">
+							<b>Audio</b>
+							<select id="audioLang">
+								<option value="en-US">EN</option>
+								<option value="ja-JP">JP</option>
+							</select>
+						</div>
+					
 						<label>
 							Speed:
 							<select id="speedSelect">
@@ -388,15 +448,12 @@ body.page-mode .main-pane {
 								<option value="2">2x</option>
 							</select>
 						</label>
-						<label>
-							<input type="checkbox" id="repeatToggle"> Repeat
+					
+						<label class="compact-label">
+							<input type="checkbox" id="repeatToggle">
+							<span>Repeat</span>
 						</label>
-						<select id="audioLang">
-							<option value="en-US">EN</option>
-							<option value="ja-JP">JP</option>
-						</select>
 					</div>
-			
 					<div class="menu-group">
 						<b>Font</b>
 						<select id="fontSizeSelect" onchange="setFontSize(this.value)">
@@ -539,6 +596,22 @@ function toggleBookMenu() {
     document.getElementById('bookMenu').classList.toggle('hidden');
 }
 
+function renderTOC(toc, container) {
+    toc.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `toc-item toc-level-${item.level}`;
+        div.innerText = item.title;
+
+        div.onclick = () => jumpToBlock(item.target_id, item.page);
+
+        container.appendChild(div);
+
+        if (item.children?.length) {
+            renderTOC(item.children, container);
+        }
+    });
+}
+
 
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
@@ -582,10 +655,6 @@ repeatToggle.onchange = () => {
         // MỚI: Lưu trạng thái hiển thị của các module Editor
         let editorModulesVisibility = { trans: true, marks: true, grammar: true, analysis: true };
 
-        function toggleViewMenu() {
-            document.getElementById('viewMenu').classList.toggle('hidden');
-        }
-
         function toggleView(module, isVisible) {
             editorModulesVisibility[module] = isVisible;
             if (currentBlockId) {
@@ -593,14 +662,33 @@ repeatToggle.onchange = () => {
                 refreshEditorLists(block);
             }
         }
-
-        // Đóng menu view khi click ra ngoài
-        window.onclick = function(event) {
-            if (!event.target.matches('.view-btn')) {
-                const menu = document.getElementById('viewMenu');
-                if (menu && !menu.classList.contains('hidden')) menu.classList.add('hidden');
-            }
+function jumpToBlock(blockId, page) {
+    if (viewMode === 'page' && page != null) {
+        const pages = getPages();
+        const idx = pages.findIndex(p =>
+            p.some(b => b.id === blockId)
+        );
+        if (idx !== -1) {
+            currentPageIndex = idx;
+            renderPage(idx);
         }
+    }
+
+    requestAnimationFrame(() => {
+        const el = document.getElementById(blockId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.style.background = '#fff8cc';
+            setTimeout(() => (el.style.background = ''), 800);
+        }
+    });
+}
+
+function toggleViewMenu(e) {
+    e.stopPropagation();
+    document.getElementById('viewMenu').classList.toggle('hidden');
+}
+
 
         document.getElementById('masterInput').onchange = (e) => {
             const reader = new FileReader();
@@ -627,12 +715,75 @@ document.getElementById('fileInput').onchange = (e) => {
 		} else {
 			renderBook();
 		}
+		bookData.toc = generateTOC();
+		const tocBox = document.getElementById('toc-container');
+tocBox.innerHTML = '<h3>📑 Table of Contents</h3>';
+renderTOC(bookData.toc, tocBox);
+
     };
     reader.readAsText(file);
 
     // reset handle – vì file input KHÔNG cho ghi đè
     bookFileHandle = null;
 };
+
+
+function generateTOC() {
+    const toc = [];
+    const stack = []; // { level, node }
+
+    let chCount = 0;
+    let secCount = {};
+
+    bookData.blocks.forEach(block => {
+        if (!['chapter', 'section'].includes(block.type)) return;
+        if (block.level == null) return;
+
+        const level = block.level;
+
+        // ===== numbering =====
+        if (level === 1) {
+            chCount++;
+            secCount = {};
+        } else {
+            secCount[level] = (secCount[level] || 0) + 1;
+        }
+
+        const numbering =
+            level === 1
+                ? `${chCount}`
+                : `${chCount}.${Object.keys(secCount)
+                      .filter(l => l <= level)
+                      .map(l => secCount[l])
+                      .join('.')}`;
+
+        const node = {
+            id: `toc_${block.id}`,
+            type: block.type,
+            level,
+            title: `${numbering} ${block.content?.raw || ''}`.trim(),
+            target_id: block.id,
+            page: block.page,
+            children: []
+        };
+
+        // ===== stack logic =====
+        while (stack.length && stack[stack.length - 1].level >= level) {
+            stack.pop();
+        }
+
+        if (stack.length === 0) {
+            toc.push(node);
+        } else {
+            stack[stack.length - 1].node.children.push(node);
+        }
+
+        stack.push({ level, node });
+    });
+
+    return toc;
+}
+
 
 function toggleAllMarks(ev) {
     ev.stopPropagation();
