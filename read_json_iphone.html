@@ -293,7 +293,16 @@
 						<input type="checkbox" id="selectModeToggle">
 						Select mode
 					</label>
-	
+					<label style="font-size:12px; margin-left:10px; display:inline-flex; align-items:center; gap:4px;">
+						<input type="radio" name="viewMode" checked onchange="setViewMode('page')">
+						Page
+					</label>
+					
+					<label style="font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+						<input type="radio" name="viewMode" onchange="setViewMode('scroll')">
+						Scroll
+					</label>
+
 					<button id="pageAudioBtn" onclick="togglePageAudio()">🔊 Page</button>
 					<div id="audio-control" style="display:inline-flex; align-items:center; gap:10px; margin-left:10px;">
 						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
@@ -318,7 +327,7 @@
 								<option value="tiny">Tiny</option>
 								<option value="small">Small</option>
 								<option value="ex-small">Ex-small</option>
-								<option value="medium">Medium</option>
+								<option value="medium" selected>Medium</option>
 								<option value="large">Large</option>
 							</select>
 						</label>
@@ -438,6 +447,26 @@
         let displayFilters = JSON.parse(localStorage.getItem('display_filters')) || { grammar: [], analysis: [] };
         let currentFilterType = '';
 		let isSelectMode = false;
+		let viewMode = 'page';   // 'page' | 'scroll'
+		let currentPage = null;
+let currentPageIndex = 0;
+function getPages() {
+    const pages = [];
+    const map = {};
+
+    bookData.blocks.forEach(b => {
+        if (b.page == null) return;
+        if (!map[b.page]) map[b.page] = [];
+        map[b.page].push(b);
+    });
+
+    Object.keys(map)
+        .sort((a, b) => a - b)
+        .forEach(p => pages.push(map[p]));
+
+    return pages;
+}
+
 
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
@@ -521,7 +550,11 @@ document.getElementById('fileInput').onchange = (e) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
         bookData = JSON.parse(ev.target.result);
-        renderBook();
+        if (viewMode === 'page') {
+			renderPage(currentPageIndex || 0);
+		} else {
+			renderBook();
+		}
     };
     reader.readAsText(file);
 
@@ -546,115 +579,222 @@ function toggleAllMarks(ev) {
         const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
         const cssToHex = (css) => css.replace('#', '0x');
 
-        function renderBook() {
-            if (!bookData) return;
-            const viewer = document.getElementById('book-viewer');
-            viewer.innerHTML = '';
-            let currentPage = null;
-            bookData.blocks.forEach(block => {
-                const div = document.createElement('div');
-                div.className = `block ${block.type}`;
-                div.id = block.id;
-                
-                let raw = block.content.raw || '';
-    if (block.page !== undefined && block.page !== currentPage) {
-        if (currentPage !== null) {
-            const footer = document.createElement('div');
-            footer.className = 'page-footer';
-            footer.innerText = `— Page ${currentPage} —`;
-            viewer.appendChild(footer);
-        }
-        currentPage = block.page;
-    }
-				// ===== Sentence formatting rules =====
-				if (block.type === 'sentence') {
-				
-					// 1️⃣ Chuyển \n (TEXT) thành newline thật
-					raw = raw.replace(/\\n/g, '\n');
-				
-					// 2️⃣ Chuyển \t (TEXT) thành tab thật
-					raw = raw.replace(/\\t/g, '\t');
-				
-					// 3️⃣ Tab hiển thị = 5 spaces
-					raw = raw.replace(/\t/g, '     ');
-				
-					// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
-					if (!raw.startsWith('\n')) {
-						raw = raw.replace(/\n/g, ' ');
-					}
-				}
-				let content = '';
+function renderPage(index) {
+    const viewer = document.getElementById('book-viewer');
+    viewer.innerHTML = '';
 
-				if (block.type === 'image') {
-					// SVG raw → render trực tiếp
-					content = `<div class="image-box">${raw}</div>`;
-				
-				} else if (block.type === 'equation') {
-					// LaTeX raw
-					content = `<div class="equation-box">\\[${raw}\\]</div>`;
-				
-				} else {
-					// === logic cũ giữ nguyên ===
-					content = renderMarks(
-						raw,
-						block.highlights || [],
-						block.underlines || []
-					);
-				}
+    const pages = getPages();
+    const page = pages[index];
+    if (!page) return;
 
-                div.innerHTML = content;
-				if (block.type === 'equation' && window.MathJax) {
-					requestAnimationFrame(() => {
-						MathJax.typesetPromise([div]);
-					});
-				}
+    page.forEach(block => {
+        renderSingleBlock(block, viewer);
+    });
 
-
-				// ===== MỚI: reading screentip =====
-// ===== MỚI: reading screentip =====
-if (block.content && block.content.reading) {
-    const tip = document.createElement('div');
-    tip.className = 'reading-tip';
-    tip.innerText = block.content.reading;
-    tip.style.opacity = '0';
-    div.appendChild(tip);
-
-    const icon = document.createElement('span');
-    icon.innerText = '📖';
-    icon.style.cssText = `
-        font-size:12px;
-        margin-left:6px;
-        cursor:pointer;
-        opacity:0.6;
-    `;
-
-    icon.onclick = (e) => {
-        e.stopPropagation();
-        tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
-    };
-
-    div.appendChild(icon);
+    viewer.scrollTop = 0;
 }
 
-                div.onclick = (e) => {
-					if (isSelectMode) {
-						e.preventDefault();
-						e.stopPropagation();
-						return; // ❌ không mở editor
-					}
-					openEditor(block.id);
-				};
+function renderSingleBlock(block, viewer) {
+    const div = document.createElement('div');
+    div.className = `block ${block.type}`;
+    div.id = block.id;
+    
+    let raw = block.content.raw || '';
+	if (block.page !== undefined && block.page !== currentPage) {
+		if (currentPage !== null) {
+			const footer = document.createElement('div');
+			footer.className = 'page-footer';
+			footer.innerText = `— Page ${currentPage} —`;
+			viewer.appendChild(footer);
+		}
+		currentPage = block.page;
+	}
+	// ===== Sentence formatting rules =====
+	if (block.type === 'sentence') {
+	
+		// 1️⃣ Chuyển \n (TEXT) thành newline thật
+		raw = raw.replace(/\\n/g, '\n');
+	
+		// 2️⃣ Chuyển \t (TEXT) thành tab thật
+		raw = raw.replace(/\\t/g, '\t');
+	
+		// 3️⃣ Tab hiển thị = 5 spaces
+		raw = raw.replace(/\t/g, '     ');
+	
+		// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
+		if (!raw.startsWith('\n')) {
+			raw = raw.replace(/\n/g, ' ');
+		}
+	}
+	let content = '';
 
-                viewer.appendChild(div);
-            });
+	if (block.type === 'image') {
+		// SVG raw → render trực tiếp
+		content = `<div class="image-box">${raw}</div>`;
+	} else if (block.type === 'equation') {
+		// LaTeX raw
+		content = `<div class="equation-box">\\[${raw}\\]</div>`;
+	
+	} else {
+		// === logic cũ giữ nguyên ===
+		content = renderMarks(
+			raw,
+			block.highlights || [],
+			block.underlines || []
+		);
+	}
+
+    div.innerHTML = content;
+	if (block.type === 'equation' && window.MathJax) {
+		requestAnimationFrame(() => {
+			MathJax.typesetPromise([div]);
+		});
+	}
+	// ===== MỚI: reading screentip =====
+	// ===== MỚI: reading screentip =====
+	if (block.content && block.content.reading) {
+		const tip = document.createElement('div');
+		tip.className = 'reading-tip';
+		tip.innerText = block.content.reading;
+		tip.style.opacity = '0';
+		div.appendChild(tip);
+	
+		const icon = document.createElement('span');
+		icon.innerText = '📖';
+		icon.style.cssText = `
+			font-size:12px;
+			margin-left:6px;
+			cursor:pointer;
+			opacity:0.6;
+		`;
+	
+		icon.onclick = (e) => {
+			e.stopPropagation();
+			tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+		};
+	
+		div.appendChild(icon);
+	}
+
+    div.onclick = (e) => {
+		if (isSelectMode) {
+			e.preventDefault();
+			e.stopPropagation();
+			return; // ❌ không mở editor
+		}
+		openEditor(block.id);
+	};
+
+    viewer.appendChild(div);
+}
+
+
+function renderBook() {
+    if (!bookData) return;
+	if (viewMode !== 'scroll') return; 
+    const viewer = document.getElementById('book-viewer');
+    viewer.innerHTML = '';
+	currentPage = null;
+    bookData.blocks.forEach(block => {
+        const div = document.createElement('div');
+        div.className = `block ${block.type}`;
+        div.id = block.id;
+        
+        let raw = block.content.raw || '';
+		if (block.page !== undefined && block.page !== currentPage) {
 			if (currentPage !== null) {
-    const footer = document.createElement('div');
-    footer.className = 'page-footer';
-    footer.innerText = `— Page ${currentPage} —`;
-    viewer.appendChild(footer);
-}
+				const footer = document.createElement('div');
+				footer.className = 'page-footer';
+				footer.innerText = `— Page ${currentPage} —`;
+				viewer.appendChild(footer);
+			}
+			currentPage = block.page;
+		}
+		// ===== Sentence formatting rules =====
+		if (block.type === 'sentence') {
+		
+			// 1️⃣ Chuyển \n (TEXT) thành newline thật
+			raw = raw.replace(/\\n/g, '\n');
+		
+			// 2️⃣ Chuyển \t (TEXT) thành tab thật
+			raw = raw.replace(/\\t/g, '\t');
+		
+			// 3️⃣ Tab hiển thị = 5 spaces
+			raw = raw.replace(/\t/g, '     ');
+		
+			// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
+			if (!raw.startsWith('\n')) {
+				raw = raw.replace(/\n/g, ' ');
+			}
+		}
+		let content = '';
 
-        }
+		if (block.type === 'image') {
+			// SVG raw → render trực tiếp
+			content = `<div class="image-box">${raw}</div>`;
+		} else if (block.type === 'equation') {
+			// LaTeX raw
+			content = `<div class="equation-box">\\[${raw}\\]</div>`;
+		
+		} else {
+			// === logic cũ giữ nguyên ===
+			content = renderMarks(
+				raw,
+				block.highlights || [],
+				block.underlines || []
+			);
+		}
+
+        div.innerHTML = content;
+		if (block.type === 'equation' && window.MathJax) {
+			requestAnimationFrame(() => {
+				MathJax.typesetPromise([div]);
+			});
+		}
+		// ===== MỚI: reading screentip =====
+		// ===== MỚI: reading screentip =====
+		if (block.content && block.content.reading) {
+			const tip = document.createElement('div');
+			tip.className = 'reading-tip';
+			tip.innerText = block.content.reading;
+			tip.style.opacity = '0';
+			div.appendChild(tip);
+		
+			const icon = document.createElement('span');
+			icon.innerText = '📖';
+			icon.style.cssText = `
+				font-size:12px;
+				margin-left:6px;
+				cursor:pointer;
+				opacity:0.6;
+			`;
+		
+			icon.onclick = (e) => {
+				e.stopPropagation();
+				tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+			};
+		
+			div.appendChild(icon);
+		}
+
+        div.onclick = (e) => {
+			if (isSelectMode) {
+				e.preventDefault();
+				e.stopPropagation();
+				return; // ❌ không mở editor
+			}
+			openEditor(block.id);
+		};
+
+        viewer.appendChild(div);
+    });
+	if (currentPage !== null) {
+		const footer = document.createElement('div');
+		footer.className = 'page-footer';
+		footer.innerText = `— Page ${currentPage} —`;
+		viewer.appendChild(footer);
+	}
+}
 
 
 function renderMarks(raw, highlights = [], underlines = []) {
@@ -719,7 +859,7 @@ function renderMarks(raw, highlights = [], underlines = []) {
 
 
 const FONT_MAP = {
-    tiny: 0.2,
+    tiny: 0.3,
     small: 0.5,
     'ex-small': 0.75,
     medium: 1,
@@ -917,8 +1057,6 @@ function renderItems(items, type) {
         `;
     }).join('');
 }
-
-
         function openFilter(type) {
             currentFilterType = type;
             const modal = document.getElementById('filter-modal');
@@ -1329,34 +1467,57 @@ splitter.addEventListener('touchmove', (e) => {
     }
 });
 
-function gotoNextPage() {
-    alert('NEXT PAGE (stub)');
-}
+function setViewMode(mode) {
+    viewMode = mode;
 
-function gotoPrevPage() {
-    alert('PREV PAGE (stub)');
-}
-
-let touchStartX = 0;
-let touchStartY = 0;
-
-document.getElementById('book-viewer').addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-});
-
-document.getElementById('book-viewer').addEventListener('touchend', e => {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
-        if (dx < 0) gotoNextPage();
-        else gotoPrevPage();
+    if (mode === 'page') {
+        currentPageIndex = 0;
+        disablePageSwipe(); // tránh double
+        enablePageSwipe();
+        renderPage(currentPageIndex);
+    } else {
+        disablePageSwipe();
+        renderBook();
     }
-});
+}
+let touchStartX = 0;
 
+function onTouchStart(e) {
+    touchStartX = e.touches[0].clientX;
+}
+
+function onTouchEnd(e) {
+    if (viewMode !== 'page') return;
+
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) < 50) return;
+
+    dx < 0 ? nextPage() : prevPage();
+}
+
+function enablePageSwipe() {
+    document.addEventListener('touchstart', onTouchStart);
+    document.addEventListener('touchend', onTouchEnd);
+}
+
+function disablePageSwipe() {
+    document.removeEventListener('touchstart', onTouchStart);
+    document.removeEventListener('touchend', onTouchEnd);
+}
+function nextPage() {
+    const pages = getPages();
+    if (currentPageIndex < pages.length - 1) {
+        currentPageIndex++;
+        renderPage(currentPageIndex);
+    }
+}
+
+function prevPage() {
+    if (currentPageIndex > 0) {
+        currentPageIndex--;
+        renderPage(currentPageIndex);
+    }
+}
     </script>
 	<script>
 window.MathJax = {
