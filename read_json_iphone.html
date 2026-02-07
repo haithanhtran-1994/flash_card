@@ -6,10 +6,24 @@
     <title>JSON Book Editor Pro</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; color: #333; }
-        .app-container {margin: 0 auto; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        #book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }
-        
+		:root {
+    --font-size: 19px;
+}
+
+        .app-container {padding: 0;}
+        /*header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }*/
+		header {
+    padding: 6px 10px;
+    border-radius: 0;
+}
+        /*book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }*/
+       #book-viewer {
+    padding: 12px 10px;     /* 🔥 cực mỏng */
+    margin-top: 0;
+    min-height: 100vh;
+    line-height: 1.6;
+    font-size: var(--font-size, 19px);
+} 
         .block { margin-bottom: 15px; cursor: pointer; padding: 8px; border-radius: 4px; border-left: 4px solid transparent; position: relative; }
         .block:hover { background: #f8f9fa; border-left-color: #007bff; }
         .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
@@ -203,7 +217,11 @@
     z-index: 2000;
 	touch-action: none;  
 }
-
+@media (max-width: 768px) {
+    #book-viewer {
+        padding: 8px 8px;
+    }
+}
 /* ===== PORTRAIT: editor ở dưới ===== */
 @media (orientation: portrait) {
     .app-shell {
@@ -239,6 +257,12 @@
 /* Ẩn editor + splitter khi chưa mở */
 .hidden {
     display: none !important;
+}
+.page-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin: 20px 0 10px;
 }
 
     </style>
@@ -286,8 +310,19 @@
 								<option value="3">3x</option>
 							</select>
 						</label>
-	
-					
+							<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
+							Font:
+							<select id="fontSizeSelect"
+									onchange="setFontSize(this.value)"
+									style="font-size:12px; padding:2px 6px;">
+								<option value="tiny">Tiny</option>
+								<option value="small">Small</option>
+								<option value="ex-small">Ex-small</option>
+								<option value="medium">Medium</option>
+								<option value="large">Large</option>
+							</select>
+						</label>
+
 						<label style="font-size:12px; display:flex; align-items:center; gap:4px;">
 							<input type="checkbox" id="repeatToggle">
 							Repeat
@@ -515,14 +550,22 @@ function toggleAllMarks(ev) {
             if (!bookData) return;
             const viewer = document.getElementById('book-viewer');
             viewer.innerHTML = '';
-            
+            let currentPage = null;
             bookData.blocks.forEach(block => {
                 const div = document.createElement('div');
                 div.className = `block ${block.type}`;
                 div.id = block.id;
                 
                 let raw = block.content.raw || '';
-
+    if (block.page !== undefined && block.page !== currentPage) {
+        if (currentPage !== null) {
+            const footer = document.createElement('div');
+            footer.className = 'page-footer';
+            footer.innerText = `— Page ${currentPage} —`;
+            viewer.appendChild(footer);
+        }
+        currentPage = block.page;
+    }
 				// ===== Sentence formatting rules =====
 				if (block.type === 'sentence') {
 				
@@ -604,6 +647,13 @@ if (block.content && block.content.reading) {
 
                 viewer.appendChild(div);
             });
+			if (currentPage !== null) {
+    const footer = document.createElement('div');
+    footer.className = 'page-footer';
+    footer.innerText = `— Page ${currentPage} —`;
+    viewer.appendChild(footer);
+}
+
         }
 
 
@@ -668,7 +718,28 @@ function renderMarks(raw, highlights = [], underlines = []) {
 }
 
 
-	
+const FONT_MAP = {
+    tiny: 0.2,
+    small: 0.5,
+    'ex-small': 0.75,
+    medium: 1,
+    large: 1.5
+};
+
+function setFontSize(mode) {
+    const base = 19;
+    document.documentElement.style.setProperty(
+        '--font-size',
+        base * FONT_MAP[mode] + 'px'
+    );
+    localStorage.setItem('font_size_mode', mode);
+}
+
+// restore khi load page
+document.addEventListener('DOMContentLoaded', () => {
+    setFontSize(localStorage.getItem('font_size_mode') || 'medium');
+});
+
 let originalContentSnapshot = null;
 
 function openContentEditor() {
@@ -1255,6 +1326,34 @@ splitter.addEventListener('touchmove', (e) => {
     } else {
         const w = window.innerWidth - t.clientX;
         editorPane.style.width = Math.max(250, w) + 'px';
+    }
+});
+
+function gotoNextPage() {
+    alert('NEXT PAGE (stub)');
+}
+
+function gotoPrevPage() {
+    alert('PREV PAGE (stub)');
+}
+
+let touchStartX = 0;
+let touchStartY = 0;
+
+document.getElementById('book-viewer').addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+});
+
+document.getElementById('book-viewer').addEventListener('touchend', e => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
+        if (dx < 0) gotoNextPage();
+        else gotoPrevPage();
     }
 });
 
