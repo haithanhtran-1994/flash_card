@@ -174,14 +174,19 @@ input[type="radio"] {
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
 }
-/* ===== DEFAULT (Select mode OFF) ===== */
-/* ❌ Không cho select text
-   ✅ Giữ lì vẫn hiện popup copy iOS */
-.block {
-    -webkit-user-select: none;
+/* ===== Select mode OFF ===== */
+body:not(.select-mode) .block {
     user-select: none;
-    -webkit-touch-callout: none;
+    -webkit-user-select: none;
 }
+
+/* ===== Select mode ON ===== */
+.select-mode .block {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: none;   /* 🔑 iOS */
+}
+
 /* ===============================
    APP SPLIT LAYOUT (Safari iOS)
    =============================== */
@@ -366,15 +371,6 @@ body.page-mode .main-pane {
 .toc-level-2 { margin-left: 16px; }
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
-
-.char {
-    white-space: pre;
-}
-
-.char.fake-selected {
-    background: #cce5ff;
-    border-radius: 2px;
-}
 
 
     </style>
@@ -860,19 +856,6 @@ function updatePageIndicator() {
     el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
 }
 
-function renderSentenceChars(text) {
-    let html = '';
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i]
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-
-        html += `<span class="char" data-idx="${i}">${ch}</span>`;
-    }
-    return html;
-}
-
 function renderSingleBlock(block, viewer) {
     const div = document.createElement('div');
     div.className = `block ${block.type}`;
@@ -918,15 +901,11 @@ function renderSingleBlock(block, viewer) {
 	
 	} else {
 		// === logic cũ giữ nguyên ===
-		if (block.type === 'sentence') {
-			content = renderSentenceChars(raw);
-		} else {
-			content = renderMarks(
-				raw,
-				block.highlights || [],
-				block.underlines || []
-			);
-		}
+		content = renderMarks(
+			raw,
+			block.highlights || [],
+			block.underlines || []
+		);
 	}
 
     div.innerHTML = content;
@@ -963,8 +942,6 @@ function renderSingleBlock(block, viewer) {
 
     div.onclick = (e) => {
 		if (isSelectMode) {
-			e.preventDefault();
-			e.stopPropagation();
 			return; // ❌ không mở editor
 		}
 		openEditor(block.id);
@@ -1064,8 +1041,6 @@ function renderBook() {
 
         div.onclick = (e) => {
 			if (isSelectMode) {
-				e.preventDefault();
-				e.stopPropagation();
 				return; // ❌ không mở editor
 			}
 			openEditor(block.id);
@@ -1851,85 +1826,58 @@ swipeLayer.addEventListener('touchend', e => {
         renderPage(currentPageIndex);
     }
 });
-// ===== iOS SELECTION HIJACK (ANTI COPY MENU) =====
-(function () {
-    function hijackIOSSelection() {
-        if (!isSelectMode) return;
+// ===============================
+// Ephemeral Native Selection (iOS-safe)
+// ===============================
+let pendingRange = null;
 
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
+function captureSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
 
-        const range = sel.getRangeAt(0);
-        const safeRange = range.cloneRange();
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return null;
 
-        // 💣 CƯỚP SELECTION TRƯỚC KHI iOS KỊP VẼ MENU
-        sel.removeAllRanges();
-        sel.addRange(safeRange);
-    }
+    // chỉ cho select trong sentence
+    const container = range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentElement
+        : range.commonAncestorContainer;
 
-    document.addEventListener(
-        'touchend',
-        () => {
-            if (!isSelectMode) return;
-            setTimeout(hijackIOSSelection, 0);
-        },
-        { passive: true }
-    );
-})();
-let charSelecting = false;
-let charStart = null;
-let charEnd = null;
-let activeSentence = null;
+    if (!container.closest('.block.sentence')) return null;
 
-document.addEventListener('mousedown', e => {
+    // clone range để dùng sau
+    const safeRange = range.cloneRange();
+
+    // 🔥 clear selection NGAY
+    sel.removeAllRanges();
+
+    return safeRange;
+}
+
+// iOS: bắt touchend
+document.addEventListener('touchend', () => {
     if (!isSelectMode) return;
 
-    const char = e.target.closest('.char');
-    if (!char) return;
-
-    e.preventDefault();
-
-    charSelecting = true;
-    activeSentence = char.closest('.sentence');
-    charStart = +char.dataset.idx;
-    charEnd = charStart;
-
-    updateFakeSelection();
+    setTimeout(() => {
+        pendingRange = captureSelection();
+        if (pendingRange) {
+            // 👉 Ở đây mày xử lý highlight / underline / popup riêng
+            console.log('Selected:', pendingRange.toString());
+        }
+    }, 0);
 });
 
-document.addEventListener('mouseover', e => {
-    if (!charSelecting) return;
-
-    const char = e.target.closest('.char');
-    if (!char || char.closest('.sentence') !== activeSentence) return;
-
-    charEnd = +char.dataset.idx;
-    updateFakeSelection();
-});
-
+// Desktop / mouse
 document.addEventListener('mouseup', () => {
-    charSelecting = false;
+    if (!isSelectMode) return;
+
+    setTimeout(() => {
+        pendingRange = captureSelection();
+        if (pendingRange) {
+            console.log('Selected:', pendingRange.toString());
+        }
+    }, 0);
 });
-function updateFakeSelection() {
-    const chars = activeSentence.querySelectorAll('.char');
-    const [from, to] =
-        charStart < charEnd ? [charStart, charEnd] : [charEnd, charStart];
-
-    chars.forEach(span => {
-        const i = +span.dataset.idx;
-        span.classList.toggle(
-            'fake-selected',
-            i >= from && i <= to
-        );
-    });
-}
-function getFakeSelectedText() {
-    if (!activeSentence) return '';
-
-    return [...activeSentence.querySelectorAll('.char.fake-selected')]
-        .map(c => c.textContent)
-        .join('');
-}
 
     </script>
 	<script>
