@@ -1595,6 +1595,8 @@ document.addEventListener('selectionchange', () => {
     
     tb.classList.add('hidden');
     
+	window.getSelection().removeAllRanges();
+	
     // 🔥 BONUS: refresh editor nếu đang mở
     if (currentBlockId === block.id) {
         refreshEditorLists(block);
