@@ -1835,6 +1835,31 @@ swipeLayer.addEventListener('touchend', e => {
         renderPage(currentPageIndex);
     }
 });
+// ===== iOS SELECTION HIJACK (ANTI COPY MENU) =====
+(function () {
+    function hijackIOSSelection() {
+        if (!isSelectMode) return;
+
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+
+        const range = sel.getRangeAt(0);
+        const safeRange = range.cloneRange();
+
+        // 💣 CƯỚP SELECTION TRƯỚC KHI iOS KỊP VẼ MENU
+        sel.removeAllRanges();
+        sel.addRange(safeRange);
+    }
+
+    document.addEventListener(
+        'touchend',
+        () => {
+            if (!isSelectMode) return;
+            setTimeout(hijackIOSSelection, 0);
+        },
+        { passive: true }
+    );
+})();
 
     </script>
 	<script>
