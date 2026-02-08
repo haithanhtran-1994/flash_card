@@ -91,7 +91,39 @@ input[type="radio"] {
         .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
         .filter-option input { width: auto; margin: 0; }
 
-        #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
+        #text-toolbar { 
+    position: absolute; 
+    background: #333; 
+    color: white; 
+    padding: 8px; 
+    border-radius: 8px; 
+    display: flex; 
+    gap: 8px; 
+    z-index: 6000;  /* 🔥 TĂNG z-index */
+}
+
+/* 🔥 FIX iOS color picker */
+#text-toolbar input[type="color"] {
+    width: 40px;
+    height: 30px;
+    border: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+}
+
+#text-toolbar input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+#text-toolbar input[type="color"]::-webkit-color-swatch {
+    border: 2px solid white;
+    border-radius: 4px;
+}
+
+#text-toolbar button {
+    touch-action: manipulation;
+    pointer-events: auto;
+}
         .hl-item { border-radius: 3px; padding: 2px 0; }
 		.ul-item { position: relative;}
 
@@ -1518,9 +1550,24 @@ document.addEventListener('selectionchange', () => {
 
     const rect = range.getBoundingClientRect();
 
-    // 🔥 HIỆN BÊN DƯỚI (thay vì trên)
-    toolbar.style.top  = (window.scrollY + rect.bottom + 8) + 'px';  // +8px margin
-    toolbar.style.left = (window.scrollX + rect.left) + 'px';
+    // 🔥 VỊ TRÍ DỌC: hiện bên dưới
+    toolbar.style.top = (window.scrollY + rect.bottom + 8) + 'px';
+    
+    // 🔥 VỊ TRÍ NGANG: tránh tràn ra ngoài màn hình
+    let leftPos = window.scrollX + rect.left;
+    
+    // Kiểm tra nếu toolbar sẽ tràn ra ngoài lề phải
+    const toolbarWidth = 250; // ước tính chiều rộng toolbar
+    if (leftPos + toolbarWidth > window.innerWidth) {
+        leftPos = window.innerWidth - toolbarWidth - 10; // 10px margin
+    }
+    
+    // Đảm bảo không tràn ra lề trái
+    if (leftPos < 10) {
+        leftPos = 10;
+    }
+    
+    toolbar.style.left = leftPos + 'px';
     toolbar.classList.remove('hidden');
 
     toolbar.dataset.blockId = block.id;
