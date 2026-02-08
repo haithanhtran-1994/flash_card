@@ -174,17 +174,16 @@ input[type="radio"] {
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
 }
-/* ===== Select mode OFF ===== */
-body:not(.select-mode) .block {
-    user-select: none;
-    -webkit-user-select: none;
+
+.fake-select {
+    background: rgba(255, 230, 150, 0.6);
+    border-radius: 3px;
 }
 
-/* ===== Select mode ON ===== */
-.select-mode .block {
-    user-select: text;
-    -webkit-user-select: text;
-    -webkit-touch-callout: none;   /* 🔑 iOS */
+.fake-cursor {
+    color: #d00;
+    font-weight: bold;
+    user-select: none;
 }
 
 /* ===============================
@@ -578,6 +577,9 @@ body.page-mode .main-pane {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
+let fakeSel = null;
+// { blockId, start, end }
+
 function getPages() {
     const pages = [];
     const map = {};
@@ -941,11 +943,19 @@ function renderSingleBlock(block, viewer) {
 	}
 
     div.onclick = (e) => {
-		if (isSelectMode) {
-			return; // ❌ không mở editor
-		}
-		openEditor(block.id);
-	};
+    if (!isSelectMode) {
+        openEditor(block.id);
+        return;
+    }
+
+    if (['image', 'equation'].includes(block.type)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    initFakeSelection(block.id, e);
+};
+
 
     viewer.appendChild(div);
 }
@@ -1040,11 +1050,19 @@ function renderBook() {
 		}
 
         div.onclick = (e) => {
-			if (isSelectMode) {
-				return; // ❌ không mở editor
-			}
-			openEditor(block.id);
-		};
+    if (!isSelectMode) {
+        openEditor(block.id);
+        return;
+    }
+
+    if (['image', 'equation'].includes(block.type)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    initFakeSelection(block.id, e);
+};
+
 
         viewer.appendChild(div);
     });
@@ -1056,6 +1074,49 @@ function renderBook() {
 	}
 }
 
+function renderFakeSelection(blockId) {
+    const block = bookData.blocks.find(b => b.id === blockId);
+    const el = document.getElementById(blockId);
+    if (!block || !el) return;
+
+    const { start, end } = fakeSel;
+    const raw = block.content.raw;
+
+    const html =
+        raw.slice(0, start) +
+        `<span class="fake-cursor">[</span>` +
+        `<span class="fake-select">` +
+        raw.slice(start, end) +
+        `</span>` +
+        `<span class="fake-cursor">]</span>` +
+        raw.slice(end);
+
+    el.innerHTML = html;
+}
+
+function showTextToolbar(x, y) {
+    const tb = document.getElementById('text-toolbar');
+    tb.style.left = x + 'px';
+    tb.style.top = (y - 40) + 'px';
+    tb.classList.remove('hidden');
+}
+
+
+function initFakeSelection(blockId, ev) {
+    const block = bookData.blocks.find(b => b.id === blockId);
+    const text = block.content.raw || '';
+    if (!text) return;
+
+    // 👉 đơn giản: mặc định chọn cả câu
+    fakeSel = {
+        blockId,
+        start: 0,
+        end: text.length
+    };
+
+    renderFakeSelection(blockId);
+    showTextToolbar(ev.clientX, ev.clientY);
+}
 
 function renderMarks(raw, highlights = [], underlines = []) {
     const marks = [];
@@ -1504,18 +1565,23 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-            const tb = document.getElementById('text-toolbar');
-            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
-            const key = type === 'highlight' ? 'highlights' : 'underlines';
-            if (!block[key]) block[key] = [];
-            block[key].push({
-                quote: tb.dataset.text,
-                color: cssToHex(document.getElementById('markColor').value),
-                note: ""
-            });
-            renderBook();
-            tb.classList.add('hidden');
-        }
+    if (!fakeSel) return;
+
+    const block = bookData.blocks.find(b => b.id === fakeSel.blockId);
+    const quote = block.content.raw.slice(fakeSel.start, fakeSel.end);
+
+    block[type + 's'] = block[type + 's'] || [];
+    block[type + 's'].push({
+        quote,
+        color: cssToHex(document.getElementById('markColor').value)
+    });
+
+    fakeSel = null;
+    document.getElementById('text-toolbar').classList.add('hidden');
+
+    renderBook();
+}
+
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
@@ -1825,58 +1891,6 @@ swipeLayer.addEventListener('touchend', e => {
         currentPageIndex--;
         renderPage(currentPageIndex);
     }
-});
-// ===============================
-// Ephemeral Native Selection (iOS-safe)
-// ===============================
-let pendingRange = null;
-
-function captureSelection() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return null;
-
-    const range = sel.getRangeAt(0);
-    if (range.collapsed) return null;
-
-    // chỉ cho select trong sentence
-    const container = range.commonAncestorContainer.nodeType === 3
-        ? range.commonAncestorContainer.parentElement
-        : range.commonAncestorContainer;
-
-    if (!container.closest('.block.sentence')) return null;
-
-    // clone range để dùng sau
-    const safeRange = range.cloneRange();
-
-    // 🔥 clear selection NGAY
-    sel.removeAllRanges();
-
-    return safeRange;
-}
-
-// iOS: bắt touchend
-document.addEventListener('touchend', () => {
-    if (!isSelectMode) return;
-
-    setTimeout(() => {
-        pendingRange = captureSelection();
-        if (pendingRange) {
-            // 👉 Ở đây mày xử lý highlight / underline / popup riêng
-            console.log('Selected:', pendingRange.toString());
-        }
-    }, 0);
-});
-
-// Desktop / mouse
-document.addEventListener('mouseup', () => {
-    if (!isSelectMode) return;
-
-    setTimeout(() => {
-        pendingRange = captureSelection();
-        if (pendingRange) {
-            console.log('Selected:', pendingRange.toString());
-        }
-    }, 0);
 });
 
     </script>
