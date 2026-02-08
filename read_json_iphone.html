@@ -388,12 +388,18 @@ body.select-mode .char {
     user-select: none;
     pointer-events: auto;
 }
-body.select-mode .block {
-    pointer-events: none;
+body.select-mode {
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 body.select-mode .char {
     pointer-events: auto;
+}
+.char {
+    pointer-events: auto;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
     </style>
@@ -668,7 +674,14 @@ function renderTOC(toc, container) {
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
     document.body.classList.toggle('select-mode', isSelectMode);
+
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
 };
+
 
 const audioState = {
     page: {
@@ -926,7 +939,7 @@ function renderSingleBlock(block, viewer) {
 		content = `<div class="equation-box">\\[${raw}\\]</div>`;
 	
 	} else {
-		if (isSelectMode && block.type !== 'image' && block.type !== 'equation') {
+		if (isSelectMode) {
 			content = wrapChars(raw);
 		} else {
 			content = renderMarks(
