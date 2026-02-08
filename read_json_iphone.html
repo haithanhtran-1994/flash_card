@@ -1170,7 +1170,11 @@ function saveContentEdit() {
     block.content.reading = document.getElementById('edit-reading').value || null;
 
     document.getElementById('content-editor').classList.add('hidden');
-    renderBook();
+        if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
 }
 
 function cancelContentEdit() {
@@ -1237,7 +1241,11 @@ repeatToggle.checked = cfg.repeat;
                     document.getElementById('editor-overlay').classList.add('hidden');
 document.querySelector('.splitter').classList.add('hidden');
 
-                    renderBook();
+                    if (viewMode === 'page') {
+						renderPage(currentPageIndex);
+					} else {
+						renderBook();
+					}
 					currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
                 }
             } else {
@@ -1449,13 +1457,20 @@ function renderItems(items, type) {
 
         window.updateMark = (key, i, val) => { bookData.blocks.find(b => b.id === currentBlockId)[key][i].note = val; };
         window.deleteMark = (key, i) => { 
-            if (confirm("Bạn có chắc chắn muốn xóa đánh dấu này không?")) {
-                const block = bookData.blocks.find(b => b.id === currentBlockId);
-                block[key].splice(i, 1); 
-                renderBook(); 
-                refreshEditorLists(block);
-            }
-        };
+    if (confirm("Bạn có chắc chắn muốn xóa đánh dấu này không?")) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        block[key].splice(i, 1); 
+        
+        // 🔥 FIX: render theo viewMode
+        if (viewMode === 'page') {
+            renderPage(currentPageIndex);
+        } else {
+            renderBook();
+        }
+        
+        refreshEditorLists(block);
+    }
+};
         window.updateField = (type, i, field, val) => { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
             block[type][i][field] = val; 
@@ -1544,9 +1559,13 @@ document.addEventListener('selectionchange', () => {
             block.translation = block.translation || {};
             block.translation.vi = document.getElementById('edit-trans').value;
             document.getElementById('editor-overlay').classList.add('hidden'); 
-document.querySelector('.splitter').classList.add('hidden');
+			document.querySelector('.splitter').classList.add('hidden');
 
-            renderBook();
+            if (viewMode === 'page') {
+				renderPage(currentPageIndex);
+			} else {
+				renderBook();
+			}
 			currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
         }
 
