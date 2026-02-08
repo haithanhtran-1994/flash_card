@@ -374,6 +374,11 @@ body.page-mode .main-pane {
 .char {
     white-space: pre;
 }
+.fake-bracket {
+    color: #d00;
+    font-weight: bold;
+    user-select: none;
+}
 
     </style>
 </head>
@@ -1094,24 +1099,30 @@ function renderFakeSelection(blockId) {
     if (!chars.length) return;
 
     // clear cũ
-    chars.forEach(c => {
-        c.classList.remove('fake-select');
-        c.innerText = c.innerText.replace('[', '').replace(']', '');
-    });
+    el.querySelectorAll('.fake-bracket').forEach(n => n.remove());
+    chars.forEach(c => c.classList.remove('fake-select'));
 
     const { start, end } = fakeSel;
 
     if (chars[start]) {
-        chars[start].innerText = '[' + chars[start].innerText;
+        const left = document.createElement('span');
+        left.className = 'fake-bracket';
+        left.textContent = '[';
+        chars[start].before(left);
     }
+
     if (chars[end - 1]) {
-        chars[end - 1].innerText = chars[end - 1].innerText + ']';
+        const right = document.createElement('span');
+        right.className = 'fake-bracket';
+        right.textContent = ']';
+        chars[end - 1].after(right);
     }
 
     for (let i = start; i < end; i++) {
         if (chars[i]) chars[i].classList.add('fake-select');
     }
 }
+
 
 
 function showTextToolbar(x, y) {
