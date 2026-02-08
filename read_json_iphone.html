@@ -91,19 +91,7 @@ input[type="radio"] {
         .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
         .filter-option input { width: auto; margin: 0; }
 
-        #text-toolbar {
-    position: absolute;
-    background: #333;
-    color: white;
-    padding: 6px 8px;
-    border-radius: 10px;
-    display: flex;
-    gap: 8px;
-    z-index: 5000;       /* 🔥 cao hơn selection */
-    white-space: nowrap;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
-}
-
+        #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
         .hl-item { border-radius: 3px; padding: 2px 0; }
 		.ul-item { position: relative;}
 
@@ -577,12 +565,11 @@ body.page-mode .main-pane {
         <button onclick="closeFilter()" style="margin-top: 15px; width: 100%; background: #007bff; color: white;">Xong</button>
     </div>
 
-    <div id="text-toolbar" class="hidden" onmousedown="event.preventDefault()">
-    <input type="color" id="markColor" value="#ffff00">
-    <button onclick="applyMark('highlight')">Highlight</button>
-    <button onclick="applyMark('underline')">Underline</button>
-</div>
-
+    <div id="text-toolbar" class="hidden">
+        <input type="color" id="markColor" value="#ffff00">
+        <button onclick="applyMark('highlight')">Highlight</button>
+        <button onclick="applyMark('underline')">Underline</button>
+    </div>
 
     <script>
         let bookData = null;
@@ -596,27 +583,6 @@ body.page-mode .main-pane {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
-let savedRange = null;
-
-function showTextToolbar() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-
-    savedRange = sel.getRangeAt(0).cloneRange(); // 🔥 LƯU RANGE
-
-    const rect = savedRange.getBoundingClientRect();
-    const toolbar = document.getElementById('text-toolbar');
-
-    const scrollY = window.scrollY || document.documentElement.scrollTop;
-    const scrollX = window.scrollX || document.documentElement.scrollLeft;
-
-    toolbar.style.left = rect.left + scrollX + rect.width / 2 + 'px';
-    toolbar.style.top  = rect.bottom + scrollY + 40 + 'px';
-    toolbar.style.transform = 'translateX(-50%)';
-    toolbar.classList.remove('hidden');
-}
-
-
 function getPages() {
     const pages = [];
     const map = {};
@@ -1521,7 +1487,7 @@ document.addEventListener('contextmenu', (e) => {
 
 document.addEventListener('selectionchange', () => {
     if (!isSelectMode) return;
-	setTimeout(showTextToolbar, 60);
+
     const sel = window.getSelection();
     const txt = sel.toString().trim();
     const toolbar = document.getElementById('text-toolbar');
@@ -1537,7 +1503,8 @@ document.addEventListener('selectionchange', () => {
 
     const rect = range.getBoundingClientRect();
 
-    toolbar.style.top  = (window.scrollY + rect.top - 50) + 'px';
+    // 🔥 HIỆN BÊN DƯỚI (thay vì trên)
+    toolbar.style.top  = (window.scrollY + rect.bottom + 8) + 'px';  // +8px margin
     toolbar.style.left = (window.scrollX + rect.left) + 'px';
     toolbar.classList.remove('hidden');
 
@@ -1547,35 +1514,18 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-    if (!savedRange) return;
-
-    const color = document.getElementById('markColor').value;
-    const sel = window.getSelection();
-
-    sel.removeAllRanges();
-    sel.addRange(savedRange); // 🔥 KHÔI PHỤC selection
-
-    const text = savedRange.toString();
-    if (!text) return;
-
-    const block = bookData.blocks.find(b => b.id === currentBlockId);
-    if (!block) return;
-
-    if (type === 'highlight') {
-        block.highlights = block.highlights || [];
-        block.highlights.push({ quote: text, color });
-    } else {
-        block.underlines = block.underlines || [];
-        block.underlines.push({ quote: text, color });
-    }
-
-    renderBook();
-
-    document.getElementById('text-toolbar').classList.add('hidden');
-    sel.removeAllRanges();
-    savedRange = null;
-}
-
+            const tb = document.getElementById('text-toolbar');
+            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+            const key = type === 'highlight' ? 'highlights' : 'underlines';
+            if (!block[key]) block[key] = [];
+            block[key].push({
+                quote: tb.dataset.text,
+                color: cssToHex(document.getElementById('markColor').value),
+                note: ""
+            });
+            renderBook();
+            tb.classList.add('hidden');
+        }
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
