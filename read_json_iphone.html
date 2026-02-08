@@ -379,30 +379,34 @@ body.page-mode .main-pane {
 
 #select-popup {
     position: fixed;
-    inset: 10%;
+    left: 5%;
+    right: 5%;
+    top: 20%;
     background: white;
     z-index: 6000;
     border-radius: 10px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-    padding: 14px;
+    padding: 12px;
+
+    max-height: 40vh;          /* 🔥 giới hạn cao */
     display: flex;
-    flex-direction: column;
 }
 
+
 #select-content {
-    flex: 1;
     font-size: var(--font-size);
     line-height: 1.6;
     outline: none;
     white-space: pre-wrap;
+
+    max-height: calc(1.6em * 2); /* 🔥 ~ 2 dòng */
+    overflow-y: auto;
+
     -webkit-user-select: text;
     user-select: text;
-}
-
-/* ❌ iOS callout */
-#select-content {
     -webkit-touch-callout: none;
 }
+
 
 
     </style>
@@ -1009,20 +1013,12 @@ function openSelectPopup(block) {
     popup.classList.remove('hidden');
     content.innerText = block.content.raw || '';
 
-    // 🔥 BẮT BUỘC: focus trước
+    // 🔥 QUAN TRỌNG
+    currentBlockId = block.id;
+
     content.focus({ preventScroll: true });
-
-    requestAnimationFrame(() => {
-        const range = document.createRange();
-        range.selectNodeContents(content);
-
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-
-        showTextToolbarForSelection();
-    });
 }
+
 
 document.getElementById('select-content')
     .addEventListener('mouseup', showTextToolbarForSelection);
@@ -1599,21 +1595,37 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-            const tb = document.getElementById('text-toolbar');
-            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
-            const key = type === 'highlight' ? 'highlights' : 'underlines';
-			const quote = getSelectedText();
-if (!quote) return;
+    if (!currentBlockId || !bookData) {
+        console.warn('applyMark: no active block');
+        return;
+    }
 
-            if (!block[key]) block[key] = [];
-            block[key].push({
-                quote: tb.dataset.text,
-                color: cssToHex(document.getElementById('markColor').value),
-                note: ""
-            });
-            renderBook();
-            tb.classList.add('hidden');
-        }
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if (!block) return;
+
+    block.highlights ??= [];
+    block.underlines ??= [];
+
+    const text = getSelectedText();
+    if (!text) return;
+
+    const color = document.getElementById('markColor').value;
+
+    const entry = {
+        quote: text,
+        color: cssToHex(color)
+    };
+
+    if (type === 'highlight') {
+        block.highlights.push(entry);
+    } else {
+        block.underlines.push(entry);
+    }
+
+    // re-render
+    renderPage(currentPageIndex);
+}
+
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
