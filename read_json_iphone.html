@@ -1134,8 +1134,20 @@ function showTextToolbar(x, y) {
 
 
 function initFakeSelection(blockId, ev) {
-    const target = ev.target;
-    if (!target.classList.contains('char')) return;
+    let target = ev.target;
+
+// 🔥 Safari có thể trả text node
+if (target.nodeType === 3) {
+    target = target.parentElement;
+}
+
+// 🔥 Nếu click trúng fake-select / fake-bracket → tìm char gần nhất
+if (!target.classList.contains('char')) {
+    target = target.closest('.char');
+}
+
+if (!target) return;
+
 
     const idx = parseInt(target.dataset.idx, 10);
     const block = bookData.blocks.find(b => b.id === blockId);
