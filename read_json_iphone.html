@@ -375,7 +375,6 @@ body.page-mode .main-pane {
 </head>
 <body>
 <div class="app-shell">
-	<div id="toc-container"></div>
     <div class="main-pane">
 		<div class="app-container">
 			<header class="topbar">
@@ -394,6 +393,7 @@ body.page-mode .main-pane {
 						<input type="checkbox" id="selectModeToggle">
 						<span>Select text</span>
 					</label>
+					<button class="icon-btn" onclick="toggleTOC()">📑</button>
 				</div>
 			
 				<!-- POPUP MENU -->
@@ -595,6 +595,25 @@ function getPages() {
 function toggleBookMenu() {
     document.getElementById('bookMenu').classList.toggle('hidden');
 }
+let tocVisible = false;
+
+function toggleTOC() {
+    const popup = document.getElementById('toc-popup');
+    const content = document.getElementById('toc-popup-content');
+
+    if (!tocVisible) {
+        // 🔄 CHỈ refresh khi mở
+        content.innerHTML = '';
+        const toc = generateTOC();
+        renderTOC(toc, content);
+        popup.classList.remove('hidden');
+        tocVisible = true;
+    } else {
+        // ❌ Đóng KHÔNG refresh
+        popup.classList.add('hidden');
+        tocVisible = false;
+    }
+}
 
 function renderTOC(toc, container) {
     toc.forEach(item => {
@@ -602,7 +621,11 @@ function renderTOC(toc, container) {
         div.className = `toc-item toc-level-${item.level}`;
         div.innerText = item.title;
 
-        div.onclick = () => jumpToBlock(item.target_id, item.page);
+        div.onclick = () => {
+            jumpToBlock(item.target_id, item.page);
+            document.getElementById('toc-popup').classList.add('hidden');
+            tocVisible = false;
+        };
 
         container.appendChild(div);
 
@@ -611,6 +634,7 @@ function renderTOC(toc, container) {
         }
     });
 }
+
 
 
 document.getElementById('selectModeToggle').onchange = (e) => {
@@ -715,11 +739,6 @@ document.getElementById('fileInput').onchange = (e) => {
 		} else {
 			renderBook();
 		}
-		bookData.toc = generateTOC();
-		const tocBox = document.getElementById('toc-container');
-tocBox.innerHTML = '<h3>📑 Table of Contents</h3>';
-renderTOC(bookData.toc, tocBox);
-
     };
     reader.readAsText(file);
 
@@ -1826,6 +1845,23 @@ window.MathJax = {
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<div id="toc-popup" class="hidden"
+     style="
+        position: fixed;
+        top: 46px;
+        left: 8px;
+        width: 280px;
+        max-height: 70vh;
+        overflow-y: auto;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        z-index: 5000;
+        padding: 10px;
+     ">
+    <b style="font-size:14px;">📑 Table of Contents</b>
+    <div id="toc-popup-content" style="margin-top:6px;"></div>
+</div>
 
 </body>
 </html>
