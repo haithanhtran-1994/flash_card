@@ -371,6 +371,9 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
+.char {
+    white-space: pre;
+}
 
     </style>
 </head>
@@ -1084,24 +1087,32 @@ function renderBook() {
 }
 
 function renderFakeSelection(blockId) {
-    const block = bookData.blocks.find(b => b.id === blockId);
     const el = document.getElementById(blockId);
-    if (!block || !el) return;
+    if (!el || !fakeSel) return;
+
+    const chars = el.querySelectorAll('.char');
+    if (!chars.length) return;
+
+    // clear cũ
+    chars.forEach(c => {
+        c.classList.remove('fake-select');
+        c.innerText = c.innerText.replace('[', '').replace(']', '');
+    });
 
     const { start, end } = fakeSel;
-    const raw = block.content.raw;
 
-    const html =
-        raw.slice(0, start) +
-        `<span class="fake-cursor">[</span>` +
-        `<span class="fake-select">` +
-        raw.slice(start, end) +
-        `</span>` +
-        `<span class="fake-cursor">]</span>` +
-        raw.slice(end);
+    if (chars[start]) {
+        chars[start].innerText = '[' + chars[start].innerText;
+    }
+    if (chars[end - 1]) {
+        chars[end - 1].innerText = chars[end - 1].innerText + ']';
+    }
 
-    el.innerHTML = html;
+    for (let i = start; i < end; i++) {
+        if (chars[i]) chars[i].classList.add('fake-select');
+    }
 }
+
 
 function showTextToolbar(x, y) {
     const tb = document.getElementById('text-toolbar');
