@@ -379,6 +379,22 @@ body.page-mode .main-pane {
     font-weight: bold;
     user-select: none;
 }
+body.select-mode {
+    -webkit-user-select: none;
+    user-select: none;
+}
+body.select-mode .char {
+    -webkit-user-select: none;
+    user-select: none;
+    pointer-events: auto;
+}
+body.select-mode .block {
+    pointer-events: none;
+}
+
+body.select-mode .char {
+    pointer-events: auto;
+}
 
     </style>
 </head>
