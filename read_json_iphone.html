@@ -91,7 +91,19 @@ input[type="radio"] {
         .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
         .filter-option input { width: auto; margin: 0; }
 
-        #text-toolbar { position: absolute; background: #333; color: white; padding: 8px; border-radius: 8px; display: flex; gap: 8px; z-index: 2000; }
+        #text-toolbar {
+    position: absolute;
+    background: #333;
+    color: white;
+    padding: 6px 8px;
+    border-radius: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 5000;       /* 🔥 cao hơn selection */
+    white-space: nowrap;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+}
+
         .hl-item { border-radius: 3px; padding: 2px 0; }
 		.ul-item { position: relative;}
 
@@ -377,37 +389,6 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
-#select-popup {
-    position: fixed;
-    left: 5%;
-    right: 5%;
-    top: 20%;
-    background: white;
-    z-index: 6000;
-    border-radius: 10px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-    padding: 12px;
-
-    max-height: 40vh;          /* 🔥 giới hạn cao */
-    display: flex;
-}
-
-
-#select-content {
-    font-size: var(--font-size);
-    line-height: 1.6;
-    outline: none;
-    white-space: pre-wrap;
-
-    max-height: calc(1.6em * 2); /* 🔥 ~ 2 dòng */
-    overflow-y: auto;
-
-    -webkit-user-select: text;
-    user-select: text;
-    -webkit-touch-callout: none;
-}
-
-
 
     </style>
 </head>
@@ -601,9 +582,6 @@ body.page-mode .main-pane {
         <button onclick="applyMark('highlight')">Highlight</button>
         <button onclick="applyMark('underline')">Underline</button>
     </div>
-<div id="select-popup" class="hidden">
-    <div id="select-content" contenteditable="true"></div>
-</div>
 
     <script>
         let bookData = null;
@@ -617,17 +595,29 @@ body.page-mode .main-pane {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
+function showTextToolbar() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
-document.getElementById('select-popup').onclick = (e) => {
-    if (e.target.id === 'select-popup') {
-        closeSelectPopup();
-    }
-};
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const toolbar = document.getElementById('text-toolbar');
 
-function closeSelectPopup() {
-    document.getElementById('select-popup').classList.add('hidden');
-    document.getElementById('text-toolbar').classList.add('hidden');
-    window.getSelection().removeAllRanges();
+    // iOS Safari cần cộng scroll + offset
+    const scrollY = window.scrollY || document.documentElement.scrollTop;
+    const scrollX = window.scrollX || document.documentElement.scrollLeft;
+
+    const OFFSET_Y = 14; // 🔥 đẩy xuống dưới selection
+    const SAFE_IOS = 28; // 🔥 né menu Copy của iOS
+
+    toolbar.style.left =
+        Math.max(8, rect.left + scrollX + rect.width / 2) + 'px';
+
+    toolbar.style.top =
+        rect.bottom + scrollY + OFFSET_Y + SAFE_IOS + 'px';
+
+    toolbar.style.transform = 'translateX(-50%)';
+    toolbar.classList.remove('hidden');
 }
 
 function getPages() {
@@ -993,50 +983,17 @@ function renderSingleBlock(block, viewer) {
 	}
 
     div.onclick = (e) => {
-		if (isSelectMode && !['image','equation'].includes(block.type)) {
-    e.preventDefault();
-    e.stopPropagation();
-    openSelectPopup(block);
-    return;
-}
-
+		if (isSelectMode) {
+			e.preventDefault();
+			e.stopPropagation();
+			return; // ❌ không mở editor
+		}
 		openEditor(block.id);
 	};
 
     viewer.appendChild(div);
 }
 
-function openSelectPopup(block) {
-    const popup = document.getElementById('select-popup');
-    const content = document.getElementById('select-content');
-
-    popup.classList.remove('hidden');
-    content.innerText = block.content.raw || '';
-
-    // 🔥 QUAN TRỌNG
-    currentBlockId = block.id;
-
-    content.focus({ preventScroll: true });
-}
-
-
-document.getElementById('select-content')
-    .addEventListener('mouseup', showTextToolbarForSelection);
-
-function showTextToolbarForSelection() {
-    const sel = window.getSelection();
-    if (!sel.rangeCount || sel.isCollapsed) return;
-
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    const toolbar = document.getElementById('text-toolbar');
-
-    toolbar.style.top = (rect.top - 40) + 'px';
-    toolbar.style.left = rect.left + 'px';
-    toolbar.classList.remove('hidden');
-}
-function getSelectedText() {
-    return window.getSelection().toString();
-}
 
 function renderBook() {
     if (!bookData) return;
@@ -1127,13 +1084,11 @@ function renderBook() {
 		}
 
         div.onclick = (e) => {
-			if (isSelectMode && !['image','equation'].includes(block.type)) {
-    e.preventDefault();
-    e.stopPropagation();
-    openSelectPopup(block);
-    return;
-}
-
+			if (isSelectMode) {
+				e.preventDefault();
+				e.stopPropagation();
+				return; // ❌ không mở editor
+			}
 			openEditor(block.id);
 		};
 
@@ -1569,7 +1524,7 @@ document.addEventListener('contextmenu', (e) => {
 
 document.addEventListener('selectionchange', () => {
     if (!isSelectMode) return;
-
+	setTimeout(showTextToolbar, 60);
     const sel = window.getSelection();
     const txt = sel.toString().trim();
     const toolbar = document.getElementById('text-toolbar');
@@ -1595,37 +1550,18 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-    if (!currentBlockId || !bookData) {
-        console.warn('applyMark: no active block');
-        return;
-    }
-
-    const block = bookData.blocks.find(b => b.id === currentBlockId);
-    if (!block) return;
-
-    block.highlights ??= [];
-    block.underlines ??= [];
-
-    const text = getSelectedText();
-    if (!text) return;
-
-    const color = document.getElementById('markColor').value;
-
-    const entry = {
-        quote: text,
-        color: cssToHex(color)
-    };
-
-    if (type === 'highlight') {
-        block.highlights.push(entry);
-    } else {
-        block.underlines.push(entry);
-    }
-
-    // re-render
-    renderPage(currentPageIndex);
-}
-
+            const tb = document.getElementById('text-toolbar');
+            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+            const key = type === 'highlight' ? 'highlights' : 'underlines';
+            if (!block[key]) block[key] = [];
+            block[key].push({
+                quote: tb.dataset.text,
+                color: cssToHex(document.getElementById('markColor').value),
+                note: ""
+            });
+            renderBook();
+            tb.classList.add('hidden');
+        }
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
