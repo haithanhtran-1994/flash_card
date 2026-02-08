@@ -609,6 +609,35 @@ body.select-mode .char {
 let currentPageIndex = 0;
 let fakeSel = null;
 // { blockId, start, end }
+let dragStartIdx = null;
+
+viewer.addEventListener('touchstart', e => {
+    if (!isSelectMode) return;
+    const t = e.target.closest('.char');
+    if (!t) return;
+
+    dragStartIdx = +t.dataset.idx;
+    fakeSel = { blockId: t.closest('.block').id, start: dragStartIdx, end: dragStartIdx + 1 };
+    renderFakeSelection(fakeSel.blockId);
+});
+
+viewer.addEventListener('touchmove', e => {
+    if (dragStartIdx == null) return;
+    const t = document.elementFromPoint(
+        e.touches[0].clientX,
+        e.touches[0].clientY
+    )?.closest('.char');
+    if (!t) return;
+
+    const idx = +t.dataset.idx;
+    fakeSel.start = Math.min(dragStartIdx, idx);
+    fakeSel.end   = Math.max(dragStartIdx, idx) + 1;
+    renderFakeSelection(fakeSel.blockId);
+});
+
+viewer.addEventListener('touchend', () => {
+    dragStartIdx = null;
+});
 
 function getPages() {
     const pages = [];
