@@ -1009,6 +1009,9 @@ function openSelectPopup(block) {
     popup.classList.remove('hidden');
     content.innerText = block.content.raw || '';
 
+    // 🔥 BẮT BUỘC: focus trước
+    content.focus({ preventScroll: true });
+
     requestAnimationFrame(() => {
         const range = document.createRange();
         range.selectNodeContents(content);
@@ -1020,6 +1023,7 @@ function openSelectPopup(block) {
         showTextToolbarForSelection();
     });
 }
+
 document.getElementById('select-content')
     .addEventListener('mouseup', showTextToolbarForSelection);
 
