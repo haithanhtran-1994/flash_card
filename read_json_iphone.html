@@ -598,16 +598,11 @@ body.page-mode .main-pane {
     </div>
 
     <div id="text-toolbar" class="hidden">
-    <!-- 🔥 Chỉ hiện color swatch, không dùng input -->
-    <div id="colorPreview" 
-         style="width:40px; height:30px; background:#ffff00; border:2px solid white; border-radius:4px; cursor:pointer;"
-         onclick="triggerColorPicker()"></div>
+    <input type="color" id="markColor" value="#ffff00">
     <button onclick="applyMark('highlight')">Highlight</button>
     <button onclick="applyMark('underline')">Underline</button>
 </div>
 
-<!-- 🔥 Hidden color input ở body level -->
-<input type="color" id="hiddenColorPicker" value="#ffff00" style="position:absolute; opacity:0; pointer-events:none;">
 
     <script>
         let bookData = null;
@@ -622,17 +617,7 @@ body.page-mode .main-pane {
 		let currentPage = null;
 let currentPageIndex = 0;
 
-// 🔥 Trigger hidden color picker
-function triggerColorPicker() {
-    const picker = document.getElementById('hiddenColorPicker');
-    picker.click();
-}
 
-// 🔥 Update color preview khi chọn màu
-document.getElementById('hiddenColorPicker').addEventListener('change', (e) => {
-    const color = e.target.value;
-    document.getElementById('colorPreview').style.background = color;
-});
 
 function getPages() {
     const pages = [];
@@ -1600,12 +1585,12 @@ document.addEventListener('selectionchange', () => {
     const key = type === 'highlight' ? 'highlights' : 'underlines';
     if (!block[key]) block[key] = [];
     
-    // 🔥 Lấy màu từ hidden picker
-    const color = document.getElementById('hiddenColorPicker').value;
+    // 🔥 Lấy màu TRỰC TIẾP từ input visible
+    const color = document.getElementById('markColor').value;
     
     block[key].push({
         quote: tb.dataset.text,
-        color: cssToHex(color),  // Sử dụng color từ hidden picker
+        color: cssToHex(color),
         note: ""
     });
     
