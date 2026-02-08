@@ -29,7 +29,7 @@
         .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
 /* ===== Sentence block: hiển thị gọn 1 dòng ===== */
 .block.sentence {
-    display: inline-block;           /* 🔥 QUAN TRỌNG */
+    display: inline;            /* 🔥 QUAN TRỌNG */
     line-height: 1.4;
     padding: 2px 4px;            /* padding ngang để click dễ */
     margin: 0;                   /* 🔥 CẮT margin-bottom */
@@ -173,17 +173,6 @@ input[type="radio"] {
 .equation-box {
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
-}
-
-.fake-select {
-    background: rgba(255, 230, 150, 0.6);
-    border-radius: 3px;
-}
-
-.fake-cursor {
-    color: #d00;
-    font-weight: bold;
-    user-select: none;
 }
 
 /* ===============================
@@ -371,35 +360,31 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
-.char {
-    white-space: pre;
-}
-.fake-bracket {
-    color: #d00;
-    font-weight: bold;
-    user-select: none;
-}
-body.select-mode {
-    -webkit-user-select: none;
-    user-select: none;
-}
-body.select-mode .char {
-    -webkit-user-select: none;
-    user-select: none;
-    pointer-events: auto;
-}
-body.select-mode {
-    -webkit-user-select: none;
-    user-select: none;
+#select-popup {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 6000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-body.select-mode .char {
-    pointer-events: auto;
-}
-.char {
-    pointer-events: auto;
-    -webkit-user-select: none;
-    user-select: none;
+#select-popup-content {
+    background: white;
+    max-width: 90%;
+    max-height: 70%;
+    padding: 16px;
+    border-radius: 10px;
+    overflow: auto;
+    font-size: var(--font-size);
+    line-height: 1.6;
+
+    /* QUAN TRỌNG */
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: none;
+    white-space: pre-wrap;
 }
 
     </style>
@@ -607,38 +592,6 @@ body.select-mode .char {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
-let fakeSel = null;
-// { blockId, start, end }
-let dragStartIdx = null;
-
-viewer.addEventListener('touchstart', e => {
-    if (!isSelectMode) return;
-    const t = e.target.closest('.char');
-    if (!t) return;
-
-    dragStartIdx = +t.dataset.idx;
-    fakeSel = { blockId: t.closest('.block').id, start: dragStartIdx, end: dragStartIdx + 1 };
-    renderFakeSelection(fakeSel.blockId);
-});
-
-viewer.addEventListener('touchmove', e => {
-    if (dragStartIdx == null) return;
-    const t = document.elementFromPoint(
-        e.touches[0].clientX,
-        e.touches[0].clientY
-    )?.closest('.char');
-    if (!t) return;
-
-    const idx = +t.dataset.idx;
-    fakeSel.start = Math.min(dragStartIdx, idx);
-    fakeSel.end   = Math.max(dragStartIdx, idx) + 1;
-    renderFakeSelection(fakeSel.blockId);
-});
-
-viewer.addEventListener('touchend', () => {
-    dragStartIdx = null;
-});
-
 function getPages() {
     const pages = [];
     const map = {};
@@ -698,19 +651,23 @@ function renderTOC(toc, container) {
     });
 }
 
+function openSelectPopup(block) {
+    const popup = document.getElementById('select-popup');
+    const content = document.getElementById('select-popup-content');
 
+    let raw = block.content?.raw || '';
+
+    // giống logic sentence
+    raw = raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+
+    content.textContent = raw;
+    popup.classList.remove('hidden');
+}
 
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
     document.body.classList.toggle('select-mode', isSelectMode);
-
-    if (viewMode === 'page') {
-        renderPage(currentPageIndex);
-    } else {
-        renderBook();
-    }
 };
-
 
 const audioState = {
     page: {
@@ -968,15 +925,12 @@ function renderSingleBlock(block, viewer) {
 		content = `<div class="equation-box">\\[${raw}\\]</div>`;
 	
 	} else {
-		if (isSelectMode) {
-			content = wrapChars(raw);
-		} else {
-			content = renderMarks(
-				raw,
-				block.highlights || [],
-				block.underlines || []
-			);
-		}
+		// === logic cũ giữ nguyên ===
+		content = renderMarks(
+			raw,
+			block.highlights || [],
+			block.underlines || []
+		);
 	}
 
     div.innerHTML = content;
@@ -1012,27 +966,16 @@ function renderSingleBlock(block, viewer) {
 	}
 
     div.onclick = (e) => {
-    if (!isSelectMode) {
-        openEditor(block.id);
+    if (isSelectMode) {
+        if (block.type === 'image' || block.type === 'equation') return;
+        openSelectPopup(block);
         return;
     }
-
-    if (['image', 'equation'].includes(block.type)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    initFakeSelection(block.id, e);
+    openEditor(block.id);
 };
 
 
     viewer.appendChild(div);
-}
-
-function wrapChars(raw) {
-    return raw.split('').map((ch, i) =>
-        `<span class="char" data-idx="${i}">${ch}</span>`
-    ).join('');
 }
 
 
@@ -1125,19 +1068,8 @@ function renderBook() {
 		}
 
         div.onclick = (e) => {
-    if (!isSelectMode) {
-        openEditor(block.id);
-        return;
-    }
-
-    if (['image', 'equation'].includes(block.type)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    initFakeSelection(block.id, e);
-};
-
+			openEditor(block.id);
+		};
 
         viewer.appendChild(div);
     });
@@ -1149,80 +1081,6 @@ function renderBook() {
 	}
 }
 
-function renderFakeSelection(blockId) {
-    const el = document.getElementById(blockId);
-    if (!el || !fakeSel) return;
-
-    const chars = el.querySelectorAll('.char');
-    if (!chars.length) return;
-
-    // clear cũ
-    el.querySelectorAll('.fake-bracket').forEach(n => n.remove());
-    chars.forEach(c => c.classList.remove('fake-select'));
-
-    const { start, end } = fakeSel;
-
-    if (chars[start]) {
-        const left = document.createElement('span');
-        left.className = 'fake-bracket';
-        left.textContent = '[';
-        chars[start].before(left);
-    }
-
-    if (chars[end - 1]) {
-        const right = document.createElement('span');
-        right.className = 'fake-bracket';
-        right.textContent = ']';
-        chars[end - 1].after(right);
-    }
-
-    for (let i = start; i < end; i++) {
-        if (chars[i]) chars[i].classList.add('fake-select');
-    }
-}
-
-
-
-function showTextToolbar(x, y) {
-    const tb = document.getElementById('text-toolbar');
-    tb.style.left = x + 'px';
-    tb.style.top = (y - 40) + 'px';
-    tb.classList.remove('hidden');
-}
-
-
-function initFakeSelection(blockId, ev) {
-    let target = ev.target;
-
-// 🔥 Safari có thể trả text node
-if (target.nodeType === 3) {
-    target = target.parentElement;
-}
-
-// 🔥 Nếu click trúng fake-select / fake-bracket → tìm char gần nhất
-if (!target.classList.contains('char')) {
-    target = target.closest('.char');
-}
-
-if (!target) return;
-
-
-    const idx = parseInt(target.dataset.idx, 10);
-    const block = bookData.blocks.find(b => b.id === blockId);
-    const raw = block.content.raw;
-
-    // 👉 auto chọn WORD
-    let start = idx;
-    let end = idx + 1;
-
-    while (start > 0 && /\w/.test(raw[start - 1])) start--;
-    while (end < raw.length && /\w/.test(raw[end])) end++;
-
-    fakeSel = { blockId, start, end };
-
-    renderFakeSelection(blockId);
-    showTextToolbar(ev.clientX, ev.clientY);
-}
 
 function renderMarks(raw, highlights = [], underlines = []) {
     const marks = [];
@@ -1305,6 +1163,15 @@ function setFontSize(mode) {
 // restore khi load page
 document.addEventListener('DOMContentLoaded', () => {
     setFontSize(localStorage.getItem('font_size_mode') || 'medium');
+	const popup = document.getElementById('select-popup');
+    if (!popup) return;
+
+    popup.onclick = (e) => {
+        if (e.target.id === 'select-popup') {
+            popup.classList.add('hidden');
+            window.getSelection()?.removeAllRanges();
+        }
+    };
 });
 
 let originalContentSnapshot = null;
@@ -1671,23 +1538,18 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-    if (!fakeSel) return;
-
-    const block = bookData.blocks.find(b => b.id === fakeSel.blockId);
-    const quote = block.content.raw.slice(fakeSel.start, fakeSel.end);
-
-    block[type + 's'] = block[type + 's'] || [];
-    block[type + 's'].push({
-        quote,
-        color: cssToHex(document.getElementById('markColor').value)
-    });
-
-    fakeSel = null;
-    document.getElementById('text-toolbar').classList.add('hidden');
-
-    renderBook();
-}
-
+            const tb = document.getElementById('text-toolbar');
+            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+            const key = type === 'highlight' ? 'highlights' : 'underlines';
+            if (!block[key]) block[key] = [];
+            block[key].push({
+                quote: tb.dataset.text,
+                color: cssToHex(document.getElementById('markColor').value),
+                note: ""
+            });
+            renderBook();
+            tb.classList.add('hidden');
+        }
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
@@ -2031,6 +1893,10 @@ window.MathJax = {
      ">
     <b style="font-size:14px;">📑 Table of Contents</b>
     <div id="toc-popup-content" style="margin-top:6px;"></div>
+</div>
+
+<div id="select-popup" class="hidden">
+    <div id="select-popup-content"></div>
 </div>
 
 </body>
