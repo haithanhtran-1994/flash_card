@@ -180,18 +180,8 @@ input[type="radio"] {
 .block {
     -webkit-user-select: none;
     user-select: none;
-    -webkit-touch-callout: default;
-}
-
-/* ===== SELECT MODE ON ===== */
-/* ✅ Cho select text
-   ❌ Tắt popup copy iOS */
-.select-mode .block {
-    -webkit-user-select: text;
-    user-select: text;
     -webkit-touch-callout: none;
 }
-
 /* ===============================
    APP SPLIT LAYOUT (Safari iOS)
    =============================== */
@@ -376,6 +366,15 @@ body.page-mode .main-pane {
 .toc-level-2 { margin-left: 16px; }
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
+
+.char {
+    white-space: pre;
+}
+
+.char.fake-selected {
+    background: #cce5ff;
+    border-radius: 2px;
+}
 
 
     </style>
@@ -861,6 +860,19 @@ function updatePageIndicator() {
     el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
 }
 
+function renderSentenceChars(text) {
+    let html = '';
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i]
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        html += `<span class="char" data-idx="${i}">${ch}</span>`;
+    }
+    return html;
+}
+
 function renderSingleBlock(block, viewer) {
     const div = document.createElement('div');
     div.className = `block ${block.type}`;
@@ -906,11 +918,15 @@ function renderSingleBlock(block, viewer) {
 	
 	} else {
 		// === logic cũ giữ nguyên ===
-		content = renderMarks(
-			raw,
-			block.highlights || [],
-			block.underlines || []
-		);
+		if (block.type === 'sentence') {
+			content = renderSentenceChars(raw);
+		} else {
+			content = renderMarks(
+				raw,
+				block.highlights || [],
+				block.underlines || []
+			);
+		}
 	}
 
     div.innerHTML = content;
@@ -1860,6 +1876,60 @@ swipeLayer.addEventListener('touchend', e => {
         { passive: true }
     );
 })();
+let charSelecting = false;
+let charStart = null;
+let charEnd = null;
+let activeSentence = null;
+
+document.addEventListener('mousedown', e => {
+    if (!isSelectMode) return;
+
+    const char = e.target.closest('.char');
+    if (!char) return;
+
+    e.preventDefault();
+
+    charSelecting = true;
+    activeSentence = char.closest('.sentence');
+    charStart = +char.dataset.idx;
+    charEnd = charStart;
+
+    updateFakeSelection();
+});
+
+document.addEventListener('mouseover', e => {
+    if (!charSelecting) return;
+
+    const char = e.target.closest('.char');
+    if (!char || char.closest('.sentence') !== activeSentence) return;
+
+    charEnd = +char.dataset.idx;
+    updateFakeSelection();
+});
+
+document.addEventListener('mouseup', () => {
+    charSelecting = false;
+});
+function updateFakeSelection() {
+    const chars = activeSentence.querySelectorAll('.char');
+    const [from, to] =
+        charStart < charEnd ? [charStart, charEnd] : [charEnd, charStart];
+
+    chars.forEach(span => {
+        const i = +span.dataset.idx;
+        span.classList.toggle(
+            'fake-selected',
+            i >= from && i <= to
+        );
+    });
+}
+function getFakeSelectedText() {
+    if (!activeSentence) return '';
+
+    return [...activeSentence.querySelectorAll('.char.fake-selected')]
+        .map(c => c.textContent)
+        .join('');
+}
 
     </script>
 	<script>
