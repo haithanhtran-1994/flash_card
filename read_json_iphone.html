@@ -377,45 +377,33 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
-/* ===== TEXT SELECT POPUP ===== */
 #select-popup {
     position: fixed;
-    inset: 10% 5%;
+    inset: 10%;
     background: white;
-    z-index: 5000;
-    border-radius: 12px;
-    box-shadow: 0 20px 50px rgba(0,0,0,.35);
-    display: none;
+    z-index: 6000;
+    border-radius: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    padding: 14px;
+    display: flex;
     flex-direction: column;
 }
 
-#select-popup-header {
-    padding: 8px 12px;
-    background: #f1f1f1;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-#select-popup-body {
+#select-content {
     flex: 1;
-    padding: 12px;
-    overflow: auto;
-}
-
-#select-popup-body [contenteditable] {
-    white-space: pre-wrap;
-    outline: none;
     font-size: var(--font-size);
     line-height: 1.6;
+    outline: none;
+    white-space: pre-wrap;
+    -webkit-user-select: text;
+    user-select: text;
 }
 
-#select-popup-toolbar {
-    padding: 8px;
-    border-top: 1px solid #ddd;
-    display: flex;
-    gap: 8px;
+/* ❌ iOS callout */
+#select-content {
+    -webkit-touch-callout: none;
 }
+
 
     </style>
 </head>
@@ -609,6 +597,9 @@ body.page-mode .main-pane {
         <button onclick="applyMark('highlight')">Highlight</button>
         <button onclick="applyMark('underline')">Underline</button>
     </div>
+<div id="select-popup" class="hidden">
+    <div id="select-content" contenteditable="true"></div>
+</div>
 
     <script>
         let bookData = null;
@@ -623,16 +614,17 @@ body.page-mode .main-pane {
 		let currentPage = null;
 let currentPageIndex = 0;
 
-let lastSelectionText = '';
-let lastSelectionRange = null;
+document.getElementById('select-popup').onclick = (e) => {
+    if (e.target.id === 'select-popup') {
+        closeSelectPopup();
+    }
+};
 
-document.addEventListener('selectionchange', () => {
-    if (!isSelectMode) return;
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return;
-    lastSelectionText = sel.toString();
-    lastSelectionRange = sel.getRangeAt(0);
-});
+function closeSelectPopup() {
+    document.getElementById('select-popup').classList.add('hidden');
+    document.getElementById('text-toolbar').classList.add('hidden');
+    window.getSelection().removeAllRanges();
+}
 
 function getPages() {
     const pages = [];
@@ -997,70 +989,54 @@ function renderSingleBlock(block, viewer) {
 	}
 
     div.onclick = (e) => {
-    if (!isSelectMode) {
-        openEditor(block.id);
-        return;
-    }
-
-    if (['image', 'equation'].includes(block.type)) return;
-
+		if (isSelectMode && !['image','equation'].includes(block.type)) {
     e.preventDefault();
     e.stopPropagation();
     openSelectPopup(block);
-};
+    return;
+}
 
+		openEditor(block.id);
+	};
 
     viewer.appendChild(div);
 }
 
 function openSelectPopup(block) {
     const popup = document.getElementById('select-popup');
-    const editable = document.getElementById('select-editable');
+    const content = document.getElementById('select-content');
 
-    editable.innerText = block.content.raw || '';
-    popup.style.display = 'flex';
+    popup.classList.remove('hidden');
+    content.innerText = block.content.raw || '';
 
-    // restore selection gần đúng
-    if (lastSelectionText) {
-        requestAnimationFrame(() => {
-            const idx = editable.innerText.indexOf(lastSelectionText);
-            if (idx >= 0) {
-                const range = document.createRange();
-                const node = editable.firstChild;
-                range.setStart(node, idx);
-                range.setEnd(node, idx + lastSelectionText.length);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-            }
-        });
-    }
+    requestAnimationFrame(() => {
+        const range = document.createRange();
+        range.selectNodeContents(content);
 
-    popup.dataset.blockId = block.id;
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        showTextToolbarForSelection();
+    });
 }
+document.getElementById('select-content')
+    .addEventListener('mouseup', showTextToolbarForSelection);
 
-function closeSelectPopup() {
-    document.getElementById('select-popup').style.display = 'none';
-}
-
-function popupMark(type) {
+function showTextToolbarForSelection() {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return;
+    if (!sel.rangeCount || sel.isCollapsed) return;
 
-    const text = sel.toString();
-    const blockId = document.getElementById('select-popup').dataset.blockId;
-    const block = bookData.blocks.find(b => b.id === blockId);
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const toolbar = document.getElementById('text-toolbar');
 
-    if (!block) return;
-
-    block[type === 'highlight' ? 'highlights' : 'underlines'] ||= [];
-    block[type === 'highlight' ? 'highlights' : 'underlines']
-        .push({ quote: text, color: '0xffff00' });
-
-    closeSelectPopup();
-    renderBook();
+    toolbar.style.top = (rect.top - 40) + 'px';
+    toolbar.style.left = rect.left + 'px';
+    toolbar.classList.remove('hidden');
 }
-
+function getSelectedText() {
+    return window.getSelection().toString();
+}
 
 function renderBook() {
     if (!bookData) return;
@@ -1151,11 +1127,13 @@ function renderBook() {
 		}
 
         div.onclick = (e) => {
-			if (isSelectMode) {
-				e.preventDefault();
-				e.stopPropagation();
-				return; // ❌ không mở editor
-			}
+			if (isSelectMode && !['image','equation'].includes(block.type)) {
+    e.preventDefault();
+    e.stopPropagation();
+    openSelectPopup(block);
+    return;
+}
+
 			openEditor(block.id);
 		};
 
@@ -1620,6 +1598,9 @@ document.addEventListener('selectionchange', () => {
             const tb = document.getElementById('text-toolbar');
             const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
             const key = type === 'highlight' ? 'highlights' : 'underlines';
+			const quote = getSelectedText();
+if (!quote) return;
+
             if (!block[key]) block[key] = [];
             block[key].push({
                 quote: tb.dataset.text,
@@ -1972,22 +1953,6 @@ window.MathJax = {
      ">
     <b style="font-size:14px;">📑 Table of Contents</b>
     <div id="toc-popup-content" style="margin-top:6px;"></div>
-</div>
-
-<div id="select-popup">
-  <div id="select-popup-header">
-    <b>Text select</b>
-    <button onclick="closeSelectPopup()">✕</button>
-  </div>
-
-  <div id="select-popup-body">
-    <div id="select-editable" contenteditable></div>
-  </div>
-
-  <div id="select-popup-toolbar">
-    <button onclick="popupMark('highlight')">Highlight</button>
-    <button onclick="popupMark('underline')">Underline</button>
-  </div>
 </div>
 
 </body>
