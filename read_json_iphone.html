@@ -902,12 +902,15 @@ function renderSingleBlock(block, viewer) {
 		content = `<div class="equation-box">\\[${raw}\\]</div>`;
 	
 	} else {
-		// === logic cũ giữ nguyên ===
-		content = renderMarks(
-			raw,
-			block.highlights || [],
-			block.underlines || []
-		);
+		if (isSelectMode && block.type !== 'image' && block.type !== 'equation') {
+			content = wrapChars(raw);
+		} else {
+			content = renderMarks(
+				raw,
+				block.highlights || [],
+				block.underlines || []
+			);
+		}
 	}
 
     div.innerHTML = content;
@@ -958,6 +961,12 @@ function renderSingleBlock(block, viewer) {
 
 
     viewer.appendChild(div);
+}
+
+function wrapChars(raw) {
+    return raw.split('').map((ch, i) =>
+        `<span class="char" data-idx="${i}">${ch}</span>`
+    ).join('');
 }
 
 
@@ -1103,16 +1112,21 @@ function showTextToolbar(x, y) {
 
 
 function initFakeSelection(blockId, ev) {
-    const block = bookData.blocks.find(b => b.id === blockId);
-    const text = block.content.raw || '';
-    if (!text) return;
+    const target = ev.target;
+    if (!target.classList.contains('char')) return;
 
-    // 👉 đơn giản: mặc định chọn cả câu
-    fakeSel = {
-        blockId,
-        start: 0,
-        end: text.length
-    };
+    const idx = parseInt(target.dataset.idx, 10);
+    const block = bookData.blocks.find(b => b.id === blockId);
+    const raw = block.content.raw;
+
+    // 👉 auto chọn WORD
+    let start = idx;
+    let end = idx + 1;
+
+    while (start > 0 && /\w/.test(raw[start - 1])) start--;
+    while (end < raw.length && /\w/.test(raw[end])) end++;
+
+    fakeSel = { blockId, start, end };
 
     renderFakeSelection(blockId);
     showTextToolbar(ev.clientX, ev.clientY);
