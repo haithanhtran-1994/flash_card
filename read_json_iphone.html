@@ -1514,18 +1514,30 @@ document.addEventListener('selectionchange', () => {
 
 
         function applyMark(type) {
-            const tb = document.getElementById('text-toolbar');
-            const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
-            const key = type === 'highlight' ? 'highlights' : 'underlines';
-            if (!block[key]) block[key] = [];
-            block[key].push({
-                quote: tb.dataset.text,
-                color: cssToHex(document.getElementById('markColor').value),
-                note: ""
-            });
-            renderBook();
-            tb.classList.add('hidden');
-        }
+    const tb = document.getElementById('text-toolbar');
+    const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+    const key = type === 'highlight' ? 'highlights' : 'underlines';
+    if (!block[key]) block[key] = [];
+    block[key].push({
+        quote: tb.dataset.text,
+        color: cssToHex(document.getElementById('markColor').value),
+        note: ""
+    });
+    
+    // 🔥 FIX: render theo viewMode
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
+    
+    tb.classList.add('hidden');
+    
+    // 🔥 BONUS: refresh editor nếu đang mở
+    if (currentBlockId === block.id) {
+        refreshEditorLists(block);
+    }
+}
 
         function closeEditor() { 
             const block = bookData.blocks.find(b => b.id === currentBlockId);
