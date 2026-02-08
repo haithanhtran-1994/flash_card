@@ -174,6 +174,23 @@ input[type="radio"] {
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
 }
+/* ===== DEFAULT (Select mode OFF) ===== */
+/* ❌ Không cho select text
+   ✅ Giữ lì vẫn hiện popup copy iOS */
+.block {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: default;
+}
+
+/* ===== SELECT MODE ON ===== */
+/* ✅ Cho select text
+   ❌ Tắt popup copy iOS */
+.select-mode .block {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: none;
+}
 
 /* ===============================
    APP SPLIT LAYOUT (Safari iOS)
@@ -360,31 +377,44 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
+/* ===== TEXT SELECT POPUP ===== */
 #select-popup {
     position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 6000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    inset: 10% 5%;
+    background: white;
+    z-index: 5000;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    display: none;
+    flex-direction: column;
 }
 
-#select-popup-content {
-    background: white;
-    max-width: 90%;
-    max-height: 70%;
-    padding: 16px;
-    border-radius: 10px;
+#select-popup-header {
+    padding: 8px 12px;
+    background: #f1f1f1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#select-popup-body {
+    flex: 1;
+    padding: 12px;
     overflow: auto;
+}
+
+#select-popup-body [contenteditable] {
+    white-space: pre-wrap;
+    outline: none;
     font-size: var(--font-size);
     line-height: 1.6;
+}
 
-    /* QUAN TRỌNG */
-    user-select: text;
-    -webkit-user-select: text;
-    -webkit-touch-callout: none;
-    white-space: pre-wrap;
+#select-popup-toolbar {
+    padding: 8px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 8px;
 }
 
     </style>
@@ -592,6 +622,18 @@ body.page-mode .main-pane {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
+
+let lastSelectionText = '';
+let lastSelectionRange = null;
+
+document.addEventListener('selectionchange', () => {
+    if (!isSelectMode) return;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    lastSelectionText = sel.toString();
+    lastSelectionRange = sel.getRangeAt(0);
+});
+
 function getPages() {
     const pages = [];
     const map = {};
@@ -651,18 +693,7 @@ function renderTOC(toc, container) {
     });
 }
 
-function openSelectPopup(block) {
-    const popup = document.getElementById('select-popup');
-    const content = document.getElementById('select-popup-content');
 
-    let raw = block.content?.raw || '';
-
-    // giống logic sentence
-    raw = raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-
-    content.textContent = raw;
-    popup.classList.remove('hidden');
-}
 
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
@@ -966,16 +997,68 @@ function renderSingleBlock(block, viewer) {
 	}
 
     div.onclick = (e) => {
-    if (isSelectMode) {
-        if (block.type === 'image' || block.type === 'equation') return;
-        openSelectPopup(block);
+    if (!isSelectMode) {
+        openEditor(block.id);
         return;
     }
-    openEditor(block.id);
+
+    if (['image', 'equation'].includes(block.type)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    openSelectPopup(block);
 };
 
 
     viewer.appendChild(div);
+}
+
+function openSelectPopup(block) {
+    const popup = document.getElementById('select-popup');
+    const editable = document.getElementById('select-editable');
+
+    editable.innerText = block.content.raw || '';
+    popup.style.display = 'flex';
+
+    // restore selection gần đúng
+    if (lastSelectionText) {
+        requestAnimationFrame(() => {
+            const idx = editable.innerText.indexOf(lastSelectionText);
+            if (idx >= 0) {
+                const range = document.createRange();
+                const node = editable.firstChild;
+                range.setStart(node, idx);
+                range.setEnd(node, idx + lastSelectionText.length);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        });
+    }
+
+    popup.dataset.blockId = block.id;
+}
+
+function closeSelectPopup() {
+    document.getElementById('select-popup').style.display = 'none';
+}
+
+function popupMark(type) {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+
+    const text = sel.toString();
+    const blockId = document.getElementById('select-popup').dataset.blockId;
+    const block = bookData.blocks.find(b => b.id === blockId);
+
+    if (!block) return;
+
+    block[type === 'highlight' ? 'highlights' : 'underlines'] ||= [];
+    block[type === 'highlight' ? 'highlights' : 'underlines']
+        .push({ quote: text, color: '0xffff00' });
+
+    closeSelectPopup();
+    renderBook();
 }
 
 
@@ -1068,6 +1151,11 @@ function renderBook() {
 		}
 
         div.onclick = (e) => {
+			if (isSelectMode) {
+				e.preventDefault();
+				e.stopPropagation();
+				return; // ❌ không mở editor
+			}
 			openEditor(block.id);
 		};
 
@@ -1163,15 +1251,6 @@ function setFontSize(mode) {
 // restore khi load page
 document.addEventListener('DOMContentLoaded', () => {
     setFontSize(localStorage.getItem('font_size_mode') || 'medium');
-	const popup = document.getElementById('select-popup');
-    if (!popup) return;
-
-    popup.onclick = (e) => {
-        if (e.target.id === 'select-popup') {
-            popup.classList.add('hidden');
-            window.getSelection()?.removeAllRanges();
-        }
-    };
 });
 
 let originalContentSnapshot = null;
@@ -1895,8 +1974,20 @@ window.MathJax = {
     <div id="toc-popup-content" style="margin-top:6px;"></div>
 </div>
 
-<div id="select-popup" class="hidden">
-    <div id="select-popup-content"></div>
+<div id="select-popup">
+  <div id="select-popup-header">
+    <b>Text select</b>
+    <button onclick="closeSelectPopup()">✕</button>
+  </div>
+
+  <div id="select-popup-body">
+    <div id="select-editable" contenteditable></div>
+  </div>
+
+  <div id="select-popup-toolbar">
+    <button onclick="popupMark('highlight')">Highlight</button>
+    <button onclick="popupMark('underline')">Underline</button>
+  </div>
 </div>
 
 </body>
