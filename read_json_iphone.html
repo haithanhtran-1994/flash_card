@@ -409,7 +409,10 @@ body.page-mode .main-pane {
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
 
-
+#colorPreview {
+    background: #ffff00;
+    transition: background 0.2s;
+}
     </style>
 </head>
 <body>
@@ -598,7 +601,14 @@ body.page-mode .main-pane {
     </div>
 
     <div id="text-toolbar" class="hidden">
-    <input type="color" id="markColor" value="#ffff00" onchange="updateToolbarColor(this.value)">
+    <div style="display:flex; align-items:center; gap:8px;">
+        <div style="width:30px; height:30px; border:2px solid white; border-radius:4px; cursor:pointer;" 
+             id="colorPreview" 
+             onclick="document.getElementById('markColor').click()"></div>
+        <input type="color" id="markColor" value="#ffff00" 
+               style="position:absolute; opacity:0; pointer-events:none;"
+               onchange="updateToolbarColor(this.value)">
+    </div>
     <button onclick="applyMark('highlight')">Highlight</button>
     <button onclick="applyMark('underline')">Underline</button>
 </div>
@@ -884,7 +894,6 @@ function renderPage(index) {
     });
     
     viewer.scrollTop = 0;
-    updatePageIndicator(); // Chỉ gọi function này
 }
 function updatePageIndicator() {
     const el = document.getElementById('page-indicator');
@@ -1584,6 +1593,7 @@ let selectedColor = '#ffff00';
 
 function updateToolbarColor(color) {
     selectedColor = color;
+    document.getElementById('colorPreview').style.background = color;
 }
         function applyMark(type) {
     const tb = document.getElementById('text-toolbar');
@@ -1839,13 +1849,13 @@ function setViewMode(mode) {
     document.body.classList.toggle('page-mode', mode === 'page');
     
     if (mode === 'page') {
-        currentPageIndex = 0;
+        currentPageIndex = 0; // 🔥 LUÔN reset về trang đầu
         renderPage(0);
+        updatePageIndicator(); // 🔥 Gọi NGAY sau renderPage
     } else {
         renderBook();
+        updatePageIndicator(); // 🔥 Ẩn indicator ở scroll mode
     }
-    
-    updatePageIndicator(); // 🔥 Thêm dòng này
 }
 
 let touchStartX = 0;
@@ -1877,6 +1887,7 @@ function nextPage() {
     if (currentPageIndex < pages.length - 1) {
         currentPageIndex++;
         renderPage(currentPageIndex);
+        updatePageIndicator(); // 🔥 THÊM
     }
 }
 
@@ -1884,6 +1895,7 @@ function prevPage() {
     if (currentPageIndex > 0) {
         currentPageIndex--;
         renderPage(currentPageIndex);
+        updatePageIndicator(); // 🔥 THÊM
     }
 }
 // ===== PAGE SWIPE (iOS SAFARI FIX) =====
@@ -1927,10 +1939,12 @@ swipeLayer.addEventListener('touchend', e => {
     if (dx < 0 && currentPageIndex < pages.length - 1) {
         currentPageIndex++;
         renderPage(currentPageIndex);
+        updatePageIndicator(); // 🔥 THÊM
     } 
     else if (dx > 0 && currentPageIndex > 0) {
         currentPageIndex--;
         renderPage(currentPageIndex);
+        updatePageIndicator(); // 🔥 THÊM
     }
 });
 
