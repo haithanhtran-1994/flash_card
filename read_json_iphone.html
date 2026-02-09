@@ -462,6 +462,43 @@ body.page-mode .app-container {
 #text-toolbar button:hover {
     background: #666;
 }
+/* Master Fields Config Modal */
+#master-fields-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    z-index: 4500;
+    width: 320px;
+    padding: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.field-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.field-option:last-child {
+    border-bottom: none;
+}
+
+.field-option input[type="checkbox"] {
+    width: auto !important;
+    margin: 0 !important;
+}
+
+.field-option label {
+    cursor: pointer;
+    flex: 1;
+}
     </style>
 </head>
 <body>
@@ -563,6 +600,12 @@ body.page-mode .app-container {
 			
 					<div class="menu-group">
 						<button id="exportBtn">Xuất File</button>
+					</div>
+					<div class="menu-group">
+						<button onclick="openMasterFieldsConfig()" 
+								style="background: #6c757d; color: white; width: 100%;">
+							Master JSON Fields
+						</button>
 					</div>
 				</div>
 			</header>
@@ -674,8 +717,55 @@ body.page-mode .app-container {
 		let viewMode = 'page';   // 'page' | 'scroll'
 		let currentPage = null;
 let currentPageIndex = 0;
+// Lưu config các trường search
+let masterSearchFields = JSON.parse(localStorage.getItem('master_search_fields')) || {
+    reading: true,
+    core_meaning: true
+};
+function openMasterFieldsConfig() {
+    if (!masterData || masterData.length === 0) {
+        alert("Chưa load Master Data. Vui lòng chọn file master.json trước.");
+        return;
+    }
 
+    const modal = document.getElementById('master-fields-modal');
+    const listDiv = document.getElementById('master-fields-list');
+    
+    // Lấy tất cả các trường từ item đầu tiên
+    const allFields = Object.keys(masterData[0]);
+    
+    listDiv.innerHTML = '';
+    
+    allFields.forEach(field => {
+        const div = document.createElement('div');
+        div.className = 'field-option';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `field-${field}`;
+        checkbox.checked = masterSearchFields[field] || false;
+        checkbox.onchange = () => toggleSearchField(field, checkbox.checked);
+        
+        const label = document.createElement('label');
+        label.htmlFor = `field-${field}`;
+        label.textContent = field;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        listDiv.appendChild(div);
+    });
+    
+    modal.classList.remove('hidden');
+}
 
+function toggleSearchField(field, isEnabled) {
+    masterSearchFields[field] = isEnabled;
+    localStorage.setItem('master_search_fields', JSON.stringify(masterSearchFields));
+}
+
+function closeMasterFieldsModal() {
+    document.getElementById('master-fields-modal').classList.add('hidden');
+}
 
 function getPages() {
     const pages = [];
@@ -1523,25 +1613,31 @@ function renderItems(items, type) {
         }
 
         function filterMasterData() {
-            const term = document.getElementById('masterSearch').value.toLowerCase();
-            const resultsDiv = document.getElementById('search-results');
-            resultsDiv.innerHTML = '';
-
-            const filtered = masterData.filter(m => 
-                m.pattern?.toLowerCase().includes(term) || 
-                m.reading?.toLowerCase().includes(term) || 
-                m.core_meaning?.toLowerCase().includes(term) ||
-                m.master_id?.toLowerCase().includes(term)
-            );
-
-            filtered.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'search-item';
-                div.innerHTML = `<strong>${item.pattern}</strong> (${item.reading})<br><small>${item.core_meaning}</small>`;
-                div.onclick = () => assignRefId(item.master_id);
-                resultsDiv.appendChild(div);
-            });
-        }
+			const term = document.getElementById('masterSearch').value.toLowerCase();
+			const resultsDiv = document.getElementById('search-results');
+			resultsDiv.innerHTML = '';
+		
+			// 🔥 Tìm kiếm theo các trường đã chọn
+			const filtered = masterData.filter(item => {
+				for (const field in masterSearchFields) {
+					if (masterSearchFields[field] && item[field]) {
+						const value = String(item[field]).toLowerCase();
+						if (value.includes(term)) {
+							return true;
+						}
+					}
+				}
+				return false;
+			});
+		
+			filtered.forEach(item => {
+				const div = document.createElement('div');
+				div.className = 'search-item';
+				div.innerHTML = `<strong>${item.pattern || ''}</strong> ${item.reading ? `(${item.reading})` : ''}<br><small>${item.core_meaning || ''}</small>`;
+				div.onclick = () => assignRefId(item.master_id);
+				resultsDiv.appendChild(div);
+			});
+		}
 
         function assignRefId(id) {
             const block = bookData.blocks.find(b => b.id === currentBlockId);
@@ -1660,18 +1756,24 @@ function searchInMaster() {
         return;
     }
     
-    // Tìm kiếm trong master data
-    const results = masterData.filter(m => 
-        m.pattern?.toLowerCase().includes(searchText.toLowerCase()) || 
-        m.reading?.toLowerCase().includes(searchText.toLowerCase()) || 
-        m.core_meaning?.toLowerCase().includes(searchText.toLowerCase()) ||
-        m.master_id?.toLowerCase().includes(searchText.toLowerCase())
-    );
+    // 🔥 Tìm kiếm theo các trường đã chọn
+    const results = masterData.filter(item => {
+        const searchLower = searchText.toLowerCase();
+        
+        // Kiểm tra từng trường đã được tick
+        for (const field in masterSearchFields) {
+            if (masterSearchFields[field] && item[field]) {
+                const value = String(item[field]).toLowerCase();
+                if (value.includes(searchLower)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    });
     
-    // Hiển thị kết quả
     displaySearchResults(results, searchText);
     
-    // Ẩn toolbar
     tb.classList.add('hidden');
     window.getSelection().removeAllRanges();
 }
@@ -2089,6 +2191,16 @@ window.MathJax = {
     <b style="font-size:14px;">📑 Table of Contents</b>
     <div id="toc-popup-content" style="margin-top:6px;"></div>
 </div>
-
+<div id="master-fields-modal" class="hidden">
+    <h4>Search Fields Configuration</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:15px;">
+        Chọn các trường để tìm kiếm trong Master Data
+    </p>
+    <div id="master-fields-list"></div>
+    <button onclick="closeMasterFieldsModal()" 
+            style="margin-top: 15px; width: 100%; background: #007bff; color: white;">
+        Đóng
+    </button>
+</div>
 </body>
 </html>
