@@ -103,27 +103,6 @@ input[type="radio"] {
     align-items: center;
 }
 
-#colorPreview {
-    width: 30px;
-    height: 30px;
-    border: 2px solid white;
-    border-radius: 4px;
-    cursor: pointer;
-    background: #ffff00;
-    transition: background 0.2s;
-    position: relative;
-}
-
-/* 🔥 TRICK: Đặt input PHÍA TRÊN preview, trong suốt */
-#markColor {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.01;  /* 🔥 QUAN TRỌNG: không dùng 0, dùng 0.01 */
-    cursor: pointer;
-}
 
 #text-toolbar button {
     touch-action: manipulation;
@@ -430,10 +409,58 @@ body.page-mode .app-container {
 .toc-level-2 { margin-left: 16px; }
 .toc-level-3 { margin-left: 32px; }
 .toc-level-4 { margin-left: 48px; }
+/* Color picker trên topbar */
+.color-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
 
-#colorPreview {
+.color-display {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
     background: #ffff00;
-    transition: background 0.2s;
+    position: relative;
+}
+
+.color-display input[type="color"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.01;
+    cursor: pointer;
+    border: none;
+}
+
+/* Simplified toolbar */
+#text-toolbar { 
+    position: absolute; 
+    background: #333; 
+    color: white; 
+    padding: 6px 10px; 
+    border-radius: 8px; 
+    display: flex; 
+    gap: 8px; 
+    z-index: 6000;
+    align-items: center;
+}
+
+#text-toolbar button {
+    background: #555;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#text-toolbar button:hover {
+    background: #666;
 }
     </style>
 </head>
@@ -457,6 +484,12 @@ body.page-mode .app-container {
 						<input type="checkbox" id="selectModeToggle">
 						<span>Select text</span>
 					</label>
+					<div class="color-picker-wrapper">
+						<div class="color-display" id="topbarColorDisplay">
+							<input type="color" id="topbarColorPicker" value="#ffff00" 
+								onchange="updateSelectedColor(this.value)">
+						</div>
+					</div>
 					<button class="icon-btn" onclick="toggleTOC()">📑</button>
 				</div>
 			
@@ -623,12 +656,10 @@ body.page-mode .app-container {
     </div>
 
     <div id="text-toolbar" class="hidden">
-    <div id="colorPreview">
-        <input type="color" id="markColor" value="#ffff00" onchange="updateToolbarColor(this.value)">
-    </div>
-    <button onclick="applyMark('highlight')">Highlight</button>
-    <button onclick="applyMark('underline')">Underline</button>
-</div>
+		<button onclick="applyMark('highlight')">Highlight</button>
+		<button onclick="applyMark('underline')">Underline</button>
+		<button onclick="searchInMaster()">Search</button>
+	</div>
 
 
     <script>
@@ -1608,24 +1639,84 @@ document.addEventListener('selectionchange', () => {
 
 let selectedColor = '#ffff00';
 
-function updateToolbarColor(color) {
+// Update color khi chọn từ topbar
+function updateSelectedColor(color) {
     selectedColor = color;
-    document.getElementById('colorPreview').style.background = color;
+    document.getElementById('topbarColorDisplay').style.background = color;
 }
-        function applyMark(type) {
+
+// Search text đã chọn trong master data
+function searchInMaster() {
+    const tb = document.getElementById('text-toolbar');
+    const searchText = tb.dataset.text;
+    
+    if (!searchText) {
+        alert("Không có text được chọn");
+        return;
+    }
+    
+    if (!masterData || masterData.length === 0) {
+        alert("Chưa load Master Data. Vui lòng chọn file master.json từ menu 📚");
+        return;
+    }
+    
+    // Tìm kiếm trong master data
+    const results = masterData.filter(m => 
+        m.pattern?.toLowerCase().includes(searchText.toLowerCase()) || 
+        m.reading?.toLowerCase().includes(searchText.toLowerCase()) || 
+        m.core_meaning?.toLowerCase().includes(searchText.toLowerCase()) ||
+        m.master_id?.toLowerCase().includes(searchText.toLowerCase())
+    );
+    
+    // Hiển thị kết quả
+    displaySearchResults(results, searchText);
+    
+    // Ẩn toolbar
+    tb.classList.add('hidden');
+    window.getSelection().removeAllRanges();
+}
+
+function displaySearchResults(results, searchText) {
+    const modal = document.getElementById('search-modal');
+    const resultsDiv = document.getElementById('search-results');
+    
+    document.getElementById('masterSearch').value = searchText;
+    
+    resultsDiv.innerHTML = '';
+    
+    if (results.length === 0) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Không tìm thấy kết quả</p>';
+    } else {
+        results.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'search-item';
+            div.innerHTML = `
+                <strong>${item.pattern || ''}</strong> 
+                ${item.reading ? `(${item.reading})` : ''}
+                <br>
+                <small>${item.core_meaning || ''}</small>
+            `;
+            // Click để gán vào block hiện tại nếu muốn
+            div.onclick = () => {
+                if (currentAssigningRef.type && currentAssigningRef.index !== null) {
+                    assignRefId(item.master_id);
+                }
+            };
+            resultsDiv.appendChild(div);
+        });
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+function applyMark(type) {
     const tb = document.getElementById('text-toolbar');
     const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
     const key = type === 'highlight' ? 'highlights' : 'underlines';
     if (!block[key]) block[key] = [];
     
-    // 🔥 iOS Safari workaround: force color picker to show
-    const colorInput = document.getElementById('markColor');
-    let color = colorInput.value;
-    
-    // Fallback nếu không lấy được màu
-    if (!color || color === '') {
-        color = '#ffff00'; // màu vàng mặc định
-    }
+    // 🔥 Sử dụng màu đã chọn từ topbar
+    const color = selectedColor || '#ffff00';
     
     block[key].push({
         quote: tb.dataset.text,
