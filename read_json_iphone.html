@@ -598,7 +598,7 @@ body.page-mode .main-pane {
     </div>
 
     <div id="text-toolbar" class="hidden">
-    <input type="color" id="markColor" value="#ffff00">
+    <input type="color" id="markColor" value="#ffff00" onchange="updateToolbarColor(this.value)">
     <button onclick="applyMark('highlight')">Highlight</button>
     <button onclick="applyMark('underline')">Underline</button>
 </div>
@@ -874,7 +874,7 @@ function updatePageIndicatorVisibility() {
 function renderPage(index) {
     const viewer = document.getElementById('book-viewer');
     viewer.innerHTML = '';
-	currentPage = null;
+    currentPage = null;
     const pages = getPages();
     const page = pages[index];
     if (!page) return;
@@ -882,19 +882,21 @@ function renderPage(index) {
     page.forEach(block => {
         renderSingleBlock(block, viewer);
     });
-const footer = document.getElementById('page-indicator');
-    footer.textContent = `— Page ${index + 1} / ${pages.length} —`;
+    
     viewer.scrollTop = 0;
-	updatePageIndicator();
+    updatePageIndicator(); // Chỉ gọi function này
 }
 function updatePageIndicator() {
-    if (viewMode !== 'page') return;
-
-    const pages = getPages();
     const el = document.getElementById('page-indicator');
     if (!el) return;
 
-    el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
+    if (viewMode === 'page') {
+        const pages = getPages();
+        el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
 }
 
 function renderSingleBlock(block, viewer) {
@@ -1578,15 +1580,25 @@ document.addEventListener('selectionchange', () => {
     toolbar.dataset.text = txt;
 });
 
+let selectedColor = '#ffff00';
 
+function updateToolbarColor(color) {
+    selectedColor = color;
+}
         function applyMark(type) {
     const tb = document.getElementById('text-toolbar');
     const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
     const key = type === 'highlight' ? 'highlights' : 'underlines';
     if (!block[key]) block[key] = [];
     
-    // 🔥 Lấy màu TRỰC TIẾP từ input visible
-    const color = document.getElementById('markColor').value;
+    // 🔥 iOS Safari workaround: force color picker to show
+    const colorInput = document.getElementById('markColor');
+    let color = colorInput.value;
+    
+    // Fallback nếu không lấy được màu
+    if (!color || color === '') {
+        color = '#ffff00'; // màu vàng mặc định
+    }
     
     block[key].push({
         quote: tb.dataset.text,
@@ -1825,15 +1837,15 @@ splitter.addEventListener('touchmove', (e) => {
 function setViewMode(mode) {
     viewMode = mode;
     document.body.classList.toggle('page-mode', mode === 'page');
-    currentPageIndex = 0;
-
+    
     if (mode === 'page') {
+        currentPageIndex = 0;
         renderPage(0);
     } else {
         renderBook();
     }
-
-    updatePageIndicatorVisibility();
+    
+    updatePageIndicator(); // 🔥 Thêm dòng này
 }
 
 let touchStartX = 0;
