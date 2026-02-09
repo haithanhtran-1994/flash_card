@@ -18,12 +18,12 @@
 }
         /*book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }*/
        #book-viewer {
-    padding: 12px 10px;     /* 🔥 cực mỏng */
+    padding: 12px 10px;
     margin-top: 0;
-    min-height: 100vh;
+    min-height: auto;  /* 🔥 THAY ĐỔI: từ 100vh → auto */
     line-height: 1.6;
     font-size: var(--font-size, 19px);
-} 
+}
         .block { margin-bottom: 15px; cursor: pointer; padding: 8px; border-radius: 4px; border-left: 4px solid transparent; position: relative; }
         .block:hover { background: #f8f9fa; border-left-color: #007bff; }
         .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
@@ -91,7 +91,7 @@ input[type="radio"] {
         .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
         .filter-option input { width: auto; margin: 0; }
 
-        #text-toolbar { 
+#text-toolbar { 
     position: absolute; 
     background: #333; 
     color: white; 
@@ -99,30 +99,41 @@ input[type="radio"] {
     border-radius: 8px; 
     display: flex; 
     gap: 8px; 
-    z-index: 6000;  /* 🔥 TĂNG z-index */
+    z-index: 6000;
+    align-items: center;
 }
 
-/* 🔥 FIX iOS color picker */
-#text-toolbar input[type="color"] {
-    width: 40px;
+#colorPreview {
+    width: 30px;
     height: 30px;
-    border: none;
-    cursor: pointer;
-    -webkit-appearance: none;
-}
-
-#text-toolbar input[type="color"]::-webkit-color-swatch-wrapper {
-    padding: 0;
-}
-
-#text-toolbar input[type="color"]::-webkit-color-swatch {
     border: 2px solid white;
     border-radius: 4px;
+    cursor: pointer;
+    background: #ffff00;
+    transition: background 0.2s;
+    position: relative;
+}
+
+/* 🔥 TRICK: Đặt input PHÍA TRÊN preview, trong suốt */
+#markColor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.01;  /* 🔥 QUAN TRỌNG: không dùng 0, dùng 0.01 */
+    cursor: pointer;
 }
 
 #text-toolbar button {
     touch-action: manipulation;
     pointer-events: auto;
+    background: #555;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
 }
         .hl-item { border-radius: 3px; padding: 2px 0; }
 		.ul-item { position: relative;}
@@ -303,9 +314,20 @@ input[type="radio"] {
     font-size: 12px;
     color: #999;
 }
-
+body.page-mode #book-viewer {
+    min-height: auto;  /* 🔥 CHỈ bao nội dung */
+    max-height: calc(100vh - 80px);  /* 🔥 trừ header + footer */
+}
 body.page-mode .main-pane {
-    overflow-y: hidden;
+    overflow-y: auto;  /* 🔥 CHO PHÉP SCROLL nếu nội dung dài */
+    display: flex;
+    flex-direction: column;
+}
+
+body.page-mode .app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;  /* 🔥 QUAN TRỌNG */
 }
 .topbar {
     position: sticky;
@@ -601,13 +623,8 @@ body.page-mode .main-pane {
     </div>
 
     <div id="text-toolbar" class="hidden">
-    <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:30px; height:30px; border:2px solid white; border-radius:4px; cursor:pointer;" 
-             id="colorPreview" 
-             onclick="document.getElementById('markColor').click()"></div>
-        <input type="color" id="markColor" value="#ffff00" 
-               style="position:absolute; opacity:0; pointer-events:none;"
-               onchange="updateToolbarColor(this.value)">
+    <div id="colorPreview">
+        <input type="color" id="markColor" value="#ffff00" onchange="updateToolbarColor(this.value)">
     </div>
     <button onclick="applyMark('highlight')">Highlight</button>
     <button onclick="applyMark('underline')">Underline</button>
