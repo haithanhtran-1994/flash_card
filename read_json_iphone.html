@@ -706,22 +706,35 @@ body.page-mode .app-container {
 
 
     <script>
-        let bookData = null;
-        let masterData = JSON.parse(localStorage.getItem('master_data_cache')) || [];
-        let currentBlockId = null;
-        let currentAssigningRef = { type: null, index: null };
-        
-        let displayFilters = JSON.parse(localStorage.getItem('display_filters')) || { grammar: [], analysis: [] };
-        let currentFilterType = '';
-		let isSelectMode = false;
-		let viewMode = 'page';   // 'page' | 'scroll'
-		let currentPage = null;
+let bookData = null;
+let masterData = JSON.parse(localStorage.getItem('master_data_cache')) || [];
+let currentBlockId = null;
+let currentAssigningRef = { type: null, index: null };
+
+let displayFilters = JSON.parse(localStorage.getItem('display_filters')) || { grammar: [], analysis: [] };
+let currentFilterType = '';
+let isSelectMode = false;
+let viewMode = 'page';
+let currentPage = null;
 let currentPageIndex = 0;
-// Lưu config các trường search
+
+// 🔥 FIX: Lưu config các trường search
 let masterSearchFields = JSON.parse(localStorage.getItem('master_search_fields')) || {
     reading: true,
     core_meaning: true
 };
+
+// 🔥 HELPER: Normalize Unicode cho search đa ngôn ngữ
+function normalizeText(text) {
+    if (!text) return '';
+    return text
+        .toLowerCase()
+        .normalize('NFD')                    // tách dấu tiếng Việt
+        .replace(/[\u0300-\u036f]/g, '')    // xóa dấu
+        .replace(/đ/g, 'd')                 // đ → d
+        .replace(/Đ/g, 'D');
+}
+
 function openMasterFieldsConfig() {
     if (!masterData || masterData.length === 0) {
         alert("Chưa load Master Data. Vui lòng chọn file master.json trước.");
@@ -731,7 +744,6 @@ function openMasterFieldsConfig() {
     const modal = document.getElementById('master-fields-modal');
     const listDiv = document.getElementById('master-fields-list');
     
-    // Lấy tất cả các trường từ item đầu tiên
     const allFields = Object.keys(masterData[0]);
     
     listDiv.innerHTML = '';
@@ -761,6 +773,7 @@ function openMasterFieldsConfig() {
 function toggleSearchField(field, isEnabled) {
     masterSearchFields[field] = isEnabled;
     localStorage.setItem('master_search_fields', JSON.stringify(masterSearchFields));
+    console.log('🔍 Search fields updated:', masterSearchFields); // debug
 }
 
 function closeMasterFieldsModal() {
@@ -783,9 +796,11 @@ function getPages() {
 
     return pages;
 }
+
 function toggleBookMenu() {
     document.getElementById('bookMenu').classList.toggle('hidden');
 }
+
 let tocVisible = false;
 
 function toggleTOC() {
@@ -793,14 +808,12 @@ function toggleTOC() {
     const content = document.getElementById('toc-popup-content');
 
     if (!tocVisible) {
-        // 🔄 CHỈ refresh khi mở
         content.innerHTML = '';
         const toc = generateTOC();
         renderTOC(toc, content);
         popup.classList.remove('hidden');
         tocVisible = true;
     } else {
-        // ❌ Đóng KHÔNG refresh
         popup.classList.add('hidden');
         tocVisible = false;
     }
@@ -826,8 +839,6 @@ function renderTOC(toc, container) {
     });
 }
 
-
-
 document.getElementById('selectModeToggle').onchange = (e) => {
     isSelectMode = e.target.checked;
     document.body.classList.toggle('select-mode', isSelectMode);
@@ -838,10 +849,9 @@ const audioState = {
         speed: 1,
         repeat: false
     },
-    block: {
-        // blockId → { speed, repeat }
-    }
+    block: {}
 };
+
 function getCurrentAudioConfig() {
     if (currentBlockId) {
         if (!audioState.block[currentBlockId]) {
@@ -860,23 +870,21 @@ speedSelect.onchange = () => {
     cfg.speed = parseFloat(speedSelect.value);
 };
 
-
 repeatToggle.onchange = () => {
     const cfg = getCurrentAudioConfig();
     cfg.repeat = repeatToggle.checked;
 };
 
+let editorModulesVisibility = { trans: true, marks: true, grammar: true, analysis: true };
 
-        // MỚI: Lưu trạng thái hiển thị của các module Editor
-        let editorModulesVisibility = { trans: true, marks: true, grammar: true, analysis: true };
+function toggleView(module, isVisible) {
+    editorModulesVisibility[module] = isVisible;
+    if (currentBlockId) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        refreshEditorLists(block);
+    }
+}
 
-        function toggleView(module, isVisible) {
-            editorModulesVisibility[module] = isVisible;
-            if (currentBlockId) {
-                const block = bookData.blocks.find(b => b.id === currentBlockId);
-                refreshEditorLists(block);
-            }
-        }
 function jumpToBlock(blockId, page) {
     if (viewMode === 'page' && page != null) {
         const pages = getPages();
@@ -904,16 +912,29 @@ function toggleViewMenu(e) {
     document.getElementById('viewMenu').classList.toggle('hidden');
 }
 
-
-        document.getElementById('masterInput').onchange = (e) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                masterData = JSON.parse(ev.target.result);
-                localStorage.setItem('master_data_cache', JSON.stringify(masterData));
-                alert("Đã tải và lưu Master Data!");
-            };
-            reader.readAsText(e.target.files[0]);
-        };
+// 🔥 FIX: Refresh masterData khi load file mới
+document.getElementById('masterInput').onchange = (e) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        masterData = JSON.parse(ev.target.result);
+        localStorage.setItem('master_data_cache', JSON.stringify(masterData));
+        
+        // 🔥 Reset search fields config về default
+        const firstItem = masterData[0];
+        if (firstItem) {
+            const newFields = {};
+            Object.keys(firstItem).forEach(key => {
+                newFields[key] = ['reading', 'core_meaning', 'pattern'].includes(key);
+            });
+            masterSearchFields = newFields;
+            localStorage.setItem('master_search_fields', JSON.stringify(masterSearchFields));
+        }
+        
+        alert(`✅ Đã tải Master Data mới!\n📊 ${masterData.length} items\n🔍 Search fields đã reset`);
+        console.log('Master data loaded:', masterData.length, 'items');
+    };
+    reader.readAsText(e.target.files[0]);
+};
 
 let bookFileHandle = null;
 
@@ -926,21 +947,19 @@ document.getElementById('fileInput').onchange = (e) => {
     reader.onload = (ev) => {
         bookData = JSON.parse(ev.target.result);
         if (viewMode === 'page') {
-			renderPage(currentPageIndex || 0);
-		} else {
-			renderBook();
-		}
+            renderPage(currentPageIndex || 0);
+        } else {
+            renderBook();
+        }
     };
     reader.readAsText(file);
 
-    // reset handle – vì file input KHÔNG cho ghi đè
     bookFileHandle = null;
 };
 
-
 function generateTOC() {
     const toc = [];
-    const stack = []; // { level, node }
+    const stack = [];
 
     let chCount = 0;
     let secCount = {};
@@ -951,7 +970,6 @@ function generateTOC() {
 
         const level = block.level;
 
-        // ===== numbering =====
         if (level === 1) {
             chCount++;
             secCount = {};
@@ -977,7 +995,6 @@ function generateTOC() {
             children: []
         };
 
-        // ===== stack logic =====
         while (stack.length && stack[stack.length - 1].level >= level) {
             stack.pop();
         }
@@ -994,7 +1011,6 @@ function generateTOC() {
     return toc;
 }
 
-
 function toggleAllMarks(ev) {
     ev.stopPropagation();
     const bodies = document.querySelectorAll('#marks-list .item-body');
@@ -1008,14 +1024,12 @@ function toggleAllMarks(ev) {
     });
 }
 
-
-        const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
-        const cssToHex = (css) => css.replace('#', '0x');
+const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
+const cssToHex = (css) => css.replace('#', '0x');
 
 function updatePageIndicatorVisibility() {
     const el = document.getElementById('page-indicator');
     if (!el) return;
-
     el.style.display = (viewMode === 'page') ? 'block' : 'none';
 }
 
@@ -1033,6 +1047,7 @@ function renderPage(index) {
     
     viewer.scrollTop = 0;
 }
+
 function updatePageIndicator() {
     const el = document.getElementById('page-indicator');
     if (!el) return;
@@ -1052,204 +1067,182 @@ function renderSingleBlock(block, viewer) {
     div.id = block.id;
     
     let raw = block.content.raw || '';
-	if (viewMode === 'scroll') {
-		if (block.page !== undefined && block.page !== currentPage) {
-			if (currentPage !== null) {
-				const footer = document.createElement('div');
-				footer.className = 'page-footer';
-				footer.innerText = `— Page ${currentPage} —`;
-				viewer.appendChild(footer);
-			}
-			currentPage = block.page;
-		}
-	}
-	// ===== Sentence formatting rules =====
-	if (block.type === 'sentence') {
-	
-		// 1️⃣ Chuyển \n (TEXT) thành newline thật
-		raw = raw.replace(/\\n/g, '\n');
-	
-		// 2️⃣ Chuyển \t (TEXT) thành tab thật
-		raw = raw.replace(/\\t/g, '\t');
-	
-		// 3️⃣ Tab hiển thị = 5 spaces
-		raw = raw.replace(/\t/g, '     ');
-	
-		// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
-		if (!raw.startsWith('\n')) {
-			raw = raw.replace(/\n/g, ' ');
-		}
-	}
-	let content = '';
+    if (viewMode === 'scroll') {
+        if (block.page !== undefined && block.page !== currentPage) {
+            if (currentPage !== null) {
+                const footer = document.createElement('div');
+                footer.className = 'page-footer';
+                footer.innerText = `— Page ${currentPage} —`;
+                viewer.appendChild(footer);
+            }
+            currentPage = block.page;
+        }
+    }
 
-	if (block.type === 'image') {
-		// SVG raw → render trực tiếp
-		content = `<div class="image-box">${raw}</div>`;
-	} else if (block.type === 'equation') {
-		// LaTeX raw
-		content = `<div class="equation-box">\\[${raw}\\]</div>`;
-	
-	} else {
-		// === logic cũ giữ nguyên ===
-		content = renderMarks(
-			raw,
-			block.highlights || [],
-			block.underlines || []
-		);
-	}
+    if (block.type === 'sentence') {
+        raw = raw.replace(/\\n/g, '\n');
+        raw = raw.replace(/\\t/g, '\t');
+        raw = raw.replace(/\t/g, '     ');
+        if (!raw.startsWith('\n')) {
+            raw = raw.replace(/\n/g, ' ');
+        }
+    }
+
+    let content = '';
+
+    if (block.type === 'image') {
+        content = `<div class="image-box">${raw}</div>`;
+    } else if (block.type === 'equation') {
+        content = `<div class="equation-box">\\[${raw}\\]</div>`;
+    } else {
+        content = renderMarks(
+            raw,
+            block.highlights || [],
+            block.underlines || []
+        );
+    }
 
     div.innerHTML = content;
-	if (block.type === 'equation' && window.MathJax) {
-		requestAnimationFrame(() => {
-			MathJax.typesetPromise([div]);
-		});
-	}
-	// ===== MỚI: reading screentip =====
-	// ===== MỚI: reading screentip =====
-	if (block.content && block.content.reading) {
-		const tip = document.createElement('div');
-		tip.className = 'reading-tip';
-		tip.innerText = block.content.reading;
-		tip.style.opacity = '0';
-		div.appendChild(tip);
-	
-		const icon = document.createElement('span');
-		icon.innerText = '📖';
-		icon.style.cssText = `
-			font-size:12px;
-			margin-left:6px;
-			cursor:pointer;
-			opacity:0.6;
-		`;
-	
-		icon.onclick = (e) => {
-			e.stopPropagation();
-			tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
-		};
-	
-		div.appendChild(icon);
-	}
+    
+    if (block.type === 'equation' && window.MathJax) {
+        requestAnimationFrame(() => {
+            MathJax.typesetPromise([div]);
+        });
+    }
+
+    if (block.content && block.content.reading) {
+        const tip = document.createElement('div');
+        tip.className = 'reading-tip';
+        tip.innerText = block.content.reading;
+        tip.style.opacity = '0';
+        div.appendChild(tip);
+    
+        const icon = document.createElement('span');
+        icon.innerText = '📖';
+        icon.style.cssText = `
+            font-size:12px;
+            margin-left:6px;
+            cursor:pointer;
+            opacity:0.6;
+        `;
+    
+        icon.onclick = (e) => {
+            e.stopPropagation();
+            tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+        };
+    
+        div.appendChild(icon);
+    }
 
     div.onclick = (e) => {
-		if (isSelectMode) {
-			e.preventDefault();
-			e.stopPropagation();
-			return; // ❌ không mở editor
-		}
-		openEditor(block.id);
-	};
+        if (isSelectMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        openEditor(block.id);
+    };
 
     viewer.appendChild(div);
 }
 
-
 function renderBook() {
     if (!bookData) return;
-	if (viewMode !== 'scroll') return; 
+    if (viewMode !== 'scroll') return;
     const viewer = document.getElementById('book-viewer');
     viewer.innerHTML = '';
-	currentPage = null;
+    currentPage = null;
+    
     bookData.blocks.forEach(block => {
         const div = document.createElement('div');
         div.className = `block ${block.type}`;
         div.id = block.id;
         
         let raw = block.content.raw || '';
-		if (block.page !== undefined && block.page !== currentPage) {
-			if (currentPage !== null) {
-				const footer = document.createElement('div');
-				footer.className = 'page-footer';
-				footer.innerText = `— Page ${currentPage} —`;
-				viewer.appendChild(footer);
-			}
-			currentPage = block.page;
-		}
-		// ===== Sentence formatting rules =====
-		if (block.type === 'sentence') {
-		
-			// 1️⃣ Chuyển \n (TEXT) thành newline thật
-			raw = raw.replace(/\\n/g, '\n');
-		
-			// 2️⃣ Chuyển \t (TEXT) thành tab thật
-			raw = raw.replace(/\\t/g, '\t');
-		
-			// 3️⃣ Tab hiển thị = 5 spaces
-			raw = raw.replace(/\t/g, '     ');
-		
-			// 4️⃣ Nếu KHÔNG bắt đầu bằng newline thật → ép 1 dòng
-			if (!raw.startsWith('\n')) {
-				raw = raw.replace(/\n/g, ' ');
-			}
-		}
-		let content = '';
+        if (block.page !== undefined && block.page !== currentPage) {
+            if (currentPage !== null) {
+                const footer = document.createElement('div');
+                footer.className = 'page-footer';
+                footer.innerText = `— Page ${currentPage} —`;
+                viewer.appendChild(footer);
+            }
+            currentPage = block.page;
+        }
 
-		if (block.type === 'image') {
-			// SVG raw → render trực tiếp
-			content = `<div class="image-box">${raw}</div>`;
-		} else if (block.type === 'equation') {
-			// LaTeX raw
-			content = `<div class="equation-box">\\[${raw}\\]</div>`;
-		
-		} else {
-			// === logic cũ giữ nguyên ===
-			content = renderMarks(
-				raw,
-				block.highlights || [],
-				block.underlines || []
-			);
-		}
+        if (block.type === 'sentence') {
+            raw = raw.replace(/\\n/g, '\n');
+            raw = raw.replace(/\\t/g, '\t');
+            raw = raw.replace(/\t/g, '     ');
+            if (!raw.startsWith('\n')) {
+                raw = raw.replace(/\n/g, ' ');
+            }
+        }
+
+        let content = '';
+
+        if (block.type === 'image') {
+            content = `<div class="image-box">${raw}</div>`;
+        } else if (block.type === 'equation') {
+            content = `<div class="equation-box">\\[${raw}\\]</div>`;
+        } else {
+            content = renderMarks(
+                raw,
+                block.highlights || [],
+                block.underlines || []
+            );
+        }
 
         div.innerHTML = content;
-		if (block.type === 'equation' && window.MathJax) {
-			requestAnimationFrame(() => {
-				MathJax.typesetPromise([div]);
-			});
-		}
-		// ===== MỚI: reading screentip =====
-		// ===== MỚI: reading screentip =====
-		if (block.content && block.content.reading) {
-			const tip = document.createElement('div');
-			tip.className = 'reading-tip';
-			tip.innerText = block.content.reading;
-			tip.style.opacity = '0';
-			div.appendChild(tip);
-		
-			const icon = document.createElement('span');
-			icon.innerText = '📖';
-			icon.style.cssText = `
-				font-size:12px;
-				margin-left:6px;
-				cursor:pointer;
-				opacity:0.6;
-			`;
-		
-			icon.onclick = (e) => {
-				e.stopPropagation();
-				tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
-			};
-		
-			div.appendChild(icon);
-		}
+        
+        if (block.type === 'equation' && window.MathJax) {
+            requestAnimationFrame(() => {
+                MathJax.typesetPromise([div]);
+            });
+        }
+
+        if (block.content && block.content.reading) {
+            const tip = document.createElement('div');
+            tip.className = 'reading-tip';
+            tip.innerText = block.content.reading;
+            tip.style.opacity = '0';
+            div.appendChild(tip);
+        
+            const icon = document.createElement('span');
+            icon.innerText = '📖';
+            icon.style.cssText = `
+                font-size:12px;
+                margin-left:6px;
+                cursor:pointer;
+                opacity:0.6;
+            `;
+        
+            icon.onclick = (e) => {
+                e.stopPropagation();
+                tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+            };
+        
+            div.appendChild(icon);
+        }
 
         div.onclick = (e) => {
-			if (isSelectMode) {
-				e.preventDefault();
-				e.stopPropagation();
-				return; // ❌ không mở editor
-			}
-			openEditor(block.id);
-		};
+            if (isSelectMode) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            openEditor(block.id);
+        };
 
         viewer.appendChild(div);
     });
-	if (currentPage !== null) {
-		const footer = document.createElement('div');
-		footer.className = 'page-footer';
-		footer.innerText = `— Page ${currentPage} —`;
-		viewer.appendChild(footer);
-	}
+    
+    if (currentPage !== null) {
+        const footer = document.createElement('div');
+        footer.className = 'page-footer';
+        footer.innerText = `— Page ${currentPage} —`;
+        viewer.appendChild(footer);
+    }
 }
-
 
 function renderMarks(raw, highlights = [], underlines = []) {
     const marks = [];
@@ -1271,15 +1264,12 @@ function renderMarks(raw, highlights = [], underlines = []) {
     pushMark(highlights, 'highlight');
     pushMark(underlines, 'underline');
 
-    // bigger = outer
     const priority = { underline: 1, highlight: 2 };
 
     let html = '';
     let active = [];
 
     for (let i = 0; i < raw.length; i++) {
-
-        // 🔻 CLOSE: inner đóng trước
         active
             .filter(m => m.end === i)
             .sort((a, b) => priority[b.type] - priority[a.type])
@@ -1287,7 +1277,6 @@ function renderMarks(raw, highlights = [], underlines = []) {
 
         active = active.filter(m => m.end !== i);
 
-        // 🔺 OPEN: outer mở trước
         marks
             .filter(m => m.start === i)
             .sort((a, b) => priority[a.type] - priority[b.type])
@@ -1303,14 +1292,12 @@ function renderMarks(raw, highlights = [], underlines = []) {
         html += raw[i];
     }
 
-    // close remaining
     active
         .sort((a, b) => priority[b.type] - priority[a.type])
         .forEach(() => html += '</span>');
 
     return html;
 }
-
 
 const FONT_MAP = {
     tiny: 0.3,
@@ -1329,7 +1316,6 @@ function setFontSize(mode) {
     localStorage.setItem('font_size_mode', mode);
 }
 
-// restore khi load page
 document.addEventListener('DOMContentLoaded', () => {
     setFontSize(localStorage.getItem('font_size_mode') || 'medium');
 });
@@ -1355,7 +1341,7 @@ function saveContentEdit() {
     block.content.reading = document.getElementById('edit-reading').value || null;
 
     document.getElementById('content-editor').classList.add('hidden');
-        if (viewMode === 'page') {
+    if (viewMode === 'page') {
         renderPage(currentPageIndex);
     } else {
         renderBook();
@@ -1369,119 +1355,113 @@ function cancelContentEdit() {
     document.getElementById('content-editor').classList.add('hidden');
 }
 
-		let originalBlockData = null;
+let originalBlockData = null;
+
 function openEditor(id) {
-            currentBlockId = id;
-            const block = bookData.blocks.find(b => b.id === id);
-            
-            // CHỤP ẢNH DỮ LIỆU BAN ĐẦU (Deep Copy)
-            originalBlockData = JSON.parse(JSON.stringify(block));
-document.getElementById('editor-overlay').classList.remove('hidden');
-document.querySelector('.splitter').classList.remove('hidden');
+    currentBlockId = id;
+    const block = bookData.blocks.find(b => b.id === id);
+    
+    originalBlockData = JSON.parse(JSON.stringify(block));
+    document.getElementById('editor-overlay').classList.remove('hidden');
+    document.querySelector('.splitter').classList.remove('hidden');
 
-            document.getElementById('edit-title').innerText = "Block: " + id;
-			document.getElementById('content-editor').classList.add('hidden');
-            document.getElementById('edit-trans').value = block.translation?.vi || '';
-            refreshEditorLists(block);
-            document.getElementById('editor-overlay').classList.remove('hidden');
-			const cfg = getCurrentAudioConfig();
-speedSelect.value = cfg.speed.toString();
-repeatToggle.checked = cfg.repeat;
+    document.getElementById('edit-title').innerText = "Block: " + id;
+    document.getElementById('content-editor').classList.add('hidden');
+    document.getElementById('edit-trans').value = block.translation?.vi || '';
+    refreshEditorLists(block);
+    document.getElementById('editor-overlay').classList.remove('hidden');
+    
+    const cfg = getCurrentAudioConfig();
+    speedSelect.value = cfg.speed.toString();
+    repeatToggle.checked = cfg.repeat;
+}
 
-        }
-// HÀM MỚI: Kiểm tra thay đổi khi ấn nút X
-        function checkAndClose() {
-            const block = bookData.blocks.find(b => b.id === currentBlockId);
-            // Cập nhật giá trị dịch thuật hiện thời vào object để so sánh
-            block.translation = block.translation || {};
-            block.translation.vi = document.getElementById('edit-trans').value;
+function checkAndClose() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.translation = block.translation || {};
+    block.translation.vi = document.getElementById('edit-trans').value;
 
-            const changes = [];
-            
-            // 1. Kiểm tra dịch thuật
-            if (block.translation.vi !== (originalBlockData.translation?.vi || '')) {
-                changes.push("- Bản dịch (VI)");
-            }
+    const changes = [];
+    
+    if (block.translation.vi !== (originalBlockData.translation?.vi || '')) {
+        changes.push("- Bản dịch (VI)");
+    }
 
-            // 2. Kiểm tra Ngữ pháp & Phân tích (So sánh JSON string cho nhanh và chính xác)
-            if (JSON.stringify(block.grammar) !== JSON.stringify(originalBlockData.grammar)) {
-                changes.push("- Dữ liệu Ngữ pháp");
-            }
-            if (JSON.stringify(block.analysis) !== JSON.stringify(originalBlockData.analysis)) {
-                changes.push("- Dữ liệu Phân tích câu");
-            }
-            if (JSON.stringify(block.highlights) !== JSON.stringify(originalBlockData.highlights) || 
-                JSON.stringify(block.underlines) !== JSON.stringify(originalBlockData.underlines)) {
-                changes.push("- Đánh dấu (Highlights/Underlines)");
-            }
+    if (JSON.stringify(block.grammar) !== JSON.stringify(originalBlockData.grammar)) {
+        changes.push("- Dữ liệu Ngữ pháp");
+    }
+    if (JSON.stringify(block.analysis) !== JSON.stringify(originalBlockData.analysis)) {
+        changes.push("- Dữ liệu Phân tích câu");
+    }
+    if (JSON.stringify(block.highlights) !== JSON.stringify(originalBlockData.highlights) || 
+        JSON.stringify(block.underlines) !== JSON.stringify(originalBlockData.underlines)) {
+        changes.push("- Đánh dấu (Highlights/Underlines)");
+    }
 
-            if (changes.length > 0) {
-                const message = "Bạn đã thay đổi:\n" + changes.join("\n") + "\n\nBạn có muốn LƯU những thay đổi này không?\n(Ấn 'Cancel' để hủy bỏ thay đổi và đóng)";
-                if (confirm(message)) {
-                    closeEditor(); // Lưu và đóng
-                } else {
-                    // Hoàn tác dữ liệu về bản cũ
-                    const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
-                    bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
-                    document.getElementById('editor-overlay').classList.add('hidden');
-document.querySelector('.splitter').classList.add('hidden');
+    if (changes.length > 0) {
+        const message = "Bạn đã thay đổi:\n" + changes.join("\n") + "\n\nBạn có muốn LƯU những thay đổi này không?\n(Ấn 'Cancel' để hủy bỏ thay đổi và đóng)";
+        if (confirm(message)) {
+            closeEditor();
+        } else {
+            const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
+            bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
+            document.getElementById('editor-overlay').classList.add('hidden');
+            document.querySelector('.splitter').classList.add('hidden');
 
-                    if (viewMode === 'page') {
-						renderPage(currentPageIndex);
-					} else {
-						renderBook();
-					}
-					currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
-                }
+            if (viewMode === 'page') {
+                renderPage(currentPageIndex);
             } else {
-                // Không có thay đổi thì đóng luôn
-				document.getElementById('editor-overlay').classList.add('hidden');
-document.querySelector('.splitter').classList.add('hidden');
-
-				currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
+                renderBook();
             }
+            currentBlockId = null;
         }
-        function refreshEditorLists(block) {
-            // MỚI: Ẩn hiện các container dựa trên View Menu
-            document.getElementById('container-trans').className = editorModulesVisibility.trans ? '' : 'hidden';
-            document.getElementById('container-marks').className = editorModulesVisibility.marks ? '' : 'hidden';
-            document.getElementById('container-grammar').className = editorModulesVisibility.grammar ? '' : 'hidden';
-            document.getElementById('container-analysis').className = editorModulesVisibility.analysis ? '' : 'hidden';
+    } else {
+        document.getElementById('editor-overlay').classList.add('hidden');
+        document.querySelector('.splitter').classList.add('hidden');
+        currentBlockId = null;
+    }
+}
 
-			const marksList = document.getElementById('marks-list');
-			marksList.innerHTML = '';
-			
-			['highlights', 'underlines'].forEach(key => {
-				(block[key] || []).forEach((item, idx) => {
-					const div = document.createElement('div');
-					div.className = 'section-group';
-			
-					div.innerHTML = `
-						<div class="item-header" onclick="toggleItem(this)">
-							<span>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: 
-								<b>"${item.quote}"</b>
-							</span>
-							<span class="item-toggle">▾</span>
-						</div>
-			
-						<div class="item-body">
-							<span class="btn-x"
-								onclick="event.stopPropagation(); deleteMark('${key}', ${idx})"
-								title="Xóa">×</span>
-			
-							<input type="text"
-								placeholder="Ghi chú (Note)"
-								value="${item.note || ''}"
-								onchange="updateMark('${key}', ${idx}, this.value)">
-						</div>
-					`;
-					marksList.appendChild(div);
-				});
-			});
+function refreshEditorLists(block) {
+    document.getElementById('container-trans').className = editorModulesVisibility.trans ? '' : 'hidden';
+    document.getElementById('container-marks').className = editorModulesVisibility.marks ? '' : 'hidden';
+    document.getElementById('container-grammar').className = editorModulesVisibility.grammar ? '' : 'hidden';
+    document.getElementById('container-analysis').className = editorModulesVisibility.analysis ? '' : 'hidden';
 
-            document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
-            document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
-        }
+    const marksList = document.getElementById('marks-list');
+    marksList.innerHTML = '';
+    
+    ['highlights', 'underlines'].forEach(key => {
+        (block[key] || []).forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'section-group';
+    
+            div.innerHTML = `
+                <div class="item-header" onclick="toggleItem(this)">
+                    <span>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: 
+                        <b>"${item.quote}"</b>
+                    </span>
+                    <span class="item-toggle">▾</span>
+                </div>
+    
+                <div class="item-body">
+                    <span class="btn-x"
+                        onclick="event.stopPropagation(); deleteMark('${key}', ${idx})"
+                        title="Xóa">×</span>
+    
+                    <input type="text"
+                        placeholder="Ghi chú (Note)"
+                        value="${item.note || ''}"
+                        onchange="updateMark('${key}', ${idx}, this.value)">
+                </div>
+            `;
+            marksList.appendChild(div);
+        });
+    });
+
+    document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
+    document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
+}
 
 function renderItems(items, type) {
     return (items || []).map((item, i) => {
@@ -1519,140 +1499,158 @@ function renderItems(items, type) {
         `;
     }).join('');
 }
-        function openFilter(type) {
-            currentFilterType = type;
-            const modal = document.getElementById('filter-modal');
-            const optionsDiv = document.getElementById('filter-options');
-            document.getElementById('filter-title').innerText = `Ẩn trường (${type === 'grammar' ? 'Ngữ pháp' : 'Phân tích'})`;
-            
-            let allKeys = [];
-            if (masterData.length > 0) {
-                allKeys = Object.keys(masterData[0]);
-            } else {
-                optionsDiv.innerHTML = '<p>Hãy load Master Data trước</p>';
-                modal.classList.remove('hidden');
-                return;
-            }
 
-            optionsDiv.innerHTML = allKeys.map(key => `
-                <div class="filter-option">
-                    <input type="checkbox" id="f-${key}" ${displayFilters[type].includes(key) ? 'checked' : ''} 
-                           onchange="toggleFilterField('${key}')">
-                    <label for="f-${key}">${key}</label>
+function openFilter(type) {
+    currentFilterType = type;
+    const modal = document.getElementById('filter-modal');
+    const optionsDiv = document.getElementById('filter-options');
+    document.getElementById('filter-title').innerText = `Ẩn trường (${type === 'grammar' ? 'Ngữ pháp' : 'Phân tích'})`;
+    
+    let allKeys = [];
+    if (masterData.length > 0) {
+        allKeys = Object.keys(masterData[0]);
+    } else {
+        optionsDiv.innerHTML = '<p>Hãy load Master Data trước</p>';
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    optionsDiv.innerHTML = allKeys.map(key => `
+        <div class="filter-option">
+            <input type="checkbox" id="f-${key}" ${displayFilters[type].includes(key) ? 'checked' : ''} 
+                   onchange="toggleFilterField('${key}')">
+            <label for="f-${key}">${key}</label>
+        </div>
+    `).join('');
+
+    modal.classList.remove('hidden');
+}
+
+function toggleFilterField(key) {
+    const index = displayFilters[currentFilterType].indexOf(key);
+    if (index > -1) {
+        displayFilters[currentFilterType].splice(index, 1);
+    } else {
+        displayFilters[currentFilterType].push(key);
+    }
+    localStorage.setItem('display_filters', JSON.stringify(displayFilters));
+}
+
+function closeFilter() {
+    document.getElementById('filter-modal').classList.add('hidden');
+}
+
+const tooltip = document.createElement('div');
+tooltip.className = 'tooltip-box hidden';
+document.body.appendChild(tooltip);
+
+function showTooltip(e, refId, type) {
+    if (!refId || masterData.length === 0) return;
+    const info = masterData.find(m => m.master_id === refId);
+    if (!info) return;
+
+    const hiddenFields = displayFilters[type] || [];
+    let htmlContent = '';
+
+    Object.keys(info).forEach(key => {
+        if (!hiddenFields.includes(key)) {
+            let val = info[key];
+            if (Array.isArray(val)) val = JSON.stringify(val); 
+            if (typeof val === 'object') val = JSON.stringify(val);
+            
+            htmlContent += `
+                <div class="tooltip-item">
+                    <span class="tooltip-label">${key}</span>
+                    <div>${val}</div>
                 </div>
-            `).join('');
-
-            modal.classList.remove('hidden');
+            `;
         }
+    });
 
-        function toggleFilterField(key) {
-            const index = displayFilters[currentFilterType].indexOf(key);
-            if (index > -1) {
-                displayFilters[currentFilterType].splice(index, 1);
-            } else {
-                displayFilters[currentFilterType].push(key);
-            }
-            localStorage.setItem('display_filters', JSON.stringify(displayFilters));
-        }
+    tooltip.innerHTML = htmlContent || '<em>(Không có dữ liệu hiển thị)</em>';
+    tooltip.classList.remove('hidden');
+    
+    let x = e.pageX + 15;
+    let y = e.pageY + 15;
+    if (x + 300 > window.innerWidth) x = e.pageX - 300;
+    
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+}
 
-        function closeFilter() {
-            document.getElementById('filter-modal').classList.add('hidden');
-        }
+function hideTooltip() {
+    tooltip.classList.add('hidden');
+}
 
-        const tooltip = document.createElement('div');
-        tooltip.className = 'tooltip-box hidden';
-        document.body.appendChild(tooltip);
+function openSearch(type, index) {
+    currentAssigningRef = { type, index };
+    document.getElementById('search-modal').classList.remove('hidden');
+    document.getElementById('masterSearch').value = '';
+    filterMasterData();
+}
 
-        function showTooltip(e, refId, type) {
-            if (!refId || masterData.length === 0) return;
-            const info = masterData.find(m => m.master_id === refId);
-            if (!info) return;
+function closeSearch() {
+    document.getElementById('search-modal').classList.add('hidden');
+}
 
-            const hiddenFields = displayFilters[type] || [];
-            let htmlContent = '';
+// 🔥 FIX: Tìm kiếm đa ngôn ngữ với normalize
+function filterMasterData() {
+    const term = normalizeText(document.getElementById('masterSearch').value);
+    const resultsDiv = document.getElementById('search-results');
+    resultsDiv.innerHTML = '';
 
-            Object.keys(info).forEach(key => {
-                if (!hiddenFields.includes(key)) {
-                    let val = info[key];
-                    if (Array.isArray(val)) val = JSON.stringify(val); 
-                    if (typeof val === 'object') val = JSON.stringify(val);
-                    
-                    htmlContent += `
-                        <div class="tooltip-item">
-                            <span class="tooltip-label">${key}</span>
-                            <div>${val}</div>
-                        </div>
-                    `;
+    console.log('🔍 Searching with term:', term);
+    console.log('🔍 Active fields:', masterSearchFields);
+
+    if (!term) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Nhập từ khóa để tìm kiếm</p>';
+        return;
+    }
+
+    const filtered = masterData.filter(item => {
+        for (const field in masterSearchFields) {
+            if (masterSearchFields[field] && item[field]) {
+                const normalizedValue = normalizeText(String(item[field]));
+                if (normalizedValue.includes(term)) {
+                    return true;
                 }
-            });
-
-            tooltip.innerHTML = htmlContent || '<em>(Không có dữ liệu hiển thị)</em>';
-            tooltip.classList.remove('hidden');
-            
-            let x = e.pageX + 15;
-            let y = e.pageY + 15;
-            if (x + 300 > window.innerWidth) x = e.pageX - 300;
-            
-            tooltip.style.left = x + 'px';
-            tooltip.style.top = y + 'px';
+            }
         }
+        return false;
+    });
 
-        function hideTooltip() {
-            tooltip.classList.add('hidden');
-        }
+    console.log('🔍 Found results:', filtered.length);
 
-        function openSearch(type, index) {
-            currentAssigningRef = { type, index };
-            document.getElementById('search-modal').classList.remove('hidden');
-            document.getElementById('masterSearch').value = '';
-            filterMasterData();
-        }
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Không tìm thấy kết quả</p>';
+        return;
+    }
 
-        function closeSearch() {
-            document.getElementById('search-modal').classList.add('hidden');
-        }
+    filtered.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'search-item';
+        div.innerHTML = `<strong>${item.pattern || ''}</strong> ${item.reading ? `(${item.reading})` : ''}<br><small>${item.core_meaning || ''}</small>`;
+        div.onclick = () => assignRefId(item.master_id);
+        resultsDiv.appendChild(div);
+    });
+}
 
-        function filterMasterData() {
-			const term = document.getElementById('masterSearch').value.toLowerCase();
-			const resultsDiv = document.getElementById('search-results');
-			resultsDiv.innerHTML = '';
-		
-			// 🔥 Tìm kiếm theo các trường đã chọn
-			const filtered = masterData.filter(item => {
-				for (const field in masterSearchFields) {
-					if (masterSearchFields[field] && item[field]) {
-						const value = String(item[field]).toLowerCase();
-						if (value.includes(term)) {
-							return true;
-						}
-					}
-				}
-				return false;
-			});
-		
-			filtered.forEach(item => {
-				const div = document.createElement('div');
-				div.className = 'search-item';
-				div.innerHTML = `<strong>${item.pattern || ''}</strong> ${item.reading ? `(${item.reading})` : ''}<br><small>${item.core_meaning || ''}</small>`;
-				div.onclick = () => assignRefId(item.master_id);
-				resultsDiv.appendChild(div);
-			});
-		}
+function assignRefId(id) {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block[currentAssigningRef.type][currentAssigningRef.index].ref_id = id;
+    refreshEditorLists(block);
+    closeSearch();
+}
 
-        function assignRefId(id) {
-            const block = bookData.blocks.find(b => b.id === currentBlockId);
-            block[currentAssigningRef.type][currentAssigningRef.index].ref_id = id;
-            refreshEditorLists(block);
-            closeSearch();
-        }
+window.updateMark = (key, i, val) => { 
+    bookData.blocks.find(b => b.id === currentBlockId)[key][i].note = val; 
+};
 
-        window.updateMark = (key, i, val) => { bookData.blocks.find(b => b.id === currentBlockId)[key][i].note = val; };
-        window.deleteMark = (key, i) => { 
+window.deleteMark = (key, i) => { 
     if (confirm("Bạn có chắc chắn muốn xóa đánh dấu này không?")) {
         const block = bookData.blocks.find(b => b.id === currentBlockId);
         block[key].splice(i, 1); 
         
-        // 🔥 FIX: render theo viewMode
         if (viewMode === 'page') {
             renderPage(currentPageIndex);
         } else {
@@ -1662,26 +1660,29 @@ function renderItems(items, type) {
         refreshEditorLists(block);
     }
 };
-        window.updateField = (type, i, field, val) => { 
-            const block = bookData.blocks.find(b => b.id === currentBlockId);
-            block[type][i][field] = val; 
-        };
-        window.removeItem = (type, i) => {
-            if (confirm("Bạn có chắc chắn muốn xóa mục này không?")) {
-                const block = bookData.blocks.find(b => b.id === currentBlockId);
-                block[type].splice(i, 1);
-                refreshEditorLists(block);
-            }
-        };
-        window.addItem = (type) => {
-            const block = bookData.blocks.find(b => b.id === currentBlockId);
-            if(!block[type]) block[type] = [];
-            const newItem = {quote: '', explanation: '', ref_id: ''};
-            if(type === 'analysis') newItem.role = '';
-            block[type].push(newItem);
-            refreshEditorLists(block);
-        };
-// 🚫 Kill iOS copy/select menu when Select mode ON
+
+window.updateField = (type, i, field, val) => { 
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block[type][i][field] = val; 
+};
+
+window.removeItem = (type, i) => {
+    if (confirm("Bạn có chắc chắn muốn xóa mục này không?")) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        block[type].splice(i, 1);
+        refreshEditorLists(block);
+    }
+};
+
+window.addItem = (type) => {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if(!block[type]) block[type] = [];
+    const newItem = {quote: '', explanation: '', ref_id: ''};
+    if(type === 'analysis') newItem.role = '';
+    block[type].push(newItem);
+    refreshEditorLists(block);
+};
+
 document.addEventListener('contextmenu', (e) => {
     if (!isSelectMode) return;
 
@@ -1709,19 +1710,13 @@ document.addEventListener('selectionchange', () => {
 
     const rect = range.getBoundingClientRect();
 
-    // 🔥 VỊ TRÍ DỌC: hiện bên dưới
     toolbar.style.top = (window.scrollY + rect.bottom + 8) + 'px';
     
-    // 🔥 VỊ TRÍ NGANG: tránh tràn ra ngoài màn hình
     let leftPos = window.scrollX + rect.left;
-    
-    // Kiểm tra nếu toolbar sẽ tràn ra ngoài lề phải
-    const toolbarWidth = 250; // ước tính chiều rộng toolbar
+    const toolbarWidth = 250;
     if (leftPos + toolbarWidth > window.innerWidth) {
-        leftPos = window.innerWidth - toolbarWidth - 10; // 10px margin
+        leftPos = window.innerWidth - toolbarWidth - 10;
     }
-    
-    // Đảm bảo không tràn ra lề trái
     if (leftPos < 10) {
         leftPos = 10;
     }
@@ -1735,13 +1730,12 @@ document.addEventListener('selectionchange', () => {
 
 let selectedColor = '#ffff00';
 
-// Update color khi chọn từ topbar
 function updateSelectedColor(color) {
     selectedColor = color;
     document.getElementById('topbarColorDisplay').style.background = color;
 }
 
-// Search text đã chọn trong master data
+// 🔥 FIX: Search với normalize
 function searchInMaster() {
     const tb = document.getElementById('text-toolbar');
     const searchText = tb.dataset.text;
@@ -1756,15 +1750,13 @@ function searchInMaster() {
         return;
     }
     
-    // 🔥 Tìm kiếm theo các trường đã chọn
+    const searchNorm = normalizeText(searchText);
+    
     const results = masterData.filter(item => {
-        const searchLower = searchText.toLowerCase();
-        
-        // Kiểm tra từng trường đã được tick
         for (const field in masterSearchFields) {
             if (masterSearchFields[field] && item[field]) {
-                const value = String(item[field]).toLowerCase();
-                if (value.includes(searchLower)) {
+                const normalizedValue = normalizeText(String(item[field]));
+                if (normalizedValue.includes(searchNorm)) {
                     return true;
                 }
             }
@@ -1798,7 +1790,6 @@ function displaySearchResults(results, searchText) {
                 <br>
                 <small>${item.core_meaning || ''}</small>
             `;
-            // Click để gán vào block hiện tại nếu muốn
             div.onclick = () => {
                 if (currentAssigningRef.type && currentAssigningRef.index !== null) {
                     assignRefId(item.master_id);
@@ -1817,7 +1808,6 @@ function applyMark(type) {
     const key = type === 'highlight' ? 'highlights' : 'underlines';
     if (!block[key]) block[key] = [];
     
-    // 🔥 Sử dụng màu đã chọn từ topbar
     const color = selectedColor || '#ffff00';
     
     block[key].push({
@@ -1840,20 +1830,20 @@ function applyMark(type) {
     }
 }
 
-        function closeEditor() { 
-            const block = bookData.blocks.find(b => b.id === currentBlockId);
-            block.translation = block.translation || {};
-            block.translation.vi = document.getElementById('edit-trans').value;
-            document.getElementById('editor-overlay').classList.add('hidden'); 
-			document.querySelector('.splitter').classList.add('hidden');
+function closeEditor() { 
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.translation = block.translation || {};
+    block.translation.vi = document.getElementById('edit-trans').value;
+    document.getElementById('editor-overlay').classList.add('hidden'); 
+    document.querySelector('.splitter').classList.add('hidden');
 
-            if (viewMode === 'page') {
-				renderPage(currentPageIndex);
-			} else {
-				renderBook();
-			}
-			currentBlockId = null;   // ✅ BỎ CHỌN BLOCK
-        }
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
+    currentBlockId = null;
+}
 
 document.getElementById('exportBtn').onclick = async () => {
     if (!bookData) {
@@ -1861,7 +1851,6 @@ document.getElementById('exportBtn').onclick = async () => {
         return;
     }
 
-    // Nếu browser hỗ trợ File System Access API
     if (window.showSaveFilePicker) {
         const handle = await window.showSaveFilePicker({
             suggestedName: "updated_book.json",
@@ -1877,7 +1866,6 @@ document.getElementById('exportBtn').onclick = async () => {
 
         alert("Đã lưu file ✅");
     } else {
-        // fallback cũ
         const blob = new Blob(
             [JSON.stringify(bookData, null, 4)],
             { type: "application/json" }
@@ -1888,7 +1876,8 @@ document.getElementById('exportBtn').onclick = async () => {
         a.click();
     }
 };
-		function toggleItem(headerEl) {
+
+function toggleItem(headerEl) {
     const body = headerEl.nextElementSibling;
     const icon = headerEl.querySelector('.item-toggle');
 
@@ -1897,11 +1886,10 @@ document.getElementById('exportBtn').onclick = async () => {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-
     let isDraggingSplitter = false;
     const splitter = document.querySelector('.splitter');
 
-    if (!splitter) return;   // phòng trường hợp editor chưa render
+    if (!splitter) return;
 
     splitter.addEventListener('touchstart', e => {
         isDraggingSplitter = true;
@@ -1933,13 +1921,13 @@ function toggleAll(type, ev) {
         headers[i].innerText = shouldCollapse ? '▸' : '▾';
     });
 }
+
 let pageUtterance = null;
 let isReadingPage = false;
 
 function togglePageAudio() {
     if (!bookData || !bookData.blocks || bookData.blocks.length === 0) return;
 
-    // ===== STOP đang phát =====
     if (isReadingPage) {
         speechSynthesis.cancel();
         audioPlayer.pause();
@@ -1950,12 +1938,10 @@ function togglePageAudio() {
 
     let block = null;
 
-    // ✅ CASE 1: đã click block → đọc block đó
     if (currentBlockId) {
         block = bookData.blocks.find(b => b.id === currentBlockId);
     }
 
-    // ✅ CASE 2: chưa click → fallback đọc text cả page
     if (!block) {
         block = bookData.blocks.find(b => b.content?.raw);
     }
@@ -1965,14 +1951,11 @@ function togglePageAudio() {
         return;
     }
 
-    // =====================================================
-    // 🔊 CASE A: BLOCK CÓ AUDIO → PLAY FILE
-    // =====================================================
     if (hasAudioSrc(block)) {
-		const cfg = getCurrentAudioConfig();
+        const cfg = getCurrentAudioConfig();
         audioPlayer.src = block.audio.src;
-		audioPlayer.playbackRate = cfg.speed;
-		audioPlayer.loop = cfg.repeat;
+        audioPlayer.playbackRate = cfg.speed;
+        audioPlayer.loop = cfg.repeat;
         audioPlayer.onended = () => isReadingPage = false;
         audioPlayer.onerror = (e) => {
             console.error("Audio file error", e);
@@ -1988,45 +1971,73 @@ function togglePageAudio() {
         return;
     }
 
-    // =====================================================
-    // 🗣️ CASE B: KHÔNG CÓ AUDIO → DÙNG TTS CŨ
-    // =====================================================
-let text = block.content?.raw || '';
-if (!text.trim()) return;
+    // ===== TTS với giọng cụ thể =====
+    let text = block.content?.raw || '';
+    if (!text.trim()) return;
 
-// === CASE B: ưu tiên block → fallback page ===
-const blockAudio = audioState.block[block.id];
-const speed  = blockAudio?.speed  ?? audioState.page.speed ?? 1;
-const repeat = blockAudio?.repeat ?? audioState.page.repeat ?? false;
+    const blockAudio = audioState.block[block.id];
+    const speed  = blockAudio?.speed  ?? audioState.page.speed ?? 1;
+    const repeat = blockAudio?.repeat ?? audioState.page.repeat ?? false;
 
-const utter = new SpeechSynthesisUtterance(text);
-utter.lang  = document.getElementById('audioLang')?.value || 'en-US';
-utter.rate  = speed;
-utter.pitch = 1;
+    const selectedLang = document.getElementById('audioLang')?.value || 'en-US';
+    
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = selectedLang;
+    utter.rate = speed;
+    utter.pitch = 1;
 
-utter.onend = () => {
-    if (repeat) {
-        // repeat block
-        speechSynthesis.speak(utter);
-    } else {
-        isReadingPage = false;
+    // 🔥 CHỌN GIỌNG CỤ THỂ
+    const voices = speechSynthesis.getVoices();
+    
+    let targetVoice = null;
+    
+    if (selectedLang === 'en-US') {
+        // Tìm Allison (Enhanced) cho tiếng Anh
+        targetVoice = voices.find(v => 
+            v.name.includes('Allison') && v.name.includes('Enhanced')
+        ) || voices.find(v => v.name.includes('Allison'));
+        
+        console.log('🎤 EN Voice:', targetVoice?.name || 'default');
+        
+    } else if (selectedLang === 'ja-JP') {
+        // Tìm Kyoko (Enhanced) cho tiếng Nhật
+        targetVoice = voices.find(v => 
+            v.name.includes('Kyoko') && v.name.includes('Enhanced')
+        ) || voices.find(v => v.name.includes('Kyoko'));
+        
+        console.log('🎤 JP Voice:', targetVoice?.name || 'default');
     }
-};
+    
+    if (targetVoice) {
+        utter.voice = targetVoice;
+    }
 
-utter.onerror = (e) => {
-    console.error("Speech error", e);
-    isReadingPage = false;
-};
+    utter.onend = () => {
+        if (repeat) {
+            speechSynthesis.speak(utter);
+        } else {
+            isReadingPage = false;
+        }
+    };
 
-speechSynthesis.cancel();
-speechSynthesis.speak(utter);
+    utter.onerror = (e) => {
+        console.error("Speech error", e);
+        isReadingPage = false;
+    };
 
-isReadingPage = true;
+    speechSynthesis.cancel();
+    
+    // 🔥 FIX: iOS cần delay nhỏ sau khi cancel
+    setTimeout(() => {
+        speechSynthesis.speak(utter);
+    }, 50);
 
+    isReadingPage = true;
 }
 
 let audioPlayer = new Audio();
 audioPlayer.preload = 'auto';
+
 function hasAudioSrc(block) {
     const src = block?.audio?.src;
     return typeof src === 'string' && src.trim() !== '';
@@ -2059,12 +2070,12 @@ function setViewMode(mode) {
     document.body.classList.toggle('page-mode', mode === 'page');
     
     if (mode === 'page') {
-        currentPageIndex = 0; // 🔥 LUÔN reset về trang đầu
+        currentPageIndex = 0;
         renderPage(0);
-        updatePageIndicator(); // 🔥 Gọi NGAY sau renderPage
+        updatePageIndicator();
     } else {
         renderBook();
-        updatePageIndicator(); // 🔥 Ẩn indicator ở scroll mode
+        updatePageIndicator();
     }
 }
 
@@ -2092,12 +2103,13 @@ function disablePageSwipe() {
     document.removeEventListener('touchstart', onTouchStart);
     document.removeEventListener('touchend', onTouchEnd);
 }
+
 function nextPage() {
     const pages = getPages();
     if (currentPageIndex < pages.length - 1) {
         currentPageIndex++;
         renderPage(currentPageIndex);
-        updatePageIndicator(); // 🔥 THÊM
+        updatePageIndicator();
     }
 }
 
@@ -2105,10 +2117,10 @@ function prevPage() {
     if (currentPageIndex > 0) {
         currentPageIndex--;
         renderPage(currentPageIndex);
-        updatePageIndicator(); // 🔥 THÊM
+        updatePageIndicator();
     }
 }
-// ===== PAGE SWIPE (iOS SAFARI FIX) =====
+
 const swipeLayer = document.querySelector('.main-pane');
 
 let sx = 0, sy = 0;
@@ -2134,7 +2146,7 @@ swipeLayer.addEventListener('touchmove', e => {
 
     if (Math.abs(dx) > Math.abs(dy) * ANGLE_RATIO) {
         locked = true;
-        e.preventDefault(); // 🔥 khóa scroll dọc
+        e.preventDefault();
     }
 }, { passive: false });
 
@@ -2149,16 +2161,15 @@ swipeLayer.addEventListener('touchend', e => {
     if (dx < 0 && currentPageIndex < pages.length - 1) {
         currentPageIndex++;
         renderPage(currentPageIndex);
-        updatePageIndicator(); // 🔥 THÊM
+        updatePageIndicator();
     } 
     else if (dx > 0 && currentPageIndex > 0) {
         currentPageIndex--;
         renderPage(currentPageIndex);
-        updatePageIndicator(); // 🔥 THÊM
+        updatePageIndicator();
     }
 });
-
-    </script>
+</script>
 	<script>
 window.MathJax = {
     tex: {
