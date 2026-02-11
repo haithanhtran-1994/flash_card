@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>JSON Book Editor Pro</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; color: #333; }
@@ -249,6 +249,14 @@ input[type="radio"] {
 .equation-box {
     font-size: 1em;      /* 🔒 khóa size */
     line-height: 1.2;
+}
+
+/* 🔥 NEW: Cho phép select image/equation trong select mode */
+.select-mode .block.image,
+.select-mode .block.equation {
+    cursor: crosshair;
+    -webkit-user-select: auto;
+    user-select: auto;
 }
 /* ===== DEFAULT (Select mode OFF) ===== */
 /* ❌ Không cho select text
@@ -1190,8 +1198,16 @@ function renderSingleBlock(block, viewer) {
 
     div.onclick = (e) => {
         if (isSelectMode) {
-            e.preventDefault();
-            e.stopPropagation();
+            // 🔥 Cho phép select image/equation
+            if (block.type === 'image' || block.type === 'equation') {
+                e.preventDefault();
+                e.stopPropagation();
+                // Tạo fake selection để trigger toolbar
+                showToolbarForSpecialBlock(e, block);
+            } else {
+                e.preventDefault();
+                e.stopPropagation();
+            }
             return;
         }
         openEditor(block.id);
@@ -1280,8 +1296,16 @@ function renderBook() {
 
         div.onclick = (e) => {
             if (isSelectMode) {
-                e.preventDefault();
-                e.stopPropagation();
+                // 🔥 Cho phép select image/equation
+                if (block.type === 'image' || block.type === 'equation') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Tạo fake selection để trigger toolbar
+                    showToolbarForSpecialBlock(e, block);
+                } else {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
                 return;
             }
             openEditor(block.id);
@@ -1485,6 +1509,7 @@ function refreshEditorLists(block) {
     const marksList = document.getElementById('marks-list');
     marksList.innerHTML = '';
     
+    // 🔥 Hiển thị highlights & underlines cho text blocks
     ['highlights', 'underlines'].forEach(key => {
         (block[key] || []).forEach((item, idx) => {
             const div = document.createElement('div');
@@ -1512,6 +1537,35 @@ function refreshEditorLists(block) {
             marksList.appendChild(div);
         });
     });
+    
+    // 🔥 NEW: Hiển thị notes cho image/equation blocks
+    if (block.notes && block.notes.length > 0) {
+        block.notes.forEach((note, idx) => {
+            const div = document.createElement('div');
+            div.className = 'section-group';
+            
+            const noteLabel = note.type === 'note-highlight' ? '🟡 Note (Highlight)' : '➖ Note (Underline)';
+    
+            div.innerHTML = `
+                <div class="item-header" onclick="toggleItem(this)">
+                    <span>${noteLabel}</span>
+                    <span class="item-toggle">▾</span>
+                </div>
+    
+                <div class="item-body">
+                    <span class="btn-x"
+                        onclick="event.stopPropagation(); deleteNote(${idx})"
+                        title="Xóa">×</span>
+    
+                    <textarea 
+                        placeholder="Nội dung ghi chú"
+                        rows="3"
+                        oninput="updateNote(${idx}, this.value)">${note.content || ''}</textarea>
+                </div>
+            `;
+            marksList.appendChild(div);
+        });
+    }
 
     document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
     document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
@@ -1755,6 +1809,21 @@ window.deleteMark = (key, i) => {
     }
 };
 
+// 🔥 NEW: Functions cho notes của image/equation
+window.updateNote = (i, val) => {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if (!block.notes) block.notes = [];
+    block.notes[i].content = val;
+};
+
+window.deleteNote = (i) => {
+    if (confirm("Bạn có chắc chắn muốn xóa ghi chú này không?")) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        block.notes.splice(i, 1);
+        refreshEditorLists(block);
+    }
+};
+
 window.updateField = (type, i, field, val) => { 
     const block = bookData.blocks.find(b => b.id === currentBlockId);
     block[type][i][field] = val; 
@@ -1829,18 +1898,53 @@ function updateSelectedColor(color) {
     document.getElementById('topbarColorDisplay').style.background = color;
 }
 
+// 🔥 NEW: Hiện toolbar cho image/equation blocks
+function showToolbarForSpecialBlock(e, block) {
+    const toolbar = document.getElementById('text-toolbar');
+    
+    const rect = e.target.getBoundingClientRect();
+    
+    toolbar.style.top = (window.scrollY + rect.bottom + 8) + 'px';
+    
+    let leftPos = window.scrollX + rect.left;
+    const toolbarWidth = 250;
+    if (leftPos + toolbarWidth > window.innerWidth) {
+        leftPos = window.innerWidth - toolbarWidth - 10;
+    }
+    if (leftPos < 10) {
+        leftPos = 10;
+    }
+    
+    toolbar.style.left = leftPos + 'px';
+    toolbar.classList.remove('hidden');
+    
+    toolbar.dataset.blockId = block.id;
+    toolbar.dataset.text = ''; // Empty text for special blocks
+    toolbar.dataset.isSpecialBlock = 'true';
+}
+
 // 🔥 FIX: Search với normalize
 function searchInMaster() {
     const tb = document.getElementById('text-toolbar');
     const searchText = tb.dataset.text;
     
-    if (!searchText) {
+    // 🔥 Cho phép search với empty text (cho image/equation)
+    if (!searchText && tb.dataset.isSpecialBlock !== 'true') {
         alert("Không có text được chọn");
         return;
     }
     
     if (!masterData || masterData.length === 0) {
         alert("Chưa load Master Data. Vui lòng chọn file master.json từ menu 📚");
+        return;
+    }
+    
+    // 🔥 Nếu là special block, mở search với empty query
+    if (tb.dataset.isSpecialBlock === 'true') {
+        document.getElementById('search-modal').classList.remove('hidden');
+        document.getElementById('masterSearch').value = '';
+        filterMasterData();
+        tb.classList.add('hidden');
         return;
     }
     
@@ -1899,6 +2003,32 @@ function displaySearchResults(results, searchText) {
 function applyMark(type) {
     const tb = document.getElementById('text-toolbar');
     const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+    
+    // 🔥 Kiểm tra nếu là special block (image/equation)
+    const isSpecialBlock = tb.dataset.isSpecialBlock === 'true';
+    
+    if (isSpecialBlock) {
+        // 🔥 Cho image/equation: tạo note thay vì highlight/underline
+        if (!block.notes) block.notes = [];
+        
+        const noteType = type === 'highlight' ? 'note-highlight' : 'note-underline';
+        
+        block.notes.push({
+            type: noteType,
+            color: cssToHex(selectedColor || '#ffff00'),
+            content: ""
+        });
+        
+        tb.classList.add('hidden');
+        
+        if (currentBlockId === block.id) {
+            refreshEditorLists(block);
+        }
+        
+        return;
+    }
+    
+    // 🔥 Logic cũ cho text blocks
     const key = type === 'highlight' ? 'highlights' : 'underlines';
     if (!block[key]) block[key] = [];
     
