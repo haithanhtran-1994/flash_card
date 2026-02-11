@@ -1,0 +1,2341 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Book Editor Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; color: #333; }
+		:root {
+    --font-size: 19px;
+}
+
+        .app-container {padding: 0;}
+        /*header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }*/
+		header {
+    padding: 6px 10px;
+    border-radius: 0;
+}
+        /*book-viewer { background: white; padding: 50px; margin-top: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 80vh; line-height: 2; font-size: 19px; }*/
+       #book-viewer {
+    padding: 12px 10px;
+    margin-top: 0;
+    min-height: auto;  /* 🔥 THAY ĐỔI: từ 100vh → auto */
+    line-height: 1.6;
+    font-size: var(--font-size, 19px);
+}
+        .block { margin-bottom: 15px; cursor: pointer; padding: 8px; border-radius: 4px; border-left: 4px solid transparent; position: relative; }
+        .block:hover { background: #f8f9fa; border-left-color: #007bff; }
+        .block.chapter { font-size: 1.8em; font-weight: bold; color: #1a73e8; border: none; }
+/* ===== Sentence block: hiển thị gọn 1 dòng ===== */
+.block.sentence {
+    display: inline;            /* 🔥 QUAN TRỌNG */
+    line-height: 1.4;
+    padding: 2px 4px;            /* padding ngang để click dễ */
+    margin: 0;                   /* 🔥 CẮT margin-bottom */
+    white-space: pre-wrap;
+    border-radius: 4px;
+}
+.block:not(.sentence) {
+    margin-bottom: 15px;
+}
+        /* Sidebar Editor */
+        .close-btn { float: right; font-size: 30px; cursor: pointer; color: #999; }
+        
+        .section-group { background: #f9f9f9; border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 6px; position: relative; }
+        .header-split { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-bottom: 2px solid #eee; }
+        
+        .clickable-header { cursor: pointer; transition: color 0.2s; }
+        .clickable-header:hover { color: #007bff; }
+        
+        input, textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; font-size: 14px; }
+		/* 🔥 FIX TRIỆT ĐỂ checkbox / radio */
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+        button { cursor: pointer; padding: 8px 12px; border-radius: 5px; border: none; }
+        #exportBtn { background: #28a745; color: white; font-weight: bold; }
+        .add-btn { background: #007bff; color: white; }
+        
+        .btn-x {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: transparent;
+            color: #ccc;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0 5px;
+            line-height: 1;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+        .btn-x:hover { color: #dc3545; }
+
+        /* 🔥 NEW: Tách nút gán ID và nút xem info */
+        .ref-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .ref-link {
+            color: #007bff;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+        }
+        
+        .ref-link:hover {
+            color: #0056b3;
+        }
+        
+        .info-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 3px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .info-btn:hover {
+            background: #5a6268;
+        }
+        
+        .info-btn.hidden {
+            display: none;
+        }
+
+        /* 🔥 NEW: Screentip với scroll và positioning thông minh */
+        .tooltip-box {
+            position: fixed;  /* 🔥 đổi từ absolute → fixed */
+            background: #333;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 6000;
+            width: 280px;
+            max-height: 60vh;  /* 🔥 giới hạn chiều cao */
+            overflow-y: auto;  /* 🔥 cho scroll */
+            line-height: 1.5;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            pointer-events: auto;  /* 🔥 cho phép tương tác */
+        }
+        
+        .tooltip-box hr { border: 0; border-top: 1px solid #555; margin: 8px 0; }
+        .tooltip-item { margin-bottom: 4px; }
+        .tooltip-label { color: #aaa; font-size: 11px; text-transform: uppercase; display: block; }
+
+        #search-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 0 50px rgba(0,0,0,0.5); z-index: 3000; width: 400px; padding: 20px; }
+        .search-results { max-height: 300px; overflow-y: auto; margin-top: 10px; }
+        .search-item { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .search-item:hover { background: #f0f7ff; }
+
+        #filter-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; box-shadow: 0 0 50px rgba(0,0,0,0.5); z-index: 4000; width: 300px; padding: 20px; }
+        .filter-option { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+        .filter-option input { width: auto; margin: 0; }
+
+#text-toolbar { 
+    position: absolute; 
+    background: #333; 
+    color: white; 
+    padding: 8px; 
+    border-radius: 8px; 
+    display: flex; 
+    gap: 8px; 
+    z-index: 6000;
+    align-items: center;
+}
+
+
+#text-toolbar button {
+    touch-action: manipulation;
+    pointer-events: auto;
+    background: #555;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+        .hl-item { border-radius: 3px; padding: 2px 0; }
+		.ul-item { position: relative;}
+
+.ul-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;           /* 👈 chỉnh cao thấp */
+    height: 2px;
+    background: var(--ul-color);
+}
+
+        /* MỚI: Menu View Style */
+       
+        .view-btn { background: #6c757d; color: white; margin-left: 10px; }
+        .view-content { 
+            position: absolute; right: 0; top: 100%; background: white; 
+            min-width: 180px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
+            z-index: 5000; border-radius: 8px; padding: 10px;
+        }
+        .view-content label { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; font-size: 14px; }
+        .view-content label:hover { background: #f1f1f1; }
+        .view-content input { width: auto; margin: 0; }
+		/* ===== Reading Tooltip (hover on block) ===== */
+.reading-tip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    transform: translateY(-6px);
+    background: #222;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;        /* đúng chiều dài câu */
+    width: fit-content;
+    max-width: 100%;
+    z-index: 1500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+/* ===== Collapse / Expand items ===== */
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.item-toggle {
+    font-size: 12px;
+    color: #007bff;
+    user-select: none;
+}
+
+.item-body.collapsed {
+    display: none;
+}
+/* ===== Image & Equation block ===== */
+.block.image,
+.block.equation {
+    text-align: center;
+    cursor: pointer;
+}
+
+.block.image svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Equation container */
+.equation-box {
+    font-size: 1em;      /* 🔒 khóa size */
+    line-height: 1.2;
+}
+/* ===== DEFAULT (Select mode OFF) ===== */
+/* ❌ Không cho select text
+   ✅ Giữ lì vẫn hiện popup copy iOS */
+.block {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: default;
+}
+
+/* ===== SELECT MODE ON ===== */
+/* ✅ Cho select text
+   ❌ Tắt popup copy iOS */
+.select-mode .block {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: none;
+}
+
+/* ===============================
+   APP SPLIT LAYOUT (Safari iOS)
+   =============================== */
+
+.app-shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    background: #f0f2f5;
+    overflow-x: hidden;
+	overflow-y: hidden;
+}
+
+.main-pane {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+	-webkit-overflow-scrolling: touch; /* iOS mượt */
+}
+
+.editor-pane {
+    background: white;
+    overflow-y: auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+}
+
+.splitter {
+    background: #ddd;
+    z-index: 2000;
+	touch-action: none;  
+}
+@media (max-width: 768px) {
+    #book-viewer {
+        padding: 8px 8px;
+    }
+}
+/* ===== PORTRAIT: editor ở dưới ===== */
+@media (orientation: portrait) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .editor-pane {
+        height: 50%;
+    }
+
+    .splitter {
+        height: 8px;
+        cursor: row-resize;
+    }
+}
+
+/* ===== LANDSCAPE: editor bên phải ===== */
+@media (orientation: landscape) {
+    .app-shell {
+        flex-direction: row;
+    }
+
+    .editor-pane {
+        width: 50%;
+    }
+
+    .splitter {
+        width: 8px;
+        cursor: col-resize;
+    }
+}
+
+/* Ẩn editor + splitter khi chưa mở */
+.hidden {
+    display: none !important;
+}
+.page-footer {
+    margin: 8px 0 0;
+    padding: 0;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+}
+body.page-mode #book-viewer {
+    min-height: auto;  /* 🔥 CHỈ bao nội dung */
+    max-height: calc(100vh - 80px);  /* 🔥 trừ header + footer */
+}
+body.page-mode .main-pane {
+    overflow-y: auto;  /* 🔥 CHO PHÉP SCROLL nếu nội dung dài */
+    display: flex;
+    flex-direction: column;
+}
+
+body.page-mode .app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;  /* 🔥 QUAN TRỌNG */
+}
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 3000;
+    background: white;
+    padding: 6px 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.compact {
+    width: 120px;
+    font-size: 12px;
+}
+
+.compact-label {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;       /* 👈 sát vào checkbox */
+    cursor: pointer;
+}
+
+
+/* BOOK POPUP */
+.book-menu {
+    position: absolute;
+    top: 42px;
+    left: 8px;
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    width: 260px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    z-index: 4000;
+}
+
+.menu-group {
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.menu-group b {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #555;
+}
+.audio-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;          /* 👈 sát ngay bên phải */
+}
+
+
+.audio-header select {
+    font-size: 12px;
+}
+.view-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.view-content {
+    position: absolute;
+    left: 100%;   /* 👈 popup bắt đầu từ mép phải nút */
+    top: 100%;    /* 👈 popup bắt đầu từ mép dưới nút */
+    
+    background: white;
+    min-width: 180px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 5000;
+    border-radius: 8px;
+    padding: 10px;
+}
+.toc-item {
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 14px;
+}
+
+.toc-item:hover {
+    background: #f0f7ff;
+}
+
+.toc-level-1 { font-weight: bold; }
+.toc-level-2 { margin-left: 16px; }
+.toc-level-3 { margin-left: 32px; }
+.toc-level-4 { margin-left: 48px; }
+/* Color picker trên topbar */
+.color-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.color-display {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #ffff00;
+    position: relative;
+}
+
+.color-display input[type="color"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.01;
+    cursor: pointer;
+    border: none;
+}
+
+/* Simplified toolbar */
+#text-toolbar { 
+    position: absolute; 
+    background: #333; 
+    color: white; 
+    padding: 6px 10px; 
+    border-radius: 8px; 
+    display: flex; 
+    gap: 8px; 
+    z-index: 6000;
+    align-items: center;
+}
+
+#text-toolbar button {
+    background: #555;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#text-toolbar button:hover {
+    background: #666;
+}
+/* Master Fields Config Modal */
+#master-fields-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    z-index: 4500;
+    width: 320px;
+    padding: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.field-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.field-option:last-child {
+    border-bottom: none;
+}
+
+.field-option input[type="checkbox"] {
+    width: auto !important;
+    margin: 0 !important;
+}
+
+.field-option label {
+    cursor: pointer;
+    flex: 1;
+}
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <div class="main-pane">
+		<div class="app-container">
+			<header class="topbar">
+				<div class="topbar-left">
+					<!-- 📚 BOOK MENU TOGGLE -->
+					<button class="icon-btn" onclick="toggleBookMenu()">📚</button>
+			
+					<!-- BOOK SELECT -->
+					<input type="file" id="fileInput" accept=".json" class="compact">
+			
+					<!-- AUDIO -->
+					<button id="pageAudioBtn" onclick="togglePageAudio()">🔊</button>
+			
+					<!-- SELECT MODE -->
+					<label class="compact-label">
+						<input type="checkbox" id="selectModeToggle">
+						<span>Select text</span>
+					</label>
+					<div class="color-picker-wrapper">
+						<div class="color-display" id="topbarColorDisplay">
+							<input type="color" id="topbarColorPicker" value="#ffff00" 
+								onchange="updateSelectedColor(this.value)">
+						</div>
+					</div>
+					<button class="icon-btn" onclick="toggleTOC()">📑</button>
+				</div>
+			
+				<!-- POPUP MENU -->
+				<div id="bookMenu" class="book-menu hidden">
+					<div class="menu-group">
+						<b>Book / Master</b>
+						<input type="file" id="masterInput" accept=".json">
+					</div>
+			
+					<div class="menu-group">
+						<b>View</b>
+						<div class="view-wrapper">
+							<button class="view-btn" onclick="toggleViewMenu(event)">👁️ View</button>
+							<div id="viewMenu" class="view-content hidden">
+								<label><input type="checkbox" checked onchange="toggleView('trans', this.checked)"> Bản dịch</label>
+								<label><input type="checkbox" checked onchange="toggleView('marks', this.checked)"> Highlights</label>
+								<label><input type="checkbox" checked onchange="toggleView('grammar', this.checked)"> Ngữ pháp</label>
+								<label><input type="checkbox" checked onchange="toggleView('analysis', this.checked)"> Phân tích</label>
+							</div>
+						</div>
+
+					</div>
+			
+					<div class="menu-group">
+						<b>Mode</b>
+						<label class="compact-label">
+							<input type="radio" name="viewMode" checked onchange="setViewMode('page')">
+							<span>Page</span>
+						</label>
+						<label class="compact-label">
+							<input type="radio" name="viewMode" onchange="setViewMode('scroll')">
+							<span>Scroll</span>
+						</label>
+					</div>
+
+			
+					<div class="menu-group">
+						<div class="audio-header">
+							<b>Audio</b>
+							<select id="audioLang">
+								<option value="en-US">EN</option>
+								<option value="ja-JP">JP</option>
+							</select>
+						</div>
+					
+						<label>
+							Speed:
+							<select id="speedSelect">
+								<option value="0.5">0.5x</option>
+								<option value="1" selected>1x</option>
+								<option value="1.5">1.5x</option>
+								<option value="2">2x</option>
+							</select>
+						</label>
+					
+						<label class="compact-label">
+							<input type="checkbox" id="repeatToggle">
+							<span>Repeat</span>
+						</label>
+					</div>
+					<div class="menu-group">
+						<b>Font</b>
+						<select id="fontSizeSelect" onchange="setFontSize(this.value)">
+							<option value="tiny">Tiny</option>
+							<option value="small">Small</option>
+							<option value="medium" selected>Medium</option>
+							<option value="large">Large</option>
+						</select>
+					</div>
+			
+					<div class="menu-group">
+						<button id="exportBtn">Xuất File</button>
+					</div>
+					<div class="menu-group">
+						<button onclick="openMasterFieldsConfig()" 
+								style="background: #6c757d; color: white; width: 100%;">
+							Master JSON Fields
+						</button>
+					</div>
+				</div>
+			</header>
+			<main id="book-viewer">
+				<p style="text-align:center; color:#999">Tải file JSON để bắt đầu...</p>
+			</main>
+			<div id="page-indicator" class="page-footer"></div>
+		</div>
+	</div>
+	
+	<div class="splitter hidden"></div>
+	
+    <div id="editor-overlay" class="editor-pane hidden">
+        <span class="close-btn" onclick="checkAndClose()">&times;</span>
+        <h3 id="edit-title" class="clickable-header" onclick="openContentEditor()">
+			Block:
+		</h3>
+		
+		<div id="content-editor" class="section-group hidden">
+			<label>Content (Raw):</label>
+			<textarea id="edit-raw" rows="3"></textarea>
+		
+			<label>Content (Reading):</label>
+			<textarea id="edit-reading" rows="2"></textarea>
+		
+			<div style="display:flex; gap:10px; margin-top:8px;">
+				<button onclick="saveContentEdit()" style="background:#28a745;color:white;">Lưu</button>
+				<button onclick="cancelContentEdit()">Hủy</button>
+			</div>
+		</div>
+
+        <div id="container-trans">
+            <label>Bản dịch (VI):</label>
+            <textarea id="edit-trans" rows="3"></textarea>
+        </div>
+
+        <div id="container-marks">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4>Highlights & Underlines</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAllMarks(event)">[±]</span>
+				</div>
+			</div>
+			 <div id="marks-list"></div>
+        </div>
+
+        <div id="container-grammar">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('grammar')">
+						Ngữ pháp ⚙️
+					</h4>
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('grammar', event)">[±]</span>
+				</div>
+                <button class="add-btn" onclick="addItem('grammar')">+</button>
+            </div>
+            <div id="grammar-list"></div>
+        </div>
+
+        <div id="container-analysis">
+            <div class="header-split">
+				<div style="display:flex; align-items:center; gap:8px;">
+					<h4 class="clickable-header" onclick="openFilter('analysis')">
+						Phân tích câu ⚙️
+					</h4>
+				
+					<span style="font-size:12px; cursor:pointer; color:#007bff"
+						onclick="toggleAll('analysis', event)">[±]</span>
+				</div>
+                <button class="add-btn" onclick="addItem('analysis')">+</button>
+            </div>
+            <div id="analysis-list"></div>
+        </div>
+
+        <button style="width:100%; margin-top:30px; background:#444; color:white;" onclick="closeEditor()">Lưu & Đóng</button>
+    </div>
+</div>	
+    <div id="search-modal" class="hidden">
+        <h4>Tìm kiếm Master Data</h4>
+        <input type="text" id="masterSearch" placeholder="Nhập pattern, reading hoặc ý nghĩa..." oninput="filterMasterData()">
+        <div class="search-results" id="search-results"></div>
+        <button onclick="closeSearch()" style="margin-top: 10px; width: 100%;">Đóng</button>
+    </div>
+
+    <div id="filter-modal" class="hidden">
+        <h4 id="filter-title">Cấu hình hiển thị</h4>
+        <div id="filter-options"></div>
+        <button onclick="closeFilter()" style="margin-top: 15px; width: 100%; background: #007bff; color: white;">Xong</button>
+    </div>
+
+    <div id="text-toolbar" class="hidden">
+		<button onclick="applyMark('highlight')">Highlight</button>
+		<button onclick="applyMark('underline')">Underline</button>
+		<button onclick="searchInMaster()">Search</button>
+	</div>
+
+
+    <script>
+let bookData = null;
+let masterData = JSON.parse(localStorage.getItem('master_data_cache')) || [];
+let currentBlockId = null;
+let currentAssigningRef = { type: null, index: null };
+
+let displayFilters = JSON.parse(localStorage.getItem('display_filters')) || { grammar: [], analysis: [] };
+let currentFilterType = '';
+let isSelectMode = false;
+let viewMode = 'page';
+let currentPage = null;
+let currentPageIndex = 0;
+
+// 🔥 FIX: Lưu config các trường search
+let masterSearchFields = JSON.parse(localStorage.getItem('master_search_fields')) || {
+    reading: true,
+    core_meaning: true
+};
+
+// 🔥 HELPER: Normalize Unicode cho search đa ngôn ngữ
+function normalizeText(text) {
+    if (!text) return '';
+    return text
+        .toLowerCase()
+        .normalize('NFD')                    // tách dấu tiếng Việt
+        .replace(/[\u0300-\u036f]/g, '')    // xóa dấu
+        .replace(/đ/g, 'd')                 // đ → d
+        .replace(/Đ/g, 'D');
+}
+
+function openMasterFieldsConfig() {
+    if (!masterData || masterData.length === 0) {
+        alert("Chưa load Master Data. Vui lòng chọn file master.json trước.");
+        return;
+    }
+
+    const modal = document.getElementById('master-fields-modal');
+    const listDiv = document.getElementById('master-fields-list');
+    
+    const allFields = Object.keys(masterData[0]);
+    
+    listDiv.innerHTML = '';
+    
+    allFields.forEach(field => {
+        const div = document.createElement('div');
+        div.className = 'field-option';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `field-${field}`;
+        checkbox.checked = masterSearchFields[field] || false;
+        checkbox.onchange = () => toggleSearchField(field, checkbox.checked);
+        
+        const label = document.createElement('label');
+        label.htmlFor = `field-${field}`;
+        label.textContent = field;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        listDiv.appendChild(div);
+    });
+    
+    modal.classList.remove('hidden');
+}
+
+function toggleSearchField(field, isEnabled) {
+    masterSearchFields[field] = isEnabled;
+    localStorage.setItem('master_search_fields', JSON.stringify(masterSearchFields));
+    console.log('🔍 Search fields updated:', masterSearchFields); // debug
+}
+
+function closeMasterFieldsModal() {
+    document.getElementById('master-fields-modal').classList.add('hidden');
+}
+
+function getPages() {
+    const pages = [];
+    const map = {};
+
+    bookData.blocks.forEach(b => {
+        if (b.page == null) return;
+        if (!map[b.page]) map[b.page] = [];
+        map[b.page].push(b);
+    });
+
+    Object.keys(map)
+        .sort((a, b) => a - b)
+        .forEach(p => pages.push(map[p]));
+
+    return pages;
+}
+
+function toggleBookMenu() {
+    document.getElementById('bookMenu').classList.toggle('hidden');
+}
+
+let tocVisible = false;
+
+function toggleTOC() {
+    const popup = document.getElementById('toc-popup');
+    const content = document.getElementById('toc-popup-content');
+
+    if (!tocVisible) {
+        content.innerHTML = '';
+        const toc = generateTOC();
+        renderTOC(toc, content);
+        popup.classList.remove('hidden');
+        tocVisible = true;
+    } else {
+        popup.classList.add('hidden');
+        tocVisible = false;
+    }
+}
+
+function renderTOC(toc, container) {
+    toc.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `toc-item toc-level-${item.level}`;
+        div.innerText = item.title;
+
+        div.onclick = () => {
+            jumpToBlock(item.target_id, item.page);
+            document.getElementById('toc-popup').classList.add('hidden');
+            tocVisible = false;
+        };
+
+        container.appendChild(div);
+
+        if (item.children?.length) {
+            renderTOC(item.children, container);
+        }
+    });
+}
+
+document.getElementById('selectModeToggle').onchange = (e) => {
+    isSelectMode = e.target.checked;
+    document.body.classList.toggle('select-mode', isSelectMode);
+};
+
+const audioState = {
+    page: {
+        speed: 1,
+        repeat: false
+    },
+    block: {}
+};
+
+function getCurrentAudioConfig() {
+    if (currentBlockId) {
+        if (!audioState.block[currentBlockId]) {
+            audioState.block[currentBlockId] = { speed: 1, repeat: false };
+        }
+        return audioState.block[currentBlockId];
+    }
+    return audioState.page;
+}
+
+const repeatToggle = document.getElementById('repeatToggle');
+const speedSelect = document.getElementById('speedSelect');
+
+speedSelect.onchange = () => {
+    const cfg = getCurrentAudioConfig();
+    cfg.speed = parseFloat(speedSelect.value);
+};
+
+repeatToggle.onchange = () => {
+    const cfg = getCurrentAudioConfig();
+    cfg.repeat = repeatToggle.checked;
+};
+
+let editorModulesVisibility = { trans: true, marks: true, grammar: true, analysis: true };
+
+function toggleView(module, isVisible) {
+    editorModulesVisibility[module] = isVisible;
+    if (currentBlockId) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        refreshEditorLists(block);
+    }
+}
+
+function jumpToBlock(blockId, page) {
+    if (viewMode === 'page' && page != null) {
+        const pages = getPages();
+        const idx = pages.findIndex(p =>
+            p.some(b => b.id === blockId)
+        );
+        if (idx !== -1) {
+            currentPageIndex = idx;
+            renderPage(idx);
+        }
+    }
+
+    requestAnimationFrame(() => {
+        const el = document.getElementById(blockId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.style.background = '#fff8cc';
+            setTimeout(() => (el.style.background = ''), 800);
+        }
+    });
+}
+
+function toggleViewMenu(e) {
+    e.stopPropagation();
+    document.getElementById('viewMenu').classList.toggle('hidden');
+}
+
+// 🔥 FIX: Refresh masterData khi load file mới
+document.getElementById('masterInput').onchange = (e) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        masterData = JSON.parse(ev.target.result);
+        localStorage.setItem('master_data_cache', JSON.stringify(masterData));
+        
+        // 🔥 Reset search fields config về default
+        const firstItem = masterData[0];
+        if (firstItem) {
+            const newFields = {};
+            Object.keys(firstItem).forEach(key => {
+                newFields[key] = ['reading', 'core_meaning', 'pattern'].includes(key);
+            });
+            masterSearchFields = newFields;
+            localStorage.setItem('master_search_fields', JSON.stringify(masterSearchFields));
+        }
+        
+        alert(`✅ Đã tải Master Data mới!\n📊 ${masterData.length} items\n🔍 Search fields đã reset`);
+        console.log('Master data loaded:', masterData.length, 'items');
+    };
+    reader.readAsText(e.target.files[0]);
+};
+
+let bookFileHandle = null;
+
+document.getElementById('fileInput').onchange = (e) => {
+    if (!e.target.files.length) return;
+
+    const file = e.target.files[0];
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        bookData = JSON.parse(ev.target.result);
+        if (viewMode === 'page') {
+            renderPage(currentPageIndex || 0);
+        } else {
+            renderBook();
+        }
+    };
+    reader.readAsText(file);
+
+    bookFileHandle = null;
+};
+
+function generateTOC() {
+    const toc = [];
+    const stack = [];
+
+    let chCount = 0;
+    let secCount = {};
+
+    bookData.blocks.forEach(block => {
+        if (!['chapter', 'section'].includes(block.type)) return;
+        if (block.level == null) return;
+
+        const level = block.level;
+
+        if (level === 1) {
+            chCount++;
+            secCount = {};
+        } else {
+            secCount[level] = (secCount[level] || 0) + 1;
+        }
+
+        const numbering =
+            level === 1
+                ? `${chCount}`
+                : `${chCount}.${Object.keys(secCount)
+                      .filter(l => l <= level)
+                      .map(l => secCount[l])
+                      .join('.')}`;
+
+        const node = {
+            id: `toc_${block.id}`,
+            type: block.type,
+            level,
+            title: `${numbering} ${block.content?.raw || ''}`.trim(),
+            target_id: block.id,
+            page: block.page,
+            children: []
+        };
+
+        while (stack.length && stack[stack.length - 1].level >= level) {
+            stack.pop();
+        }
+
+        if (stack.length === 0) {
+            toc.push(node);
+        } else {
+            stack[stack.length - 1].node.children.push(node);
+        }
+
+        stack.push({ level, node });
+    });
+
+    return toc;
+}
+
+function toggleAllMarks(ev) {
+    ev.stopPropagation();
+    const bodies = document.querySelectorAll('#marks-list .item-body');
+    const icons = document.querySelectorAll('#marks-list .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        icons[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
+
+const hexToCss = (hex) => hex ? hex.replace('0x', '#') : '#ffff00';
+const cssToHex = (css) => css.replace('#', '0x');
+
+function updatePageIndicatorVisibility() {
+    const el = document.getElementById('page-indicator');
+    if (!el) return;
+    el.style.display = (viewMode === 'page') ? 'block' : 'none';
+}
+
+function renderPage(index) {
+    const viewer = document.getElementById('book-viewer');
+    viewer.innerHTML = '';
+    currentPage = null;
+    const pages = getPages();
+    const page = pages[index];
+    if (!page) return;
+
+    page.forEach(block => {
+        renderSingleBlock(block, viewer);
+    });
+    
+    viewer.scrollTop = 0;
+}
+
+function updatePageIndicator() {
+    const el = document.getElementById('page-indicator');
+    if (!el) return;
+
+    if (viewMode === 'page') {
+        const pages = getPages();
+        el.textContent = `— Page ${currentPageIndex + 1} / ${pages.length} —`;
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function renderSingleBlock(block, viewer) {
+    const div = document.createElement('div');
+    div.className = `block ${block.type}`;
+    div.id = block.id;
+    
+    let raw = block.content.raw || '';
+    if (viewMode === 'scroll') {
+        if (block.page !== undefined && block.page !== currentPage) {
+            if (currentPage !== null) {
+                const footer = document.createElement('div');
+                footer.className = 'page-footer';
+                footer.innerText = `— Page ${currentPage} —`;
+                viewer.appendChild(footer);
+            }
+            currentPage = block.page;
+        }
+    }
+
+    if (block.type === 'sentence') {
+        raw = raw.replace(/\\n/g, '\n');
+        raw = raw.replace(/\\t/g, '\t');
+        raw = raw.replace(/\t/g, '     ');
+        if (!raw.startsWith('\n')) {
+            raw = raw.replace(/\n/g, ' ');
+        }
+    }
+
+    let content = '';
+
+    if (block.type === 'image') {
+        content = `<div class="image-box">${raw}</div>`;
+    } else if (block.type === 'equation') {
+        content = `<div class="equation-box">\\[${raw}\\]</div>`;
+    } else {
+        content = renderMarks(
+            raw,
+            block.highlights || [],
+            block.underlines || []
+        );
+    }
+
+    div.innerHTML = content;
+    
+    if (block.type === 'equation' && window.MathJax) {
+        requestAnimationFrame(() => {
+            MathJax.typesetPromise([div]);
+        });
+    }
+
+    if (block.content && block.content.reading) {
+        const tip = document.createElement('div');
+        tip.className = 'reading-tip';
+        tip.innerText = block.content.reading;
+        tip.style.opacity = '0';
+        div.appendChild(tip);
+    
+        const icon = document.createElement('span');
+        icon.innerText = '📖';
+        icon.style.cssText = `
+            font-size:12px;
+            margin-left:6px;
+            cursor:pointer;
+            opacity:0.6;
+        `;
+    
+        icon.onclick = (e) => {
+            e.stopPropagation();
+            tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+        };
+    
+        div.appendChild(icon);
+    }
+
+    div.onclick = (e) => {
+        if (isSelectMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        openEditor(block.id);
+    };
+
+    viewer.appendChild(div);
+}
+
+function renderBook() {
+    if (!bookData) return;
+    if (viewMode !== 'scroll') return;
+    const viewer = document.getElementById('book-viewer');
+    viewer.innerHTML = '';
+    currentPage = null;
+    
+    bookData.blocks.forEach(block => {
+        const div = document.createElement('div');
+        div.className = `block ${block.type}`;
+        div.id = block.id;
+        
+        let raw = block.content.raw || '';
+        if (block.page !== undefined && block.page !== currentPage) {
+            if (currentPage !== null) {
+                const footer = document.createElement('div');
+                footer.className = 'page-footer';
+                footer.innerText = `— Page ${currentPage} —`;
+                viewer.appendChild(footer);
+            }
+            currentPage = block.page;
+        }
+
+        if (block.type === 'sentence') {
+            raw = raw.replace(/\\n/g, '\n');
+            raw = raw.replace(/\\t/g, '\t');
+            raw = raw.replace(/\t/g, '     ');
+            if (!raw.startsWith('\n')) {
+                raw = raw.replace(/\n/g, ' ');
+            }
+        }
+
+        let content = '';
+
+        if (block.type === 'image') {
+            content = `<div class="image-box">${raw}</div>`;
+        } else if (block.type === 'equation') {
+            content = `<div class="equation-box">\\[${raw}\\]</div>`;
+        } else {
+            content = renderMarks(
+                raw,
+                block.highlights || [],
+                block.underlines || []
+            );
+        }
+
+        div.innerHTML = content;
+        
+        if (block.type === 'equation' && window.MathJax) {
+            requestAnimationFrame(() => {
+                MathJax.typesetPromise([div]);
+            });
+        }
+
+        if (block.content && block.content.reading) {
+            const tip = document.createElement('div');
+            tip.className = 'reading-tip';
+            tip.innerText = block.content.reading;
+            tip.style.opacity = '0';
+            div.appendChild(tip);
+        
+            const icon = document.createElement('span');
+            icon.innerText = '📖';
+            icon.style.cssText = `
+                font-size:12px;
+                margin-left:6px;
+                cursor:pointer;
+                opacity:0.6;
+            `;
+        
+            icon.onclick = (e) => {
+                e.stopPropagation();
+                tip.style.opacity = tip.style.opacity === '1' ? '0' : '1';
+            };
+        
+            div.appendChild(icon);
+        }
+
+        div.onclick = (e) => {
+            if (isSelectMode) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            openEditor(block.id);
+        };
+
+        viewer.appendChild(div);
+    });
+    
+    if (currentPage !== null) {
+        const footer = document.createElement('div');
+        footer.className = 'page-footer';
+        footer.innerText = `— Page ${currentPage} —`;
+        viewer.appendChild(footer);
+    }
+}
+
+function renderMarks(raw, highlights = [], underlines = []) {
+    const marks = [];
+
+    function pushMark(list, type) {
+        list.forEach(m => {
+            const idx = raw.indexOf(m.quote);
+            if (idx === -1) return;
+
+            marks.push({
+                start: idx,
+                end: idx + m.quote.length,
+                type,
+                color: hexToCss(m.color)
+            });
+        });
+    }
+
+    pushMark(highlights, 'highlight');
+    pushMark(underlines, 'underline');
+
+    const priority = { underline: 1, highlight: 2 };
+
+    let html = '';
+    let active = [];
+
+    for (let i = 0; i < raw.length; i++) {
+        active
+            .filter(m => m.end === i)
+            .sort((a, b) => priority[b.type] - priority[a.type])
+            .forEach(() => html += '</span>');
+
+        active = active.filter(m => m.end !== i);
+
+        marks
+            .filter(m => m.start === i)
+            .sort((a, b) => priority[a.type] - priority[b.type])
+            .forEach(m => {
+                if (m.type === 'highlight') {
+                    html += `<span class="hl-item" style="background:${m.color}">`;
+                } else {
+                    html += `<span class="ul-item" style="--ul-color:${m.color}">`;
+                }
+                active.push(m);
+            });
+
+        html += raw[i];
+    }
+
+    active
+        .sort((a, b) => priority[b.type] - priority[a.type])
+        .forEach(() => html += '</span>');
+
+    return html;
+}
+
+const FONT_MAP = {
+    tiny: 0.3,
+    small: 0.5,
+    'ex-small': 0.75,
+    medium: 1,
+    large: 1.5
+};
+
+function setFontSize(mode) {
+    const base = 19;
+    document.documentElement.style.setProperty(
+        '--font-size',
+        base * FONT_MAP[mode] + 'px'
+    );
+    localStorage.setItem('font_size_mode', mode);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setFontSize(localStorage.getItem('font_size_mode') || 'medium');
+});
+
+let originalContentSnapshot = null;
+
+function openContentEditor() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if (!block) return;
+
+    originalContentSnapshot = JSON.parse(JSON.stringify(block.content));
+
+    document.getElementById('edit-raw').value = block.content.raw || '';
+    document.getElementById('edit-reading').value = block.content.reading || '';
+
+    document.getElementById('content-editor').classList.remove('hidden');
+}
+
+function saveContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+
+    block.content.raw = document.getElementById('edit-raw').value;
+    block.content.reading = document.getElementById('edit-reading').value || null;
+
+    document.getElementById('content-editor').classList.add('hidden');
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
+}
+
+function cancelContentEdit() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.content = JSON.parse(JSON.stringify(originalContentSnapshot));
+
+    document.getElementById('content-editor').classList.add('hidden');
+}
+
+let originalBlockData = null;
+
+function openEditor(id) {
+    currentBlockId = id;
+    const block = bookData.blocks.find(b => b.id === id);
+    
+    originalBlockData = JSON.parse(JSON.stringify(block));
+    document.getElementById('editor-overlay').classList.remove('hidden');
+    document.querySelector('.splitter').classList.remove('hidden');
+
+    document.getElementById('edit-title').innerText = "Block: " + id;
+    document.getElementById('content-editor').classList.add('hidden');
+    document.getElementById('edit-trans').value = block.translation?.vi || '';
+    refreshEditorLists(block);
+    document.getElementById('editor-overlay').classList.remove('hidden');
+    
+    const cfg = getCurrentAudioConfig();
+    speedSelect.value = cfg.speed.toString();
+    repeatToggle.checked = cfg.repeat;
+}
+
+function checkAndClose() {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.translation = block.translation || {};
+    block.translation.vi = document.getElementById('edit-trans').value;
+
+    const changes = [];
+    
+    if (block.translation.vi !== (originalBlockData.translation?.vi || '')) {
+        changes.push("- Bản dịch (VI)");
+    }
+
+    if (JSON.stringify(block.grammar) !== JSON.stringify(originalBlockData.grammar)) {
+        changes.push("- Dữ liệu Ngữ pháp");
+    }
+    if (JSON.stringify(block.analysis) !== JSON.stringify(originalBlockData.analysis)) {
+        changes.push("- Dữ liệu Phân tích câu");
+    }
+    if (JSON.stringify(block.highlights) !== JSON.stringify(originalBlockData.highlights) || 
+        JSON.stringify(block.underlines) !== JSON.stringify(originalBlockData.underlines)) {
+        changes.push("- Đánh dấu (Highlights/Underlines)");
+    }
+
+    if (changes.length > 0) {
+        const message = "Bạn đã thay đổi:\n" + changes.join("\n") + "\n\nBạn có muốn LƯU những thay đổi này không?\n(Ấn 'Cancel' để hủy bỏ thay đổi và đóng)";
+        if (confirm(message)) {
+            closeEditor();
+        } else {
+            const index = bookData.blocks.findIndex(b => b.id === currentBlockId);
+            bookData.blocks[index] = JSON.parse(JSON.stringify(originalBlockData));
+            document.getElementById('editor-overlay').classList.add('hidden');
+            document.querySelector('.splitter').classList.add('hidden');
+
+            if (viewMode === 'page') {
+                renderPage(currentPageIndex);
+            } else {
+                renderBook();
+            }
+            currentBlockId = null;
+        }
+    } else {
+        document.getElementById('editor-overlay').classList.add('hidden');
+        document.querySelector('.splitter').classList.add('hidden');
+        currentBlockId = null;
+    }
+}
+
+function refreshEditorLists(block) {
+    document.getElementById('container-trans').className = editorModulesVisibility.trans ? '' : 'hidden';
+    document.getElementById('container-marks').className = editorModulesVisibility.marks ? '' : 'hidden';
+    document.getElementById('container-grammar').className = editorModulesVisibility.grammar ? '' : 'hidden';
+    document.getElementById('container-analysis').className = editorModulesVisibility.analysis ? '' : 'hidden';
+
+    const marksList = document.getElementById('marks-list');
+    marksList.innerHTML = '';
+    
+    ['highlights', 'underlines'].forEach(key => {
+        (block[key] || []).forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'section-group';
+    
+            div.innerHTML = `
+                <div class="item-header" onclick="toggleItem(this)">
+                    <span>${key === 'highlights' ? '🟡 Highlight' : '➖ Underline'}: 
+                        <b>"${item.quote}"</b>
+                    </span>
+                    <span class="item-toggle">▾</span>
+                </div>
+    
+                <div class="item-body">
+                    <span class="btn-x"
+                        onclick="event.stopPropagation(); deleteMark('${key}', ${idx})"
+                        title="Xóa">×</span>
+    
+                    <input type="text"
+                        placeholder="Ghi chú (Note)"
+                        value="${item.note || ''}"
+                        onchange="updateMark('${key}', ${idx}, this.value)">
+                </div>
+            `;
+            marksList.appendChild(div);
+        });
+    });
+
+    document.getElementById('grammar-list').innerHTML = renderItems(block.grammar, 'grammar');
+    document.getElementById('analysis-list').innerHTML = renderItems(block.analysis, 'analysis');
+}
+
+// 🔥 NEW: Render với nút gán ID và nút xem info riêng biệt
+function renderItems(items, type) {
+    return (items || []).map((item, i) => {
+        const hasRefId = !!item.ref_id;
+        const refText = hasRefId ? `ID: ${item.ref_id}` : "[Gán ID Master]";
+        
+        return `
+        <div class="section-group" data-type="${type}">
+            
+            <div class="item-header" onclick="toggleItem(this)">
+                <span>${type === 'grammar' ? '📘 Ngữ pháp' : '🧩 Phân tích'} #${i+1}</span>
+                <span class="item-toggle">▾</span>
+            </div>
+
+            <div class="item-body">
+                <span class="btn-x" onclick="removeItem('${type}',${i})" title="Xóa">×</span>
+
+                <div class="ref-controls">
+                    <span class="ref-link" 
+                          onclick="openSearch('${type}', ${i})">${refText}</span>
+                    
+                    <button class="info-btn ${hasRefId ? '' : 'hidden'}" 
+                            onclick="showRefInfo(event, '${item.ref_id}', '${type}')">
+                        ▶ Info
+                    </button>
+                </div>
+
+                <input value="${item.quote}" 
+                       oninput="updateField('${type}',${i},'quote',this.value)" 
+                       placeholder="Quote">
+
+                ${type === 'analysis'
+                    ? `<input value="${item.role || ''}" 
+                              oninput="updateField('${type}',${i},'role',this.value)" 
+                              placeholder="Role (Vai trò)">`
+                    : ''}
+
+                <textarea oninput="updateField('${type}',${i},'explanation',this.value)" 
+                          placeholder="Giải thích">${item.explanation}</textarea>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+function openFilter(type) {
+    currentFilterType = type;
+    const modal = document.getElementById('filter-modal');
+    const optionsDiv = document.getElementById('filter-options');
+    document.getElementById('filter-title').innerText = `Ẩn trường (${type === 'grammar' ? 'Ngữ pháp' : 'Phân tích'})`;
+    
+    let allKeys = [];
+    if (masterData.length > 0) {
+        allKeys = Object.keys(masterData[0]);
+    } else {
+        optionsDiv.innerHTML = '<p>Hãy load Master Data trước</p>';
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    optionsDiv.innerHTML = allKeys.map(key => `
+        <div class="filter-option">
+            <input type="checkbox" id="f-${key}" ${displayFilters[type].includes(key) ? 'checked' : ''} 
+                   onchange="toggleFilterField('${key}')">
+            <label for="f-${key}">${key}</label>
+        </div>
+    `).join('');
+
+    modal.classList.remove('hidden');
+}
+
+function toggleFilterField(key) {
+    const index = displayFilters[currentFilterType].indexOf(key);
+    if (index > -1) {
+        displayFilters[currentFilterType].splice(index, 1);
+    } else {
+        displayFilters[currentFilterType].push(key);
+    }
+    localStorage.setItem('display_filters', JSON.stringify(displayFilters));
+}
+
+function closeFilter() {
+    document.getElementById('filter-modal').classList.add('hidden');
+}
+
+// 🔥 NEW: Tooltip thông minh với positioning và scroll
+const tooltip = document.createElement('div');
+tooltip.className = 'tooltip-box hidden';
+document.body.appendChild(tooltip);
+
+// 🔥 NEW: Function hiện tooltip với positioning thông minh
+function showRefInfo(e, refId, type) {
+    e.stopPropagation(); // Ngăn event bubble lên item-header
+    
+    if (!refId || masterData.length === 0) return;
+    const info = masterData.find(m => m.master_id === refId);
+    if (!info) return;
+
+    const hiddenFields = displayFilters[type] || [];
+    let htmlContent = '';
+
+    Object.keys(info).forEach(key => {
+        if (!hiddenFields.includes(key)) {
+            let val = info[key];
+            if (Array.isArray(val)) val = JSON.stringify(val); 
+            if (typeof val === 'object') val = JSON.stringify(val);
+            
+            htmlContent += `
+                <div class="tooltip-item">
+                    <span class="tooltip-label">${key}</span>
+                    <div>${val}</div>
+                </div>
+            `;
+        }
+    });
+
+    tooltip.innerHTML = htmlContent || '<em>(Không có dữ liệu hiển thị)</em>';
+    tooltip.classList.remove('hidden');
+    
+    // 🔥 Positioning thông minh: ưu tiên bên phải, nếu không đủ chỗ thì bên trái
+    const btnRect = e.target.getBoundingClientRect();
+    const tooltipWidth = 280;
+    const tooltipMaxHeight = window.innerHeight * 0.6;
+    
+    let left = btnRect.right + 10; // Bên phải nút
+    let top = btnRect.top;
+    
+    // Nếu tràn ra ngoài màn hình bên phải, đặt bên trái
+    if (left + tooltipWidth > window.innerWidth) {
+        left = btnRect.left - tooltipWidth - 10;
+    }
+    
+    // Nếu vẫn tràn bên trái, đặt giữa màn hình
+    if (left < 10) {
+        left = (window.innerWidth - tooltipWidth) / 2;
+    }
+    
+    // Đảm bảo không tràn phía dưới
+    if (top + tooltipMaxHeight > window.innerHeight) {
+        top = window.innerHeight - tooltipMaxHeight - 10;
+    }
+    
+    // Đảm bảo không tràn phía trên
+    if (top < 10) {
+        top = 10;
+    }
+    
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+}
+
+// 🔥 Đóng tooltip khi click ra ngoài
+document.addEventListener('click', (e) => {
+    if (!tooltip.contains(e.target) && !e.target.classList.contains('info-btn')) {
+        tooltip.classList.add('hidden');
+    }
+});
+
+function openSearch(type, index) {
+    currentAssigningRef = { type, index };
+    document.getElementById('search-modal').classList.remove('hidden');
+    document.getElementById('masterSearch').value = '';
+    filterMasterData();
+}
+
+function closeSearch() {
+    document.getElementById('search-modal').classList.add('hidden');
+}
+
+// 🔥 FIX: Tìm kiếm đa ngôn ngữ với normalize
+function filterMasterData() {
+    const term = normalizeText(document.getElementById('masterSearch').value);
+    const resultsDiv = document.getElementById('search-results');
+    resultsDiv.innerHTML = '';
+
+    console.log('🔍 Searching with term:', term);
+    console.log('🔍 Active fields:', masterSearchFields);
+
+    if (!term) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Nhập từ khóa để tìm kiếm</p>';
+        return;
+    }
+
+    const filtered = masterData.filter(item => {
+        for (const field in masterSearchFields) {
+            if (masterSearchFields[field] && item[field]) {
+                const normalizedValue = normalizeText(String(item[field]));
+                if (normalizedValue.includes(term)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    });
+
+    console.log('🔍 Found results:', filtered.length);
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Không tìm thấy kết quả</p>';
+        return;
+    }
+
+    filtered.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'search-item';
+        div.innerHTML = `<strong>${item.pattern || ''}</strong> ${item.reading ? `(${item.reading})` : ''}<br><small>${item.core_meaning || ''}</small>`;
+        div.onclick = () => assignRefId(item.master_id);
+        resultsDiv.appendChild(div);
+    });
+}
+
+// 🔥 NEW: Sau khi gán ID, refresh lại để hiện nút Info
+function assignRefId(id) {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block[currentAssigningRef.type][currentAssigningRef.index].ref_id = id;
+    refreshEditorLists(block);
+    closeSearch();
+}
+
+window.updateMark = (key, i, val) => { 
+    bookData.blocks.find(b => b.id === currentBlockId)[key][i].note = val; 
+};
+
+window.deleteMark = (key, i) => { 
+    if (confirm("Bạn có chắc chắn muốn xóa đánh dấu này không?")) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        block[key].splice(i, 1); 
+        
+        if (viewMode === 'page') {
+            renderPage(currentPageIndex);
+        } else {
+            renderBook();
+        }
+        
+        refreshEditorLists(block);
+    }
+};
+
+window.updateField = (type, i, field, val) => { 
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block[type][i][field] = val; 
+};
+
+window.removeItem = (type, i) => {
+    if (confirm("Bạn có chắc chắn muốn xóa mục này không?")) {
+        const block = bookData.blocks.find(b => b.id === currentBlockId);
+        block[type].splice(i, 1);
+        refreshEditorLists(block);
+    }
+};
+
+window.addItem = (type) => {
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    if(!block[type]) block[type] = [];
+    const newItem = {quote: '', explanation: '', ref_id: ''};
+    if(type === 'analysis') newItem.role = '';
+    block[type].push(newItem);
+    refreshEditorLists(block);
+};
+
+document.addEventListener('contextmenu', (e) => {
+    if (!isSelectMode) return;
+
+    const block = e.target.closest('.block');
+    if (!block) return;
+
+    e.preventDefault();
+});
+
+document.addEventListener('selectionchange', () => {
+    if (!isSelectMode) return;
+
+    const sel = window.getSelection();
+    const txt = sel.toString().trim();
+    const toolbar = document.getElementById('text-toolbar');
+
+    if (!txt || sel.rangeCount === 0) {
+        toolbar.classList.add('hidden');
+        return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const block = range.startContainer.parentElement?.closest('.block');
+    if (!block) return;
+
+    const rect = range.getBoundingClientRect();
+
+    toolbar.style.top = (window.scrollY + rect.bottom + 8) + 'px';
+    
+    let leftPos = window.scrollX + rect.left;
+    const toolbarWidth = 250;
+    if (leftPos + toolbarWidth > window.innerWidth) {
+        leftPos = window.innerWidth - toolbarWidth - 10;
+    }
+    if (leftPos < 10) {
+        leftPos = 10;
+    }
+    
+    toolbar.style.left = leftPos + 'px';
+    toolbar.classList.remove('hidden');
+
+    toolbar.dataset.blockId = block.id;
+    toolbar.dataset.text = txt;
+});
+
+let selectedColor = '#ffff00';
+
+function updateSelectedColor(color) {
+    selectedColor = color;
+    document.getElementById('topbarColorDisplay').style.background = color;
+}
+
+// 🔥 FIX: Search với normalize
+function searchInMaster() {
+    const tb = document.getElementById('text-toolbar');
+    const searchText = tb.dataset.text;
+    
+    if (!searchText) {
+        alert("Không có text được chọn");
+        return;
+    }
+    
+    if (!masterData || masterData.length === 0) {
+        alert("Chưa load Master Data. Vui lòng chọn file master.json từ menu 📚");
+        return;
+    }
+    
+    const searchNorm = normalizeText(searchText);
+    
+    const results = masterData.filter(item => {
+        for (const field in masterSearchFields) {
+            if (masterSearchFields[field] && item[field]) {
+                const normalizedValue = normalizeText(String(item[field]));
+                if (normalizedValue.includes(searchNorm)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    });
+    
+    displaySearchResults(results, searchText);
+    
+    tb.classList.add('hidden');
+    window.getSelection().removeAllRanges();
+}
+
+function displaySearchResults(results, searchText) {
+    const modal = document.getElementById('search-modal');
+    const resultsDiv = document.getElementById('search-results');
+    
+    document.getElementById('masterSearch').value = searchText;
+    
+    resultsDiv.innerHTML = '';
+    
+    if (results.length === 0) {
+        resultsDiv.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Không tìm thấy kết quả</p>';
+    } else {
+        results.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'search-item';
+            div.innerHTML = `
+                <strong>${item.pattern || ''}</strong> 
+                ${item.reading ? `(${item.reading})` : ''}
+                <br>
+                <small>${item.core_meaning || ''}</small>
+            `;
+            div.onclick = () => {
+                if (currentAssigningRef.type && currentAssigningRef.index !== null) {
+                    assignRefId(item.master_id);
+                }
+            };
+            resultsDiv.appendChild(div);
+        });
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+function applyMark(type) {
+    const tb = document.getElementById('text-toolbar');
+    const block = bookData.blocks.find(b => b.id === tb.dataset.blockId);
+    const key = type === 'highlight' ? 'highlights' : 'underlines';
+    if (!block[key]) block[key] = [];
+    
+    const color = selectedColor || '#ffff00';
+    
+    block[key].push({
+        quote: tb.dataset.text,
+        color: cssToHex(color),
+        note: ""
+    });
+    
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
+    
+    tb.classList.add('hidden');
+    window.getSelection().removeAllRanges();
+    
+    if (currentBlockId === block.id) {
+        refreshEditorLists(block);
+    }
+}
+
+function closeEditor() { 
+    const block = bookData.blocks.find(b => b.id === currentBlockId);
+    block.translation = block.translation || {};
+    block.translation.vi = document.getElementById('edit-trans').value;
+    document.getElementById('editor-overlay').classList.add('hidden'); 
+    document.querySelector('.splitter').classList.add('hidden');
+
+    if (viewMode === 'page') {
+        renderPage(currentPageIndex);
+    } else {
+        renderBook();
+    }
+    currentBlockId = null;
+}
+
+document.getElementById('exportBtn').onclick = async () => {
+    if (!bookData) {
+        alert("Chưa có dữ liệu để lưu");
+        return;
+    }
+
+    if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: "updated_book.json",
+            types: [{
+                description: "JSON File",
+                accept: { "application/json": [".json"] }
+            }]
+        });
+
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(bookData, null, 4));
+        await writable.close();
+
+        alert("Đã lưu file ✅");
+    } else {
+        const blob = new Blob(
+            [JSON.stringify(bookData, null, 4)],
+            { type: "application/json" }
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "updated_book.json";
+        a.click();
+    }
+};
+
+function toggleItem(headerEl) {
+    const body = headerEl.nextElementSibling;
+    const icon = headerEl.querySelector('.item-toggle');
+
+    body.classList.toggle('collapsed');
+    icon.innerText = body.classList.contains('collapsed') ? '▸' : '▾';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    let isDraggingSplitter = false;
+    const splitter = document.querySelector('.splitter');
+
+    if (!splitter) return;
+
+    splitter.addEventListener('touchstart', e => {
+        isDraggingSplitter = true;
+        e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchmove', e => {
+        if (isDraggingSplitter) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        isDraggingSplitter = false;
+    });
+});
+
+function toggleAll(type, ev) {
+    ev.stopPropagation();
+
+    const container = document.getElementById(type + '-list');
+    const bodies = container.querySelectorAll('.item-body');
+    const headers = container.querySelectorAll('.item-header .item-toggle');
+
+    const shouldCollapse = [...bodies].some(b => !b.classList.contains('collapsed'));
+
+    bodies.forEach((b, i) => {
+        b.classList.toggle('collapsed', shouldCollapse);
+        headers[i].innerText = shouldCollapse ? '▸' : '▾';
+    });
+}
+
+// ========================================
+// 🔥 FIX: TTS VOICES LOADING (iOS)
+// ========================================
+let pageUtterance = null;
+let isReadingPage = false;
+let voicesLoaded = false;
+
+// 🔥 FIX: Đợi voices load xong trên iOS
+function ensureVoicesLoaded() {
+    return new Promise((resolve) => {
+        const voices = speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            voicesLoaded = true;
+            console.log('🎤 Voices loaded:', voices.length);
+            resolve(voices);
+        } else {
+            speechSynthesis.onvoiceschanged = () => {
+                const v = speechSynthesis.getVoices();
+                voicesLoaded = true;
+                console.log('🎤 Voices loaded (delayed):', v.length);
+                resolve(v);
+            };
+        }
+    });
+}
+
+async function togglePageAudio() {
+    if (!bookData || !bookData.blocks || bookData.blocks.length === 0) return;
+
+    if (isReadingPage) {
+        speechSynthesis.cancel();
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+        isReadingPage = false;
+        return;
+    }
+
+    let block = null;
+
+    if (currentBlockId) {
+        block = bookData.blocks.find(b => b.id === currentBlockId);
+    }
+
+    if (!block) {
+        block = bookData.blocks.find(b => b.content?.raw);
+    }
+
+    if (!block) {
+        console.warn("Không có block để đọc");
+        return;
+    }
+
+    if (hasAudioSrc(block)) {
+        const cfg = getCurrentAudioConfig();
+        audioPlayer.src = block.audio.src;
+        audioPlayer.playbackRate = cfg.speed;
+        audioPlayer.loop = cfg.repeat;
+        audioPlayer.onended = () => isReadingPage = false;
+        audioPlayer.onerror = (e) => {
+            console.error("Audio file error", e);
+            isReadingPage = false;
+        };
+
+        audioPlayer.play().catch(err => {
+            console.error("Cannot play audio:", err);
+            isReadingPage = false;
+        });
+
+        isReadingPage = true;
+        return;
+    }
+
+    // ===== TTS với giọng cụ thể =====
+    let text = block.content?.raw || '';
+    if (!text.trim()) return;
+
+    const blockAudio = audioState.block[block.id];
+    const speed  = blockAudio?.speed  ?? audioState.page.speed ?? 1;
+    const repeat = blockAudio?.repeat ?? audioState.page.repeat ?? false;
+
+    const selectedLang = document.getElementById('audioLang')?.value || 'en-US';
+    
+    // 🔥 ĐỢI voices load xong
+    const voices = await ensureVoicesLoaded();
+    
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = selectedLang;
+    utter.rate = speed;
+    utter.pitch = 1;
+
+    // 🔥 CHỌN GIỌNG CỤ THỂ
+    let targetVoice = null;
+    
+    if (selectedLang === 'en-US') {
+        // Tìm giọng tiếng Anh tốt nhất (iOS thường có Samantha, Karen)
+        targetVoice = voices.find(v => 
+            v.lang.startsWith('en') && 
+            (v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Allison'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+        
+        console.log('🎤 EN Voice:', targetVoice?.name || 'default', targetVoice?.lang);
+        
+    } else if (selectedLang === 'ja-JP') {
+        // Tìm giọng tiếng Nhật tốt nhất
+        targetVoice = voices.find(v => 
+            v.lang.startsWith('ja') && v.name.includes('Kyoko')
+        ) || voices.find(v => v.lang.startsWith('ja'));
+        
+        console.log('🎤 JP Voice:', targetVoice?.name || 'default', targetVoice?.lang);
+    }
+    
+    if (targetVoice) {
+        utter.voice = targetVoice;
+    }
+
+    utter.onend = () => {
+        if (repeat) {
+            speechSynthesis.speak(utter);
+        } else {
+            isReadingPage = false;
+        }
+    };
+
+    utter.onerror = (e) => {
+        console.error("Speech error", e);
+        isReadingPage = false;
+    };
+
+    speechSynthesis.cancel();
+    
+    // 🔥 FIX: iOS cần delay nhỏ sau khi cancel
+    setTimeout(() => {
+        speechSynthesis.speak(utter);
+    }, 50);
+
+    isReadingPage = true;
+}
+
+// Load voices khi khởi động
+document.addEventListener('DOMContentLoaded', () => {
+    ensureVoicesLoaded();
+});
+
+let audioPlayer = new Audio();
+audioPlayer.preload = 'auto';
+
+function hasAudioSrc(block) {
+    const src = block?.audio?.src;
+    return typeof src === 'string' && src.trim() !== '';
+}
+
+const splitter = document.querySelector('.splitter');
+const editorPane = document.getElementById('editor-overlay');
+
+let dragging = false;
+
+splitter.addEventListener('touchstart', () => dragging = true);
+splitter.addEventListener('touchend', () => dragging = false);
+
+splitter.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+
+    const t = e.touches[0];
+
+    if (window.matchMedia('(orientation: portrait)').matches) {
+        const h = window.innerHeight - t.clientY;
+        editorPane.style.height = Math.max(150, h) + 'px';
+    } else {
+        const w = window.innerWidth - t.clientX;
+        editorPane.style.width = Math.max(250, w) + 'px';
+    }
+});
+
+function setViewMode(mode) {
+    viewMode = mode;
+    document.body.classList.toggle('page-mode', mode === 'page');
+    
+    if (mode === 'page') {
+        currentPageIndex = 0;
+        renderPage(0);
+        updatePageIndicator();
+    } else {
+        renderBook();
+        updatePageIndicator();
+    }
+}
+
+let touchStartX = 0;
+
+function onTouchStart(e) {
+    touchStartX = e.touches[0].clientX;
+}
+
+function onTouchEnd(e) {
+    if (viewMode !== 'page') return;
+
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) < 50) return;
+
+    dx < 0 ? nextPage() : prevPage();
+}
+
+function enablePageSwipe() {
+    document.addEventListener('touchstart', onTouchStart);
+    document.addEventListener('touchend', onTouchEnd);
+}
+
+function disablePageSwipe() {
+    document.removeEventListener('touchstart', onTouchStart);
+    document.removeEventListener('touchend', onTouchEnd);
+}
+
+function nextPage() {
+    const pages = getPages();
+    if (currentPageIndex < pages.length - 1) {
+        currentPageIndex++;
+        renderPage(currentPageIndex);
+        updatePageIndicator();
+    }
+}
+
+function prevPage() {
+    if (currentPageIndex > 0) {
+        currentPageIndex--;
+        renderPage(currentPageIndex);
+        updatePageIndicator();
+    }
+}
+
+const swipeLayer = document.querySelector('.main-pane');
+
+let sx = 0, sy = 0;
+let locked = false;
+
+const SWIPE_X = 60;
+const ANGLE_RATIO = 1.3;
+
+swipeLayer.addEventListener('touchstart', e => {
+    if (viewMode !== 'page') return;
+    const t = e.touches[0];
+    sx = t.clientX;
+    sy = t.clientY;
+    locked = false;
+}, { passive: true });
+
+swipeLayer.addEventListener('touchmove', e => {
+    if (viewMode !== 'page') return;
+
+    const t = e.touches[0];
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+
+    if (Math.abs(dx) > Math.abs(dy) * ANGLE_RATIO) {
+        locked = true;
+        e.preventDefault();
+    }
+}, { passive: false });
+
+swipeLayer.addEventListener('touchend', e => {
+    if (viewMode !== 'page' || !locked) return;
+
+    const dx = e.changedTouches[0].clientX - sx;
+    const pages = getPages();
+
+    if (Math.abs(dx) < SWIPE_X) return;
+
+    if (dx < 0 && currentPageIndex < pages.length - 1) {
+        currentPageIndex++;
+        renderPage(currentPageIndex);
+        updatePageIndicator();
+    } 
+    else if (dx > 0 && currentPageIndex > 0) {
+        currentPageIndex--;
+        renderPage(currentPageIndex);
+        updatePageIndicator();
+    }
+});
+</script>
+	<script>
+window.MathJax = {
+    tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+    },
+    svg: {
+        fontCache: 'global',
+        scale: 1.0          // 🔒 không auto phóng to
+    }
+};
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<div id="toc-popup" class="hidden"
+     style="
+        position: fixed;
+        top: 46px;
+        left: 8px;
+        width: 280px;
+        max-height: 70vh;
+        overflow-y: auto;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        z-index: 5000;
+        padding: 10px;
+     ">
+    <b style="font-size:14px;">📑 Table of Contents</b>
+    <div id="toc-popup-content" style="margin-top:6px;"></div>
+</div>
+<div id="master-fields-modal" class="hidden">
+    <h4>Search Fields Configuration</h4>
+    <p style="font-size:12px; color:#666; margin-bottom:15px;">
+        Chọn các trường để tìm kiếm trong Master Data
+    </p>
+    <div id="master-fields-list"></div>
+    <button onclick="closeMasterFieldsModal()" 
+            style="margin-top: 15px; width: 100%; background: #007bff; color: white;">
+        Đóng
+    </button>
+</div>
+</body>
+</html>
