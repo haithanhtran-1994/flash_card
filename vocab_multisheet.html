@@ -447,8 +447,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     const speakBtn=e.target.closest('.jp-speak-btn');
     if(speakBtn){
       e.stopPropagation();
-      const jpText=speakBtn.getAttribute('data-jp')||'';
-      if(jpText){synth.cancel();speakSingle(jpText.replace(/\(.*?\)/g,'').trim(),null);}
+      const jpLine=speakBtn.closest('.jp-line');
+      const jpText=(speakBtn.getAttribute('data-jp')||'').trim();
+      const viRaw=(jpLine?.getAttribute('data-vi')||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+      if(jpText){
+        synth.cancel();
+        speakSingle(jpText,()=>{
+          if(viRaw&&viRaw!=='N.A')setTimeout(()=>speakSingle(viRaw,null),200);
+        });
+      }
       return;
     }
     const jpLine=e.target.closest('.jp-line');
@@ -752,11 +759,22 @@ function speakText(callback){
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
   if(!word){if(callback)callback();return;}
   const fc=getFieldContent(word,currentFieldIndex);
-  // FIX 3: card tap on sheet field does nothing; autoplay/this fn speaks all lines
   if(fc.isSheet){
-    const texts=(fc.items||[]).map(it=>cleanStr(it.jp||'').replace(/\(.*?\)/g,'').trim()).filter(t=>t&&t!=='N.A');
-    if(!texts.length){if(callback)callback();return;}
-    let i=0;const nxt=()=>{if(i>=texts.length){if(callback)callback();return;}speakSingle(texts[i++],()=>setTimeout(nxt,350));};nxt();
+    // speak each item: jp then vi, sequentially
+    const items=(fc.items||[]).filter(it=>(it.jp||'').trim()&&it.jp!=='N.A');
+    if(!items.length){if(callback)callback();return;}
+    let i=0;
+    const nextItem=()=>{
+      if(i>=items.length){if(callback)callback();return;}
+      const item=items[i++];
+      const jpText=cleanStr(item.jp||'').replace(/\(.*?\)/g,'').trim();
+      const viText=cleanStr(item.vi||'').trim();
+      speakSingle(jpText,()=>{
+        if(!viText||viText==='N.A'){setTimeout(nextItem,200);return;}
+        setTimeout(()=>speakSingle(viText,()=>setTimeout(nextItem,200)),200);
+      });
+    };
+    nextItem();
     return;
   }
   const displayEl=document.getElementById('display-text');if(!displayEl){if(callback)callback();return;}
@@ -773,9 +791,18 @@ function speakSingle(text,callback){
   synth.cancel();
   const utter=new SpeechSynthesisUtterance(text);utter.lang=lang;
   const voices=synth.getVoices();let voice=null;
-  if(lang==='vi-VN')voice=voices.find(v=>v.lang.startsWith('vi')&&v.name.includes('Linh')&&v.name.includes('Enhanced'))||voices.find(v=>v.lang.startsWith('vi'));
-  else if(lang==='ja-JP')voice=voices.find(v=>v.lang.startsWith('ja')&&v.name.includes('Kyoko')&&v.name.includes('Enhanced'))||voices.find(v=>v.lang.startsWith('ja'));
-  else voice=voices.find(v=>v.lang.startsWith('en')&&v.name.includes('Enhanced'))||voices.find(v=>v.lang.startsWith('en'));
+  if(lang==='vi-VN')
+    voice=voices.find(v=>v.lang.startsWith('vi')&&v.name.includes('Linh')&&v.name.includes('Enhanced'))
+         ||voices.find(v=>v.lang.startsWith('vi')&&(v.name.includes('Linh')||v.name.includes('An')))
+         ||voices.find(v=>v.lang.startsWith('vi'));
+  else if(lang==='ja-JP')
+    voice=voices.find(v=>v.lang.startsWith('ja')&&v.name.includes('Kyoko')&&v.name.includes('Enhanced'))
+         ||voices.find(v=>v.lang.startsWith('ja')&&(v.name.includes('Kyoko')||v.name.includes('Haruka')||v.name.includes('Ichiro')))
+         ||voices.find(v=>v.lang.startsWith('ja'));
+  else
+    voice=voices.find(v=>v.lang.startsWith('en')&&(v.name.includes('Allison')||v.name.includes('Samantha'))&&v.name.includes('Enhanced'))
+         ||voices.find(v=>v.lang.startsWith('en')&&(v.name.includes('Samantha')||v.name.includes('Zira')||v.name.includes('David')))
+         ||voices.find(v=>v.lang.startsWith('en'));
   if(voice)utter.voice=voice;
   utter.rate=document.getElementById('voiceRate').value||1;
   utter.onend=()=>{if(callback)callback();};
