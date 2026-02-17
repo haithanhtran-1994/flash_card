@@ -31,7 +31,8 @@ body{font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-
 
 /* JP-LINE */
 .jp-line{display:flex;align-items:center;padding:10px 14px;margin:6px 0;background:#f0f7ff;border-left:4px solid var(--primary);border-radius:10px;cursor:pointer;font-size:1.9rem;font-weight:bold;color:#1e293b;transition:background .15s;position:relative;user-select:none;-webkit-user-select:none;gap:8px}
-.jp-line[contenteditable="true"]{background:#fffbeb;border-left-color:#f59e0b;outline:none;user-select:text;-webkit-user-select:text;cursor:text;flex-wrap:wrap}
+.jp-line[contenteditable="true"],.jp-line[data-editing="true"]{background:#fffbeb;border-left-color:#f59e0b;outline:none;user-select:text;-webkit-user-select:text;cursor:text;flex-wrap:wrap}
+.jp-text[contenteditable="true"]{background:#fffbeb;border-radius:4px;padding:2px 4px;}
 .jp-text{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
 .jp-speak-btn{flex-shrink:0;background:none;border:none;padding:4px 6px;font-size:1rem;opacity:.5;cursor:pointer;border-radius:6px;-webkit-tap-highlight-color:transparent;line-height:1;min-width:auto}
 .jp-speak-btn:active{background:rgba(0,0,0,.1);opacity:1;transform:scale(.95)}
@@ -297,6 +298,7 @@ function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'
 function textToHtml(s){return escapeHtml(s||'').replace(/\n/g,'<br>');}
 
 function buildAllFields(){
+  if(!headers.length){allFields=[];return;}
   const def=[];
   headers.forEach(h=>def.push({type:'vocab',key:h}));
   Object.keys(sheetData).forEach(sn=>def.push({type:'sheet',key:sn}));
@@ -306,7 +308,7 @@ function buildAllFields(){
     rest.forEach(f=>{if(!ordered.find(o=>o.key===f.key))ordered.push(f);});
     allFields=[STT,...ordered];
   }else allFields=def;
-  if(currentFieldIndex>=allFields.length)currentFieldIndex=1;
+  if(currentFieldIndex>=allFields.length||currentFieldIndex<1)currentFieldIndex=1;
 }
 
 function getFieldContent(word,idx){
@@ -321,12 +323,6 @@ function formatFurigana(text){
   if(!text)return'';
   return text.replace(/([一-龠々a-zA-Z0-9]+)\(([^)]+)\)/g,(_,k,f)=>`<ruby>${k}<rt>${f}</rt></ruby>`);
 }
-function renderJpHtml(jp){
-  // Returns HTML for jp content (furigana or plain), with newlines as <br>
-  const clean=isFuriganaEnabled?formatFurigana(jp):jp.replace(/\(.*?\)/g,'');
-  return escapeHtml(clean).replace(/\n/g,'<br>').replace(/&lt;ruby&gt;/g,'<ruby>').replace(/&lt;\/ruby&gt;/g,'</ruby>').replace(/&lt;rt&gt;/g,'<rt>').replace(/&lt;\/rt&gt;/g,'</rt>');
-}
-// Simpler: build furigana first, then only escape non-ruby parts
 function renderJpHtmlSafe(jp){
   if(!jp)return'';
   if(isFuriganaEnabled){
@@ -451,9 +447,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       const jpText=(speakBtn.getAttribute('data-jp')||'').trim();
       const viRaw=(jpLine?.getAttribute('data-vi')||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
       if(jpText){
-        synth.cancel();
-        speakSingle(jpText,()=>{
-          if(viRaw&&viRaw!=='N.A')setTimeout(()=>speakSingle(viRaw,null),200);
+        const mySession=++_speechSession; // new session for this one-off speak
+        _speakSingle(jpText,mySession,()=>{
+          if(viRaw&&viRaw!=='N.A')setTimeout(()=>_speakSingle(viRaw,mySession,null),200);
         });
       }
       return;
@@ -590,7 +586,11 @@ function applyColumnVisibility(){
 }
 function validateCurrentField(){
   const h=hiddenColumns[currentMode]||[];const label=allFields[currentFieldIndex]?.key;
-  if(label&&h.includes(label)){for(let i=1;i<allFields.length;i++){if(!h.includes(allFields[i].key)){currentFieldIndex=i;break;}}}
+  if(label&&h.includes(label)){
+    let found=false;
+    for(let i=1;i<allFields.length;i++){if(!h.includes(allFields[i].key)){currentFieldIndex=i;found=true;break;}}
+    if(!found)currentFieldIndex=1; // all hidden, reset to 1 (will show hidden but won't crash)
+  }
 }
 
 // ── FURIGANA ──
@@ -660,21 +660,22 @@ function updateDisplay(shouldSpeak=false){
 }
 
 // ── NAVIGATION (FIX 4: cancel speech on navigate) ──
-function stopSpeech(){synth.cancel();}
+function stopSpeech(){_speechSession++;synth.cancel();}
+function clearFieldTimer(){if(fieldClickTimer!==null){clearTimeout(fieldClickTimer);fieldClickTimer=null;}}
 
 async function moveWord(step){
-  stopSpeech(); // FIX 4
+  clearFieldTimer();stopSpeech();
   currentWordIndex=(currentWordIndex+step+rawData.length)%rawData.length;
   currentFieldIndex=1;updateDisplay(true);
   syncToCloud().catch(e=>console.error(e));
 }
-function nextReviewWord(){stopSpeech();if(reviewIndex<reviewPool.length-1)reviewIndex++;else{prepareReviewPool();reviewIndex=0;}currentFieldIndex=1;updateDisplay(true);}
-function prevReviewWord(){stopSpeech();reviewIndex=(reviewIndex-1+reviewPool.length)%reviewPool.length;currentFieldIndex=1;updateDisplay(true);}
+function nextReviewWord(){clearFieldTimer();stopSpeech();if(reviewIndex<reviewPool.length-1)reviewIndex++;else{prepareReviewPool();reviewIndex=0;}currentFieldIndex=1;updateDisplay(true);}
+function prevReviewWord(){clearFieldTimer();stopSpeech();reviewIndex=(reviewIndex-1+reviewPool.length)%reviewPool.length;currentFieldIndex=1;updateDisplay(true);}
 function handleNext(){if(currentMode==='study')moveWord(1);else nextReviewWord();}
 function handlePrev(){if(currentMode==='study')moveWord(-1);else prevReviewWord();}
 
 function changeField(dir){
-  stopSpeech(); // FIX 4
+  clearFieldTimer();stopSpeech();
   const h=hiddenColumns[currentMode]||[];let next=currentFieldIndex;
   while(true){next+=dir;if(next<1||next>=allFields.length)return false;if(!h.includes(allFields[next].key)){currentFieldIndex=next;updateDisplay(true);return true;}}
 }
@@ -755,23 +756,32 @@ function prepareReviewPool(){
 }
 
 // ── SPEECH ──
+let _speechSession=0; // increment on stopSpeech to invalidate ongoing chains
+
 function speakText(callback){
+  const session=++_speechSession;
+  _doSpeakText(callback,session);
+}
+
+function _doSpeakText(callback,session){
+  if(_speechSession!==session){if(callback)callback();return;}
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
   if(!word){if(callback)callback();return;}
   const fc=getFieldContent(word,currentFieldIndex);
   if(fc.isSheet){
-    // speak each item: jp then vi, sequentially
     const items=(fc.items||[]).filter(it=>(it.jp||'').trim()&&it.jp!=='N.A');
     if(!items.length){if(callback)callback();return;}
     let i=0;
     const nextItem=()=>{
+      if(_speechSession!==session){if(callback)callback();return;}
       if(i>=items.length){if(callback)callback();return;}
       const item=items[i++];
       const jpText=cleanStr(item.jp||'').replace(/\(.*?\)/g,'').trim();
       const viText=cleanStr(item.vi||'').trim();
-      speakSingle(jpText,()=>{
+      _speakSingle(jpText,session,()=>{
+        if(_speechSession!==session)return;
         if(!viText||viText==='N.A'){setTimeout(nextItem,200);return;}
-        setTimeout(()=>speakSingle(viText,()=>setTimeout(nextItem,200)),200);
+        setTimeout(()=>_speakSingle(viText,session,()=>setTimeout(nextItem,200)),200);
       });
     };
     nextItem();
@@ -781,10 +791,17 @@ function speakText(callback){
   const tmp=displayEl.cloneNode(true);tmp.querySelectorAll('rt').forEach(r=>r.remove());
   let text=tmp.innerText.replace(/\(.*?\)/g,'').trim();
   if(!text||text==='N.A'||text==='---'){if(callback)callback();return;}
-  speakSingle(text,callback);
+  _speakSingle(text,session,callback);
 }
 
 function speakSingle(text,callback){
+  // Public API for one-off speaks (speaker button): always gets new session
+  const session=++_speechSession;
+  _speakSingle(text,session,callback);
+}
+
+function _speakSingle(text,session,callback){
+  if(_speechSession!==session)return; // stale session, abort
   const isVN=/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(text);
   const isJP=/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
   const lang=isVN?'vi-VN':isJP?'ja-JP':'en-US';
@@ -805,9 +822,9 @@ function speakSingle(text,callback){
          ||voices.find(v=>v.lang.startsWith('en'));
   if(voice)utter.voice=voice;
   utter.rate=document.getElementById('voiceRate').value||1;
-  utter.onend=()=>{if(callback)callback();};
-  utter.onerror=()=>{if(callback)callback();};
-  setTimeout(()=>synth.speak(utter),100);
+  utter.onend=()=>{if(_speechSession===session&&callback)callback();};
+  utter.onerror=()=>{/* cancelled - session invalidated, chain stops */};
+  setTimeout(()=>{if(_speechSession===session)synth.speak(utter);},100);
 }
 
 // ── AUTOPLAY ──
@@ -825,11 +842,12 @@ function stopAutoPlay(){
 }
 function playSequence(){
   if(!isAutoPlaying)return;
+  const session=_speechSession; // capture current session
   const uh=new SpeechSynthesisUtterance(allFields[currentFieldIndex]?.key||'');
   uh.lang='vi-VN';uh.rate=document.getElementById('voiceRate').value;
   if(availableVoices.length){const v=availableVoices.find(v=>v.lang.startsWith('vi-VN'));if(v)uh.voice=v;}
   uh.onend=()=>{
-    if(!isAutoPlaying)return;
+    if(!isAutoPlaying||_speechSession!==session)return;
     speakText(()=>{
       if(!isAutoPlaying)return;
       setTimeout(()=>{
@@ -840,6 +858,7 @@ function playSequence(){
       },800);
     });
   };
+  uh.onerror=()=>{/* cancelled */};
   synth.speak(uh);
 }
 
@@ -868,11 +887,20 @@ function enterSheetJpEditMode(sheetName){
   editingSheetItems=[];
   jpLines.forEach(span=>{
     const rowIdx=parseInt(span.getAttribute('data-row-idx'));
-    editingSheetItems.push({rowIdx,originalJp:span.querySelector('.jp-text')?.innerText.trim()||''});
-    span.setAttribute('contenteditable','true');
-    span.style.userSelect='text';span.style.webkitUserSelect='text';
+    const jpTextEl=span.querySelector('.jp-text');
+    editingSheetItems.push({rowIdx,originalJp:jpTextEl?.innerText.trim()||''});
+    // Only make the text span editable, not the whole jp-line (which has buttons/icons)
+    if(jpTextEl){
+      jpTextEl.setAttribute('contenteditable','true');
+      jpTextEl.style.userSelect='text';jpTextEl.style.webkitUserSelect='text';
+      jpTextEl.style.outline='none';jpTextEl.style.cursor='text';
+    }
+    span.setAttribute('data-editing','true'); // mark for CSS
   });
-  if(jpLines.length)jpLines[0].focus();
+  if(jpLines.length){
+    const firstText=jpLines[0].querySelector('.jp-text');
+    if(firstText)firstText.focus();
+  }
   showEditPopup([{label:'💾 Lưu jp',color:'var(--success)',fn:'saveSheetJpEdit()'},{label:'❌ Hủy',color:'#94a3b8',fn:'cancelSheetJpEdit()'}]);
 }
 
@@ -888,9 +916,17 @@ function showEditPopup(buttons){
 async function saveVocabEdit(){
   const el=document.getElementById('display-text');const newValue=el.innerText.trim();
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
-  let fieldName='';headers.forEach(h=>{if(cleanStr(word[h])===editOriginalText)fieldName=h;});
-  fieldName=fieldName||headers[currentFieldIndex];
-  const fieldIdx=headers.indexOf(fieldName);const rowIndex=parseInt(word.row_index);
+  // Find which header field matches the original text
+  let fieldName='';
+  headers.forEach(h=>{if(cleanStr(word[h])===editOriginalText)fieldName=h;});
+  // Fallback: use current field only if it's a vocab field
+  if(!fieldName){
+    const cf=allFields[currentFieldIndex];
+    fieldName=(cf&&cf.type==='vocab')?cf.key:headers[1]||headers[0];
+  }
+  const fieldIdx=headers.indexOf(fieldName);
+  if(fieldIdx<0){alert('Không xác định được cột để lưu.');exitEditMode();return;}
+  const rowIndex=parseInt(word.row_index);
   if(isNaN(rowIndex)){alert('Lỗi row_index');return;}
   try{
     const{data,error}=await supabaseClient.from('hoc_tap').update({[`col${fieldIdx+1}`]:newValue}).eq('row_index',rowIndex).select();
@@ -904,9 +940,8 @@ function cancelVocabEdit(){document.getElementById('display-text').innerText=edi
 async function saveSheetJpEdit(){
   if(!editingSheetItems)return;
   const sheetName=allFields[currentFieldIndex]?.key;if(!sheetName){exitEditMode();return;}
-  document.querySelectorAll('.jp-line').forEach((span,i)=>{
+  document.querySelectorAll('.jp-line[data-editing]').forEach((span,i)=>{
     const info=editingSheetItems[i];if(!info)return;
-    // get jp-text content
     const jpTextEl=span.querySelector('.jp-text');
     const newJp=(jpTextEl?jpTextEl.innerText:span.innerText).trim();
     if(sheetData[sheetName]?.[info.rowIdx]!==undefined)sheetData[sheetName][info.rowIdx].jp=newJp;
@@ -919,7 +954,12 @@ function exitEditMode(){
   isEditing=false;editOriginalText='';editingSheetItems=null;
   const el=document.getElementById('display-text');
   el.removeAttribute('contenteditable');el.style.userSelect='';el.style.webkitUserSelect='';el.style.cursor='';
-  document.querySelectorAll('.jp-line').forEach(s=>{s.removeAttribute('contenteditable');s.style.userSelect='';s.style.webkitUserSelect='';});
+  // Remove contenteditable from jp-text children, and clear data-editing from jp-lines
+  document.querySelectorAll('.jp-line[data-editing]').forEach(span=>{
+    span.removeAttribute('data-editing');
+    const jpTextEl=span.querySelector('.jp-text');
+    if(jpTextEl){jpTextEl.removeAttribute('contenteditable');jpTextEl.style.userSelect='';jpTextEl.style.webkitUserSelect='';jpTextEl.style.outline='';jpTextEl.style.cursor='';}
+  });
   enableSwipe();
   const popup=document.getElementById('edit-popup');if(popup)popup.remove();
 }
