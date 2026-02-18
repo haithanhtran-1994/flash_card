@@ -28,8 +28,6 @@ body{font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-
 .card-content{font-size:2.2rem;text-align:left;padding:20px;font-weight:bold;color:#1e293b;word-break:break-word;flex:1;width:100%;display:block;white-space:pre-wrap;overflow-y:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box}
 .card-content::-webkit-scrollbar{width:5px}
 .card-content::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
-
-/* JP-LINE */
 .jp-line{display:flex;align-items:center;padding:10px 14px;margin:6px 0;background:#f0f7ff;border-left:4px solid var(--primary);border-radius:10px;cursor:pointer;font-size:1.9rem;font-weight:bold;color:#1e293b;transition:background .15s;position:relative;user-select:none;-webkit-user-select:none;gap:8px}
 .jp-line[contenteditable="true"],.jp-line[data-editing="true"]{background:#fffbeb;border-left-color:#f59e0b;outline:none;user-select:text;-webkit-user-select:text;cursor:text;flex-wrap:wrap}
 .jp-text[contenteditable="true"]{background:#fffbeb;border-radius:4px;padding:2px 4px;}
@@ -40,17 +38,19 @@ body{font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-
 .jp-vi-icon{flex-shrink:0;font-size:.7rem;opacity:.3}
 .jp-line:active:not([contenteditable="true"]){background:#dbeafe}
 
-/* SCREENTIP */
+/* ── SCREENTIP FIX ──
+   Root cause: escapeHtml không encode \n thành &#10; khi set data-vi attribute.
+   Safari normalize literal newline trong HTML attribute → mất \n khi getAttribute().
+   Fix: dùng escapeAttr (encode \n→&#10;) khi set attribute.
+   Screentip dùng white-space:pre-wrap + textContent → \n hiển thị đúng. */
 .screentip{
   position:fixed;z-index:9999;background:#1e293b;color:white;
   padding:12px 16px;border-radius:12px;font-size:1.05rem;font-weight:normal;
   line-height:1.7;box-shadow:0 10px 25px rgba(0,0,0,.4);
   word-break:break-word;display:none;cursor:pointer;
-  /* FIXED: constrain to viewport, scrollable */
-  max-width:min(85vw,360px);
-  max-height:55vh;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
+  max-width:min(85vw,360px);max-height:55vh;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  white-space:pre-wrap; /* ← KEY: \n → xuống dòng không cần <br> */
 }
 .screentip[contenteditable="true"]{background:#0f172a;outline:2px solid #6366f1;cursor:text;user-select:text;-webkit-user-select:text}
 .screentip-btns{position:fixed;z-index:10000;display:flex;gap:6px}
@@ -110,12 +110,45 @@ button:active{transform:scale(.98)}
 #audio-unlock{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;text-align:center;padding:20px}
 ruby{display:inline-flex;flex-direction:column-reverse;vertical-align:bottom;align-items:center;ruby-align:space-between;text-indent:0;margin:0 1px}
 rt{display:block;font-size:.45em;line-height:1;color:var(--primary);text-align:center;width:100%;white-space:nowrap;overflow:visible}
+
+/* Volume popup */
+.vol-popup{position:fixed;z-index:3000;background:white;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px 20px;width:260px;border:1px solid #e2e8f0}
+.vol-popup h4{margin:0 0 14px 0;font-size:.9rem;color:#1e293b}
+.vol-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.vol-lang{font-size:.85rem;color:#64748b;min-width:22px}
+.vol-pct{font-size:.8rem;font-weight:bold;color:var(--primary);min-width:38px;text-align:right}
+.vol-popup input[type=range]{flex:1;accent-color:var(--primary)}
+.vol-popup-close{width:100%;padding:8px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:.85rem;font-weight:bold;margin-top:4px;cursor:pointer}
 </style>
 </head>
 <body>
 
 <div id="screentip" class="screentip"></div>
 <div id="screentip-btns" class="screentip-btns hidden"></div>
+
+<!-- Volume popup (hidden by default) -->
+<div id="vol-popup" class="vol-popup hidden">
+  <h4>🔊 Âm lượng giọng đọc</h4>
+  <div class="vol-row">
+    <span class="vol-lang">🇯🇵</span>
+    <input type="range" id="volJP" min="0" max="1" step="0.05" value="0.8"
+      oninput="document.getElementById('pJP').textContent=Math.round(this.value*100)+'%';saveVolumes()">
+    <span id="pJP" class="vol-pct">80%</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-lang">🇻🇳</span>
+    <input type="range" id="volVI" min="0" max="1" step="0.05" value="1.0"
+      oninput="document.getElementById('pVI').textContent=Math.round(this.value*100)+'%';saveVolumes()">
+    <span id="pVI" class="vol-pct">100%</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-lang">🇺🇸</span>
+    <input type="range" id="volEN" min="0" max="1" step="0.05" value="0.9"
+      oninput="document.getElementById('pEN').textContent=Math.round(this.value*100)+'%';saveVolumes()">
+    <span id="pEN" class="vol-pct">90%</span>
+  </div>
+  <button class="vol-popup-close" onclick="closeVolPopup()">Đóng</button>
+</div>
 
 <div id="audio-unlock" class="hidden">
   <h2>🔊 Sẵn sàng học tập</h2>
@@ -201,8 +234,10 @@ rt{display:block;font-size:.45em;line-height:1;color:var(--primary);text-align:c
       <label id="random-multi-wrap"><input type="checkbox" id="randomMulti" checked> Random</label>
       <button onclick="enterEditMode()" style="background:#f59e0b;color:white;border:none;border-radius:8px;padding:6px 12px;font-size:.8rem;font-weight:bold">✏️ Edit</button>
     </div>
+    <!-- 3-button row: Furigana | Âm lượng | Data -->
     <div style="display:flex;gap:5px;width:100%;margin-top:5px">
       <button id="furiganaToggle" onclick="toggleFurigana()" style="flex:1;background:#e2e8f0;color:#475569;padding:8px;border-radius:8px;font-size:.8rem;font-weight:bold;border:1px solid #cbd5e1">Furigana: OFF</button>
+      <button id="btn-vol-toggle" onclick="toggleVolPopup(event)" style="flex:1;background:#0891b2;color:white;padding:8px;border-radius:8px;font-size:.8rem;font-weight:bold;border:none">🔊 Âm lượng</button>
       <button onclick="toggleDataMenu()" id="btn-data-toggle" style="flex:1;background:#334155;color:white;padding:8px;border-radius:8px;font-size:.8rem;font-weight:bold;border:none">Data ▾</button>
     </div>
   </div>
@@ -291,11 +326,70 @@ let screentipEditing=false,screentipOriginalVi='',screentipEditInfo=null;
 let isFuriganaEnabled=false;
 try{isFuriganaEnabled=JSON.parse(localStorage.getItem('vocab_furigana'))||false;}catch(e){}
 
+// ── VOLUME SETTINGS ──
+let volSettings={jp:0.8,vi:1.0,en:0.9};
+function loadVolumes(){
+  try{const v=JSON.parse(localStorage.getItem('vocab_volumes'));if(v&&v.jp!=null)volSettings=v;}catch(e){}
+  _applyVolUI();
+}
+function _applyVolUI(){
+  const jp=document.getElementById('volJP'),vi=document.getElementById('volVI'),en=document.getElementById('volEN');
+  if(!jp)return;
+  jp.value=volSettings.jp; document.getElementById('pJP').textContent=Math.round(volSettings.jp*100)+'%';
+  vi.value=volSettings.vi; document.getElementById('pVI').textContent=Math.round(volSettings.vi*100)+'%';
+  en.value=volSettings.en; document.getElementById('pEN').textContent=Math.round(volSettings.en*100)+'%';
+}
+function saveVolumes(){
+  volSettings={
+    jp:parseFloat(document.getElementById('volJP').value),
+    vi:parseFloat(document.getElementById('volVI').value),
+    en:parseFloat(document.getElementById('volEN').value)
+  };
+  localStorage.setItem('vocab_volumes',JSON.stringify(volSettings));
+}
+function getVolForLang(lang){
+  if(lang==='ja-JP')return volSettings.jp;
+  if(lang==='vi-VN')return volSettings.vi;
+  return volSettings.en;
+}
+
+// Volume popup - hiển thị PHÍA TRÊN nút
+function toggleVolPopup(e){
+  if(e)e.stopPropagation();
+  const pop=document.getElementById('vol-popup');
+  if(pop.classList.contains('hidden')){
+    // Hiện trước (ẩn) để đo offsetHeight chính xác
+    pop.style.visibility='hidden';
+    pop.classList.remove('hidden');
+    const btn=document.getElementById('btn-vol-toggle');
+    const rect=btn.getBoundingClientRect();
+    const VW=window.innerWidth;
+    const popH=pop.offsetHeight;
+    const popW=pop.offsetWidth||270;
+    let left=rect.left;
+    if(left+popW>VW-5)left=VW-popW-5;
+    left=Math.max(5,left);
+    // Đặt TRÊN nút (rect.top - chiều cao popup - khoảng cách)
+    const top=Math.max(5,rect.top-popH-8);
+    pop.style.left=left+'px';
+    pop.style.top=top+'px';
+    pop.style.visibility='visible';
+  }else{
+    pop.classList.add('hidden');
+  }
+}
+function closeVolPopup(){document.getElementById('vol-popup').classList.add('hidden');}
+
 // ── HELPERS ──
 const cleanStr=s=>String(s==null?'':s).replace(/\\n/g,'\n');
 function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-// Convert text to HTML for display: escape HTML then newlines→<br>
-function textToHtml(s){return escapeHtml(s||'').replace(/\n/g,'<br>');}
+// ── FIX: escapeAttr encodes \n as &#10; so it survives HTML attribute parsing on Safari ──
+// Root cause: literal \n in innerHTML attribute string → Safari may normalize → getAttribute() loses \n
+// &#10; is the safe HTML entity for newline; getAttribute() returns actual \n from &#10;
+function escapeAttr(s){
+  return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+               .replace(/\n/g,'&#10;').replace(/\r/g,'&#13;');
+}
 
 function buildAllFields(){
   if(!headers.length){allFields=[];return;}
@@ -325,10 +419,7 @@ function formatFurigana(text){
 }
 function renderJpHtmlSafe(jp){
   if(!jp)return'';
-  if(isFuriganaEnabled){
-    // formatFurigana returns HTML with ruby tags - need to protect them
-    return formatFurigana(jp).replace(/\n/g,'<br>');
-  }
+  if(isFuriganaEnabled){return formatFurigana(jp).replace(/\n/g,'<br>');}
   return escapeHtml(jp.replace(/\(.*?\)/g,'')).replace(/\n/g,'<br>');
 }
 
@@ -342,8 +433,9 @@ function showScreentip(anchorEl,text){
     sheetName:anchorEl.getAttribute('data-sheet'),
     rowIdx:parseInt(anchorEl.getAttribute('data-row-idx'))
   };
-  // FIX 1: use innerHTML so \n renders as line break
-  tip.innerHTML=textToHtml(text);
+  // FIX: textContent + white-space:pre-wrap → \n renders as line break on Safari
+  // (No innerHTML, no <br> conversion needed)
+  tip.textContent=text;
   tip.style.display='block';
   positionScreentip(tip,anchorEl);
   clearTimeout(screentipTimer);
@@ -355,26 +447,14 @@ function positionScreentip(tip,anchorEl){
   const VW=window.innerWidth,VH=window.innerHeight;
   const maxW=Math.min(VW*0.85,360);
   tip.style.maxWidth=maxW+'px';
-
-  // FIX 2: calculate available space above and below, pick the bigger side
   const spaceBelow=VH-rect.bottom-10;
   const spaceAbove=rect.top-10;
-  const tipH=Math.min(tip.scrollHeight||200, VH*0.55);
-
+  const tipH=Math.min(tip.scrollHeight||200,VH*0.55);
   let top,left=Math.max(10,Math.min(rect.left,VW-maxW-10));
-
-  if(spaceBelow>=tipH||spaceBelow>=spaceAbove){
-    // place below
-    top=rect.bottom+6;
-  }else{
-    // place above
-    top=rect.top-tipH-6;
-  }
-  // clamp top so it stays in viewport
+  if(spaceBelow>=tipH||spaceBelow>=spaceAbove){top=rect.bottom+6;}
+  else{top=rect.top-tipH-6;}
   top=Math.max(10,Math.min(top,VH-tipH-10));
-
-  tip.style.top=top+'px';
-  tip.style.left=left+'px';
+  tip.style.top=top+'px';tip.style.left=left+'px';
   tip.style.maxHeight=Math.min(VH*0.55,VH-top-10)+'px';
 }
 
@@ -388,16 +468,12 @@ function enterScreentipEdit(){
   if(screentipEditing||!screentipEditInfo)return;
   screentipEditing=true;
   const tip=document.getElementById('screentip');
-  // store original as plain text (innerText converts <br> back to \n)
-  screentipOriginalVi=tip.innerText;
-  // switch to plain text for editing
-  tip.textContent=tip.innerText;
+  screentipOriginalVi=tip.textContent; // already plain text
   clearTimeout(screentipTimer);
   tip.setAttribute('contenteditable','true');
   tip.focus();
   const btnDiv=document.getElementById('screentip-btns');
   btnDiv.classList.remove('hidden');
-  // position buttons below tip
   const rect=tip.getBoundingClientRect();
   btnDiv.style.top=(rect.bottom+6)+'px';
   btnDiv.style.left=rect.left+'px';
@@ -408,22 +484,22 @@ function enterScreentipEdit(){
 
 async function saveScreentipEdit(){
   const tip=document.getElementById('screentip');
-  const newVi=tip.innerText.trim();
+  const newVi=tip.textContent.trim();
   if(screentipEditInfo&&newVi!==screentipOriginalVi){
     const{sheetName,rowIdx}=screentipEditInfo;
     if(sheetData[sheetName]?.[rowIdx]){
       sheetData[sheetName][rowIdx].vi=newVi;
       await syncToCloud();
+      // FIX: update data-vi with escapeAttr so \n survives attribute parsing
       const jpLine=document.querySelector(`.jp-line[data-sheet="${CSS.escape(sheetName)}"][data-row-idx="${rowIdx}"]`);
-      if(jpLine)jpLine.setAttribute('data-vi',escapeHtml(newVi));
+      if(jpLine)jpLine.setAttribute('data-vi',newVi); // setAttribute encodes internally
     }
   }
   exitScreentipEdit();
 }
 function cancelScreentipEdit(){exitScreentipEdit();}
 function exitScreentipEdit(){
-  screentipEditing=false;
-  screentipOriginalVi='';
+  screentipEditing=false;screentipOriginalVi='';
   const tip=document.getElementById('screentip');
   tip.removeAttribute('contenteditable');
   document.getElementById('screentip-btns').classList.add('hidden');
@@ -432,22 +508,22 @@ function exitScreentipEdit(){
 
 // ── EVENTS ──
 document.addEventListener('DOMContentLoaded',()=>{
+  loadVolumes();
   document.getElementById('screentip').addEventListener('click',function(e){
     e.stopPropagation();
     if(!screentipEditing)enterScreentipEdit();
   });
-
   document.getElementById('display-text').addEventListener('click',function(e){
     if(isEditing)return;
-    // FIX 3: jp-speak-btn click → speak single line only
     const speakBtn=e.target.closest('.jp-speak-btn');
     if(speakBtn){
       e.stopPropagation();
       const jpLine=speakBtn.closest('.jp-line');
       const jpText=(speakBtn.getAttribute('data-jp')||'').trim();
-      const viRaw=(jpLine?.getAttribute('data-vi')||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+      // getAttribute returns actual \n from &#10; encoded attribute
+      const viRaw=jpLine?.getAttribute('data-vi')||'';
       if(jpText){
-        const mySession=++_speechSession; // new session for this one-off speak
+        const mySession=++_speechSession;
         _speakSingle(jpText,mySession,()=>{
           if(viRaw&&viRaw!=='N.A')setTimeout(()=>_speakSingle(viRaw,mySession,null),200);
         });
@@ -456,20 +532,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     const jpLine=e.target.closest('.jp-line');
     if(jpLine){
-      // tapping jp-line body → show screentip
-      const raw=jpLine.getAttribute('data-vi')||'';
-      // unescape for display
-      const vi=raw.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+      // getAttribute returns actual \n from &#10; — no unescape needed
+      const vi=jpLine.getAttribute('data-vi')||'';
       if(vi)showScreentip(jpLine,vi);
       return;
     }
-    // FIX 4: clicking card (not jp-line) when it's a sheet field → speak all
     const fc=getFieldContent(
       currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex],
       currentFieldIndex
     );
     if(!fc.isSheet)speakText();
-    // if sheet field, card tap does nothing (use speaker icons or autoplay)
   });
 });
 
@@ -477,6 +549,9 @@ window.onclick=function(e){
   if(!e.target.closest('.mode-menu-container'))document.getElementById('mode-dropdown').classList.remove('show');
   if(!e.target.closest('#screentip')&&!e.target.closest('#screentip-btns')&&!e.target.closest('.jp-line')){
     if(!screentipEditing)hideScreentip();
+  }
+  if(!e.target.closest('#vol-popup')&&!e.target.closest('#btn-vol-toggle')){
+    document.getElementById('vol-popup').classList.add('hidden');
   }
 };
 
@@ -488,7 +563,7 @@ function unlockAudio(){synth.speak(new SpeechSynthesisUtterance(''));document.ge
 
 // ── CLOUD ──
 window.onload=async function(){
-  loadVoices();
+  loadVoices();loadVolumes();
   try{
     const{data:prog}=await supabaseClient.from('user_progress').select('*').eq('id','current_user').single();
     if(prog){stats=prog.stats||{};headers=prog.headers||[];currentWordIndex=prog.current_index||0;if(prog.sheet_data)sheetData=prog.sheet_data;}
@@ -557,11 +632,9 @@ function initApp(){
   }
 }
 
-// ── MODE MENU ──
 function toggleModeMenu(e){if(e)e.stopPropagation();const dd=document.getElementById('mode-dropdown'),ar=document.getElementById('menu-arrow');const show=dd.classList.toggle('show');if(ar)ar.style.transform=show?'rotate(180deg)':'rotate(0deg)';}
 function selectMode(mode,e){if(e)e.stopPropagation();document.getElementById('mode-dropdown').classList.remove('show');const ar=document.getElementById('menu-arrow');if(ar)ar.style.transform='rotate(0deg)';if(mode==='study'||mode==='review'){if(currentMode!==mode)switchMode(mode);}else showQuizScreen();}
 
-// ── COLUMN MODAL ──
 function openColumnModal(){
   const lc=document.getElementById('column-checkbox-list');lc.innerHTML='';
   const ch=hiddenColumns[currentMode]||[];
@@ -589,11 +662,10 @@ function validateCurrentField(){
   if(label&&h.includes(label)){
     let found=false;
     for(let i=1;i<allFields.length;i++){if(!h.includes(allFields[i].key)){currentFieldIndex=i;found=true;break;}}
-    if(!found)currentFieldIndex=1; // all hidden, reset to 1 (will show hidden but won't crash)
+    if(!found)currentFieldIndex=1;
   }
 }
 
-// ── FURIGANA ──
 function toggleFurigana(){isFuriganaEnabled=!isFuriganaEnabled;localStorage.setItem('vocab_furigana',JSON.stringify(isFuriganaEnabled));updateFuriganaBtn();updateDisplay();}
 function updateFuriganaBtn(){const btn=document.getElementById('furiganaToggle');if(btn){btn.innerText=isFuriganaEnabled?'Furigana: ON':'Furigana: OFF';btn.style.background=isFuriganaEnabled?'var(--primary)':'#e2e8f0';btn.style.color=isFuriganaEnabled?'white':'#475569';}}
 
@@ -611,7 +683,6 @@ function updateDisplay(shouldSpeak=false){
   const total=currentMode==='study'?rawData.length:reviewPool.length;
   const sttExcel=word[headers[0]];
   document.getElementById('word-counter-top').innerText=`${sttExcel} / ${total}`;
-
   const hidden=hiddenColumns[currentMode]||[];
   let prevLabel='',nextLabel='';
   for(let i=currentFieldIndex-1;i>=1;i--){if(!hidden.includes(allFields[i].key)){prevLabel=allFields[i].key;break;}}
@@ -621,11 +692,9 @@ function updateDisplay(shouldSpeak=false){
   document.getElementById('next-field').innerText=nextLabel;
   document.getElementById('btn-prev-field').style.visibility=prevLabel?'visible':'hidden';
   document.getElementById('btn-next-field').style.visibility=nextLabel?'visible':'hidden';
-
   const displayEl=document.getElementById('display-text');
   const hintEl=document.getElementById('speaker-hint');
   const fc=getFieldContent(word,currentFieldIndex);
-
   if(!fc.isSheet){
     const txt=fc.content||'';
     displayEl.innerHTML=isFuriganaEnabled?formatFurigana(txt).replace(/\n/g,'<br>'):escapeHtml(txt.replace(/\(.*?\)/g,'')).replace(/\n/g,'<br>');
@@ -636,13 +705,16 @@ function updateDisplay(shouldSpeak=false){
     if(!items.length){
       displayEl.innerHTML='<span style="color:#94a3b8;font-size:1.1rem;font-weight:normal">— Không có dữ liệu —</span>';
     }else{
-      // FIX 3: each jp-line has jp-text + speak btn + vi icon
       displayEl.innerHTML=items.map(item=>{
         const rowIdx=fullRows.indexOf(item);
-        const viEsc=escapeHtml(item.vi||'');
-        const jpHtml=renderJpHtmlSafe(item.jp||'');
-        const jpRaw=escapeHtml((item.jp||'').replace(/\(.*?\)/g,'').trim());
-        return `<span class="jp-line" data-vi="${viEsc}" data-sheet="${escapeHtml(fc.sheetName)}" data-row-idx="${rowIdx}">
+        // REAL FIX: cleanStr() converts literal \\n→\n on data loaded from Supabase (not through fileInput)
+        // escapeAttr then encodes \n→&#10; so it survives HTML attribute parsing on Safari
+        const viClean=cleanStr(item.vi||'');
+        const jpClean=cleanStr(item.jp||'');
+        const viAttr=escapeAttr(viClean);
+        const jpHtml=renderJpHtmlSafe(jpClean);
+        const jpRaw=escapeAttr(jpClean.replace(/\(.*?\)/g,'').trim());
+        return `<span class="jp-line" data-vi="${viAttr}" data-sheet="${escapeHtml(fc.sheetName)}" data-row-idx="${rowIdx}">
           <span class="jp-text">${jpHtml||'&nbsp;'}</span>
           <button class="jp-speak-btn" data-jp="${jpRaw}" title="Phát âm dòng này">🔊</button>
           <span class="jp-vi-icon">💬</span>
@@ -651,18 +723,15 @@ function updateDisplay(shouldSpeak=false){
     }
     hintEl.innerText=isEditing?'Sửa jp trực tiếp':'🔊 = phát âm · 💬 = xem nghĩa';
   }
-
   const st=stats[sttExcel];
   document.getElementById('status-display-top').innerHTML=st==='learned'?'✅':st==='mastered'?'⭐':'<span style="opacity:.2">•</span>';
-
   if(shouldSpeak&&!isAutoPlaying&&document.getElementById('autoSpeak').checked)setTimeout(()=>speakText(),100);
   updateFuriganaBtn();
 }
 
-// ── NAVIGATION (FIX 4: cancel speech on navigate) ──
+// ── NAVIGATION ──
 function stopSpeech(){_speechSession++;synth.cancel();}
 function clearFieldTimer(){if(fieldClickTimer!==null){clearTimeout(fieldClickTimer);fieldClickTimer=null;}}
-
 async function moveWord(step){
   clearFieldTimer();stopSpeech();
   currentWordIndex=(currentWordIndex+step+rawData.length)%rawData.length;
@@ -673,13 +742,11 @@ function nextReviewWord(){clearFieldTimer();stopSpeech();if(reviewIndex<reviewPo
 function prevReviewWord(){clearFieldTimer();stopSpeech();reviewIndex=(reviewIndex-1+reviewPool.length)%reviewPool.length;currentFieldIndex=1;updateDisplay(true);}
 function handleNext(){if(currentMode==='study')moveWord(1);else nextReviewWord();}
 function handlePrev(){if(currentMode==='study')moveWord(-1);else prevReviewWord();}
-
 function changeField(dir){
   clearFieldTimer();stopSpeech();
   const h=hiddenColumns[currentMode]||[];let next=currentFieldIndex;
   while(true){next+=dir;if(next<1||next>=allFields.length)return false;if(!h.includes(allFields[next].key)){currentFieldIndex=next;updateDisplay(true);return true;}}
 }
-
 async function setStatus(status){
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
   if(!word)return;
@@ -695,14 +762,12 @@ async function setStatus(status){
     updateDisplay();
   }else{updateDisplay();if(currentMode==='review')nextReviewWord();}
 }
-
 let fieldClickTimer=null;
 document.getElementById('curr-field').onclick=function(e){
   e.stopPropagation();
   if(fieldClickTimer===null){fieldClickTimer=setTimeout(()=>{fieldClickTimer=null;setStatus('learned');},300);}
   else{clearTimeout(fieldClickTimer);fieldClickTimer=null;setStatus('mastered');}
 };
-
 window.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.contentEditable==='true')return;
   const k=e.key.toLowerCase();
@@ -736,7 +801,6 @@ function switchMode(mode){
   }
   document.getElementById('mode-dropdown').style.display='none';
 }
-
 function prepareReviewPool(){
   const learned=rawData.filter(w=>stats[w[headers[0]]]==='learned');
   const mastered=rawData.filter(w=>stats[w[headers[0]]]==='mastered');
@@ -756,13 +820,8 @@ function prepareReviewPool(){
 }
 
 // ── SPEECH ──
-let _speechSession=0; // increment on stopSpeech to invalidate ongoing chains
-
-function speakText(callback){
-  const session=++_speechSession;
-  _doSpeakText(callback,session);
-}
-
+let _speechSession=0;
+function speakText(callback){const session=++_speechSession;_doSpeakText(callback,session);}
 function _doSpeakText(callback,session){
   if(_speechSession!==session){if(callback)callback();return;}
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
@@ -784,8 +843,7 @@ function _doSpeakText(callback,session){
         setTimeout(()=>_speakSingle(viText,session,()=>setTimeout(nextItem,200)),200);
       });
     };
-    nextItem();
-    return;
+    nextItem();return;
   }
   const displayEl=document.getElementById('display-text');if(!displayEl){if(callback)callback();return;}
   const tmp=displayEl.cloneNode(true);tmp.querySelectorAll('rt').forEach(r=>r.remove());
@@ -793,20 +851,16 @@ function _doSpeakText(callback,session){
   if(!text||text==='N.A'||text==='---'){if(callback)callback();return;}
   _speakSingle(text,session,callback);
 }
-
-function speakSingle(text,callback){
-  // Public API for one-off speaks (speaker button): always gets new session
-  const session=++_speechSession;
-  _speakSingle(text,session,callback);
-}
-
+function speakSingle(text,callback){const session=++_speechSession;_speakSingle(text,session,callback);}
 function _speakSingle(text,session,callback){
-  if(_speechSession!==session)return; // stale session, abort
+  if(_speechSession!==session)return;
   const isVN=/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(text);
   const isJP=/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text);
   const lang=isVN?'vi-VN':isJP?'ja-JP':'en-US';
   synth.cancel();
-  const utter=new SpeechSynthesisUtterance(text);utter.lang=lang;
+  const utter=new SpeechSynthesisUtterance(text);
+  utter.lang=lang;
+  utter.volume=getVolForLang(lang); // ← apply per-language volume
   const voices=synth.getVoices();let voice=null;
   if(lang==='vi-VN')
     voice=voices.find(v=>v.lang.startsWith('vi')&&v.name.includes('Linh')&&v.name.includes('Enhanced'))
@@ -823,7 +877,7 @@ function _speakSingle(text,session,callback){
   if(voice)utter.voice=voice;
   utter.rate=document.getElementById('voiceRate').value||1;
   utter.onend=()=>{if(_speechSession===session&&callback)callback();};
-  utter.onerror=()=>{/* cancelled - session invalidated, chain stops */};
+  utter.onerror=()=>{};
   setTimeout(()=>{if(_speechSession===session)synth.speak(utter);},100);
 }
 
@@ -842,9 +896,10 @@ function stopAutoPlay(){
 }
 function playSequence(){
   if(!isAutoPlaying)return;
-  const session=_speechSession; // capture current session
+  const session=_speechSession;
   const uh=new SpeechSynthesisUtterance(allFields[currentFieldIndex]?.key||'');
   uh.lang='vi-VN';uh.rate=document.getElementById('voiceRate').value;
+  uh.volume=getVolForLang('vi-VN');
   if(availableVoices.length){const v=availableVoices.find(v=>v.lang.startsWith('vi-VN'));if(v)uh.voice=v;}
   uh.onend=()=>{
     if(!isAutoPlaying||_speechSession!==session)return;
@@ -858,19 +913,18 @@ function playSequence(){
       },800);
     });
   };
-  uh.onerror=()=>{/* cancelled */};
+  uh.onerror=()=>{};
   synth.speak(uh);
 }
 
 // ── EDIT MODE ──
 function enterEditMode(){
   if(isEditing)return;
-  stopSpeech();stopAutoPlay(); // FIX 4: stop speech when editing
+  stopSpeech();stopAutoPlay();
   const f=allFields[currentFieldIndex];
   if(f&&f.type==='sheet')enterSheetJpEditMode(f.key);
   else enterVocabEditMode();
 }
-
 function enterVocabEditMode(){
   isEditing=true;
   const el=document.getElementById('display-text');
@@ -880,7 +934,6 @@ function enterVocabEditMode(){
   disableSwipe();
   showEditPopup([{label:'💾 Lưu',color:'var(--success)',fn:'saveVocabEdit()'},{label:'❌ Hủy',color:'#94a3b8',fn:'cancelVocabEdit()'}]);
 }
-
 function enterSheetJpEditMode(sheetName){
   isEditing=true;disableSwipe();
   const jpLines=document.querySelectorAll('.jp-line');
@@ -889,21 +942,16 @@ function enterSheetJpEditMode(sheetName){
     const rowIdx=parseInt(span.getAttribute('data-row-idx'));
     const jpTextEl=span.querySelector('.jp-text');
     editingSheetItems.push({rowIdx,originalJp:jpTextEl?.innerText.trim()||''});
-    // Only make the text span editable, not the whole jp-line (which has buttons/icons)
     if(jpTextEl){
       jpTextEl.setAttribute('contenteditable','true');
       jpTextEl.style.userSelect='text';jpTextEl.style.webkitUserSelect='text';
       jpTextEl.style.outline='none';jpTextEl.style.cursor='text';
     }
-    span.setAttribute('data-editing','true'); // mark for CSS
+    span.setAttribute('data-editing','true');
   });
-  if(jpLines.length){
-    const firstText=jpLines[0].querySelector('.jp-text');
-    if(firstText)firstText.focus();
-  }
+  if(jpLines.length){const firstText=jpLines[0].querySelector('.jp-text');if(firstText)firstText.focus();}
   showEditPopup([{label:'💾 Lưu jp',color:'var(--success)',fn:'saveSheetJpEdit()'},{label:'❌ Hủy',color:'#94a3b8',fn:'cancelSheetJpEdit()'}]);
 }
-
 function showEditPopup(buttons){
   const container=document.getElementById('display-text').parentElement;
   const old=document.getElementById('edit-popup');if(old)old.remove();
@@ -912,18 +960,12 @@ function showEditPopup(buttons){
   popup.innerHTML=buttons.map(b=>`<button onclick="${b.fn}" style="pointer-events:auto;min-width:90px;background:${b.color};color:white;padding:10px;border-radius:8px;font-weight:bold;box-shadow:0 4px 6px rgba(0,0,0,.2)">${b.label}</button>`).join('');
   container.style.position='relative';container.appendChild(popup);
 }
-
 async function saveVocabEdit(){
   const el=document.getElementById('display-text');const newValue=el.innerText.trim();
   const word=currentMode==='study'?rawData[currentWordIndex]:reviewPool[reviewIndex];
-  // Find which header field matches the original text
   let fieldName='';
   headers.forEach(h=>{if(cleanStr(word[h])===editOriginalText)fieldName=h;});
-  // Fallback: use current field only if it's a vocab field
-  if(!fieldName){
-    const cf=allFields[currentFieldIndex];
-    fieldName=(cf&&cf.type==='vocab')?cf.key:headers[1]||headers[0];
-  }
+  if(!fieldName){const cf=allFields[currentFieldIndex];fieldName=(cf&&cf.type==='vocab')?cf.key:headers[1]||headers[0];}
   const fieldIdx=headers.indexOf(fieldName);
   if(fieldIdx<0){alert('Không xác định được cột để lưu.');exitEditMode();return;}
   const rowIndex=parseInt(word.row_index);
@@ -936,7 +978,6 @@ async function saveVocabEdit(){
   }catch(err){alert('Lỗi: '+err.message);}
 }
 function cancelVocabEdit(){document.getElementById('display-text').innerText=editOriginalText;exitEditMode();}
-
 async function saveSheetJpEdit(){
   if(!editingSheetItems)return;
   const sheetName=allFields[currentFieldIndex]?.key;if(!sheetName){exitEditMode();return;}
@@ -949,12 +990,10 @@ async function saveSheetJpEdit(){
   await syncToCloud();exitEditMode();updateDisplay(true);
 }
 function cancelSheetJpEdit(){exitEditMode();updateDisplay();}
-
 function exitEditMode(){
   isEditing=false;editOriginalText='';editingSheetItems=null;
   const el=document.getElementById('display-text');
   el.removeAttribute('contenteditable');el.style.userSelect='';el.style.webkitUserSelect='';el.style.cursor='';
-  // Remove contenteditable from jp-text children, and clear data-editing from jp-lines
   document.querySelectorAll('.jp-line[data-editing]').forEach(span=>{
     span.removeAttribute('data-editing');
     const jpTextEl=span.querySelector('.jp-text');
@@ -1019,7 +1058,6 @@ async function exportFullBackup(){
     const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Vocab_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);overlay.remove();
   };
 }
-
 function importFullBackup(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
@@ -1034,7 +1072,6 @@ function importFullBackup(event){
     }catch(err){alert('Lỗi JSON: '+err.message);}
   };reader.readAsText(file);
 }
-
 async function resetDatabase(){
   if(!confirm('XÓA SẠCH? Không hoàn tác được!'))return;
   try{await supabaseClient.from('hoc_tap').delete().neq('row_index',-1);await supabaseClient.from('user_progress').upsert({id:'current_user',stats:{},headers:[],current_index:0,sheet_data:{}});localStorage.clear();alert('Đã xóa.');location.reload();}
@@ -1071,7 +1108,6 @@ function renderScenarios(){
 }
 function updateRoot(idx,val){scenarios[idx].root=val;saveScenarios();renderScenarios();}
 function toggleExclude(idx,val){const i=scenarios[idx].exclude.indexOf(val);if(i>-1)scenarios[idx].exclude.splice(i,1);else scenarios[idx].exclude.push(val);saveScenarios();renderScenarios();}
-
 function startQuiz(){
   const Q=parseInt(document.getElementById('quizCount').value)||null;
   const timeVal=parseInt(document.getElementById('timePerQuestion').value)||10;
@@ -1113,7 +1149,6 @@ function startQuiz(){
   let timeLeft=quizData.length*timeVal;clearInterval(quizInterval);
   quizInterval=setInterval(()=>{timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('time-left').innerText=`${m}:${s<10?'0':''}${s}`;if(timeLeft<=0){clearInterval(quizInterval);finishQuiz();}},1000);
 }
-
 function restartQuiz(){clearInterval(quizInterval);document.getElementById('quiz-result-summary').classList.add('hidden');document.getElementById('quiz-finish-btn').classList.remove('hidden');startQuiz();window.scrollTo({top:0,behavior:'smooth'});}
 function finishQuiz(){
   clearInterval(quizInterval);document.getElementById('quiz-finish-btn').classList.add('hidden');
