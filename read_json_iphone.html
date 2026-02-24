@@ -1079,7 +1079,7 @@ function renderSingleBlock(block, viewer) {
         }
     }
 
-    if (block.type === 'sentence') {
+    if (block.type === 'sentence' || block.type === 'quote') {
         raw = raw.replace(/\\n/g, '\n');
         raw = raw.replace(/\\t/g, '\t');
         raw = raw.replace(/\t/g, '     ');
