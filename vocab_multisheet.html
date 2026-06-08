@@ -1026,20 +1026,40 @@ function exitDatabaseView(){if(isDataChanged&&confirm('Chưa lưu, lưu trước
 // ── ADD FROM FILE ──
 function showAddFromFile(){document.getElementById('add-file-panel').classList.remove('hidden');}
 function hideAddFromFile(){document.getElementById('add-file-panel').classList.add('hidden');}
+
 function confirmAddFromFile(){
   const fi=document.getElementById('addWordsFileInput');if(!fi.files.length){alert('Chọn file!');return;}
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
     const sn=wb.SheetNames.find(n=>n.toLowerCase()==='vocab')||wb.SheetNames[0];
     const inc=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:'N.A'});
-    if(inc.length){
-      const iH=Object.keys(inc[0]);if(iH.length!==headers.length){alert('Số cột không khớp!');return;}
-      const std=inc.map(row=>{let o={};iH.forEach((h,i)=>{o[headers[i]]=cleanStr(row[h]);});return o;});
-      rawData=[...rawData,...std];alert(`Đã thêm ${std.length} từ!`);hideAddFromFile();initApp();
+    if(!inc.length){alert('File trống!');return;}
+    const iH=Object.keys(inc[0]);if(iH.length!==headers.length){alert('Số cột không khớp!');return;}
+    const std=inc.map(row=>{let o={};iH.forEach((h,i)=>{o[headers[i]]=cleanStr(row[h]);});return o;});
+    rawData=[...rawData,...std];
+    // Gán lại row_index cho toàn bộ data
+    rawData.forEach((row,i)=>row.row_index=i);
+    // Sync lên Supabase
+    const toInsert=rawData.map((row,i)=>{
+      let d={row_index:i};
+      headers.forEach((h,idx)=>{d[`col${idx+1}`]=row[h]||'N.A';});
+      return d;
+    });
+    try{
+      await supabaseClient.from('hoc_tap').delete().neq('row_index',-1);
+      const{error}=await supabaseClient.from('hoc_tap').insert(toInsert);
+      if(error)throw error;
+      await syncToCloud();
+      alert(`✅ Đã thêm ${std.length} từ và đồng bộ lên cloud!`);
+      hideAddFromFile();initApp();
+    }catch(err){
+      alert('Lỗi sync cloud: '+err.message);
     }
-  };reader.readAsArrayBuffer(fi.files[0]);
+  };
+  reader.readAsArrayBuffer(fi.files[0]);
 }
+
 
 // ── BACKUP ──
 async function exportFullBackup(){
